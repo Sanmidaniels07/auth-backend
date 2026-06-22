@@ -9,13 +9,7 @@ const options = {
       version: "1.0.0",
       description: "Backend Tutorial API",
     },
-
-    servers: [
-      {
-        url: "http://localhost:5000/api",
-      },
-    ],
-
+    
     components: {
       securitySchemes: {
         bearerAuth: {
