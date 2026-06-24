@@ -7,7 +7,7 @@
 
 /**
  * @swagger
- * /posts:
+ * /api/posts:
  *   post:
  *     summary: Create a post
  *     tags:
@@ -32,7 +32,7 @@
 
 /**
  * @swagger
- * /posts:
+ * /api/posts:
  *   get:
  *     summary: Get all posts
  *     tags:
@@ -57,7 +57,7 @@
 
 /**
  * @swagger
- * /posts/{id}:
+ * /api/posts/{id}:
  *   get:
  *     summary: Get single post
  *     tags:
@@ -75,7 +75,7 @@
 
 /**
  * @swagger
- * /posts/{id}:
+ * /api/posts/{id}:
  *   patch:
  *     summary: Update a post
  *     tags:
@@ -86,7 +86,7 @@
 
 /**
  * @swagger
- * /posts/{id}:
+ * /api/posts/{id}:
  *   patch:
  *     summary: Update a post
  *     tags:
@@ -97,7 +97,7 @@
 
 /**
  * @swagger
- * /posts/restore/{id}:
+ * /api/posts/restore/{id}:
  *   patch:
  *     summary: Restore deleted post
  *     tags:
@@ -108,7 +108,7 @@
 
 /**
  * @swagger
- * /posts/deleted:
+ * /api/posts/deleted:
  *   get:
  *     summary: Get deleted posts
  *     tags:

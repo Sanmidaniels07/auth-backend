@@ -6,6 +6,7 @@ import { authorize } from "./middleware/role.middleware";
 import postRoutes from "./routes/post.routes";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger";
+import commentRoutes from "./routes/comment.routes";
 
 const app = express();
 
@@ -44,5 +45,9 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/posts", postRoutes);
+app.use(
+  "/api/comments",
+  commentRoutes
+);
 
 export default app;

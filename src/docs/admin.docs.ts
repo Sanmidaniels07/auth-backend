@@ -7,7 +7,7 @@
 
 /**
  * @swagger
- * /profile:
+ * /api/profile:
  *   get:
  *     summary: Get current user profile
  *     tags:
@@ -18,7 +18,7 @@
 
 /**
  * @swagger
- * /admin/dashboard:
+ * /api/admin/dashboard:
  *   get:
  *     summary: Admin dashboard
  *     tags:

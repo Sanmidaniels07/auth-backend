@@ -9,7 +9,13 @@ const options = {
       version: "1.0.0",
       description: "Backend Tutorial API",
     },
-    
+
+    servers: [
+      {
+        url: "http://localhost:5000",
+      },
+    ],
+
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -30,5 +36,4 @@ const options = {
   apis: ["./src/**/*.ts"],
 };
 
-export const swaggerSpec =
-  swaggerJsDoc(options);
+export const swaggerSpec = swaggerJsDoc(options);

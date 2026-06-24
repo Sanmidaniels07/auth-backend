@@ -2,7 +2,7 @@ import prisma from "../prisma/prisma";
 import { AppError } from "../utils/appError";
 
 export const createPostService = async (
-  userId: number,
+  userId: string,
   data: {
     title: string;
     content: string;
@@ -48,7 +48,7 @@ export const getPostsService = async (
   }
 
   if (authorId) {
-    where.authorId = Number(authorId);
+    where.authorId = authorId;
   }
 
   const posts = await prisma.post.findMany({
@@ -85,7 +85,7 @@ export const getPostsService = async (
   };
 };
 
-export const getSinglePostService = async (postId: number) => {
+export const getSinglePostService = async (postId: string) => {
   const post = await prisma.post.findFirst({
     where: {
       id: postId,
@@ -109,7 +109,7 @@ export const getSinglePostService = async (postId: number) => {
   return post;
 };
 
-export const getPostOwnerService = async (postId: number) => {
+export const getPostOwnerService = async (postId: string) => {
   return prisma.post.findFirst({
     where: {
       id: postId,
@@ -119,8 +119,8 @@ export const getPostOwnerService = async (postId: number) => {
 };
 
 export const updatePostService = async (
-  postId: number,
-  userId: number,
+  postId: string,
+  userId: string,
   data: {
     title?: string;
     content?: string;
@@ -150,7 +150,7 @@ export const updatePostService = async (
   });
 };
 
-export const deletePostService = async (postId: number, userId: number) => {
+export const deletePostService = async (postId: string, userId: string) => {
   const post = await prisma.post.findFirst({
     where: {
       id: postId,
@@ -177,10 +177,7 @@ export const deletePostService = async (postId: number, userId: number) => {
   });
 };
 
-
-export const restorePostService = async (
-  postId: number
-) => {
+export const restorePostService = async (postId: string) => {
   const post = await prisma.post.findUnique({
     where: {
       id: postId,
@@ -188,10 +185,7 @@ export const restorePostService = async (
   });
 
   if (!post) {
-    throw new AppError(
-      "Post not found",
-      404
-    );
+    throw new AppError("Post not found", 404);
   }
 
   return prisma.post.update({
