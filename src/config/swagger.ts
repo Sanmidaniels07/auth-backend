@@ -5,9 +5,9 @@ const options = {
     openapi: "3.0.0",
 
     info: {
-      title: "Auth Backend API",
+      title: "Blog App Backend API",
       version: "1.0.0",
-      description: "Backend Tutorial API",
+      description: "Blog App API documentation",
     },
 
     servers: [

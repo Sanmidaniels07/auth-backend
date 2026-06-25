@@ -7,13 +7,13 @@ import postRoutes from "./routes/post.routes";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger";
 import commentRoutes from "./routes/comment.routes";
+import likeRoutes from "./routes/like.routes";
 
 const app = express();
 
 app.use(cors());
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use(express.json());
-
 app.use("/api/auth", authRoutes);
 
 app.get("/api/profile", authMiddleware, (req: AuthRequest, res) => {
@@ -48,6 +48,11 @@ app.use("/api/posts", postRoutes);
 app.use(
   "/api/comments",
   commentRoutes
+);
+
+app.use(
+  "/api/likes",
+  likeRoutes
 );
 
 export default app;

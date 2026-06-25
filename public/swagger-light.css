@@ -1,0 +1,23 @@
+html,
+body,
+.swagger-ui {
+  background: #fff !important;
+  color: #3b4151 !important;
+  color-scheme: light !important;
+}
+
+.swagger-ui .scheme-container {
+  background: #fff !important;
+}
+
+.swagger-ui .information-container {
+  background: #fff !important;
+}
+
+.swagger-ui .opblock {
+  background: #fff !important;
+}
+
+.swagger-ui .topbar {
+  background: #1f2937 !important;
+}

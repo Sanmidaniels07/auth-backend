@@ -28,6 +28,8 @@ model User {
 
   comments Comment[]
 
+    likes Like[]
+
   createdAt DateTime @default(now())
 }
 
@@ -43,6 +45,8 @@ model Post {
   isDeleted Boolean @default(false)
 
   comments Comment[]
+
+    likes Like[]
 
   createdAt DateTime @default(now())
 }
@@ -60,4 +64,18 @@ model Comment {
   post Post @relation(fields: [postId], references: [id])
 
   createdAt DateTime @default(now())
+}
+
+model Like {
+  id String @id @default(cuid())
+
+  userId String
+  user User @relation(fields: [userId], references: [id])
+
+  postId String
+  post Post @relation(fields: [postId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
 }
