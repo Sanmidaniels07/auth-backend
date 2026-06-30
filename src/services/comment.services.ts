@@ -1,3 +1,4 @@
+import { createNotificationService } from './notification.services';
 import prisma from "../prisma/prisma";
 import { AppError } from "../utils/appError";
 
@@ -6,13 +7,35 @@ export const createCommentService = async (
   postId: string,
   content: string
 ) => {
-  return prisma.comment.create({
+  // Fetch post and user first to get authorId and name
+  const [post, user] = await Promise.all([
+    prisma.post.findUnique({ where: { id: postId } }),
+    prisma.user.findUnique({ where: { id: userId } }),
+  ]);
+
+  if (!post) throw new AppError("Post not found", 404);
+  if (!user) throw new AppError("User not found", 404);
+
+  // Create the comment first
+  const comment = await prisma.comment.create({
     data: {
       content,
       userId,
       postId,
     },
   });
+
+  if (post.authorId !== userId) {
+    await createNotificationService(
+      post.authorId,
+      "New Comment",
+      `${user.name} commented on your post`
+    ).catch((error) => {
+      console.error("Notification failed:", error);
+    });
+  }
+
+  return comment;
 };
 
 export const getPostCommentsService =

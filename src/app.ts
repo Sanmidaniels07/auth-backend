@@ -8,12 +8,16 @@ import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger";
 import commentRoutes from "./routes/comment.routes";
 import likeRoutes from "./routes/like.routes";
+import sessionRoutes from "./routes/session.route";
+import verificationRoutes from "./routes/verification.routes";
+import notificationRoutes from "./routes/notification.routes";
 
 const app = express();
 
 app.use(cors());
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use(express.json());
+
 app.use("/api/auth", authRoutes);
 
 app.get("/api/profile", authMiddleware, (req: AuthRequest, res) => {
@@ -53,6 +57,21 @@ app.use(
 app.use(
   "/api/likes",
   likeRoutes
+);
+
+app.use(
+  "/api/session",
+  sessionRoutes
+);
+
+app.use(
+  "/api/verify-email",
+  verificationRoutes
+);
+
+app.use(
+  "/api/notifications",
+  notificationRoutes
 );
 
 export default app;

@@ -21,14 +21,21 @@ model User {
 
   role Role @default(USER)
 
+  isVerified Boolean @default(false)
+
+  verificationToken String?
+  verificationTokenExpiry DateTime?
+
+
   resetToken       String?
   resetTokenExpiry DateTime?
 
-  posts Post[]
-
-  comments Comment[]
-
+    posts Post[]
+    comments Comment[]
     likes Like[]
+    sessions Session[]
+    notifications Notification[]
+
 
   createdAt DateTime @default(now())
 }
@@ -79,3 +86,31 @@ model Like {
 
   @@unique([userId, postId])
 }
+
+model Session {
+  id String @id @default(cuid())
+
+  userId String
+  user User @relation(fields: [userId], references: [id])
+
+  refreshToken String @unique
+
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id String @id @default(cuid())
+
+  userId String
+  user User @relation(fields: [userId], references: [id])
+
+  title String
+  message String
+
+  isRead Boolean @default(false)
+
+  createdAt DateTime @default(now())
+}
+

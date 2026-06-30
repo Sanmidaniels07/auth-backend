@@ -1,9 +1,11 @@
 import prisma from "../prisma/prisma";
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import { AppError } from "../utils/appError";
-import { generateResetToken } from "../utils/token";
-import { transporter } from "./email.services";
+import { generateResetToken, generateVerificationToken } from "../utils/token";
+import { generateAccessToken, generateRefreshToken } from "../utils/jwt";
+import { welcomeTemplate } from "../templates/welcome.template";
+import { sendEmail } from "./email.services";
+import { verificationTemplate } from "../templates/verification.template";
 
 interface SignupData {
   name: string;
@@ -15,37 +17,45 @@ interface LoginData {
   email: string;
   password: string;
 }
-
 export const signupService = async (data: SignupData) => {
   const { name, email, password } = data;
 
-  // Validation
   if (!name || !email || !password) {
     throw new Error("All fields are required");
   }
 
-  // Check if user already exists
   const existingUser = await prisma.user.findUnique({
-    where: {
-      email,
-    },
+    where: { email },
   });
 
   if (existingUser) {
     throw new Error("User already exists");
   }
 
-  // Hash password
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // Create user
+  const verificationToken = generateVerificationToken();
+
+  const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
   const user = await prisma.user.create({
     data: {
       name,
       email,
       password: hashedPassword,
+
+      verificationToken,
+      verificationTokenExpiry: expiry,
     },
   });
+
+  const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+
+  sendEmail(
+    user.email,
+    "Verify your account",
+    verificationTemplate(user.name, verificationUrl),
+  ).catch(console.error);
 
   return {
     id: user.id,
@@ -58,7 +68,7 @@ export const loginService = async (data: LoginData) => {
   const { email, password } = data;
 
   if (!email || !password) {
-    throw new Error("Email and password are required");
+    throw new AppError("Email and password are required", 400);
   }
 
   // Find user
@@ -69,31 +79,39 @@ export const loginService = async (data: LoginData) => {
   });
 
   if (!user) {
-    throw new Error("Invalid credentials");
+    throw new AppError("Invalid credentials", 401);
+  }
+
+  if (!user.isVerified) {
+    throw new AppError("Please verify your email", 401);
   }
 
   // Compare password
   const isPasswordCorrect = await bcrypt.compare(password, user.password);
 
   if (!isPasswordCorrect) {
-    throw new Error("Invalid credentials");
+    throw new AppError("Invalid credentials", 401);
   }
 
-  // Generate JWT
-  const token = jwt.sign(
-    {
-      id: user.id,
-      email: user.email,
-      role: user.role,
+  // Generate access token
+  const accessToken = generateAccessToken(user.id, user.email, user.role);
+
+  // Generate refresh token
+  const refreshToken = generateRefreshToken(user.id);
+
+  // Store refresh token in DB
+  await prisma.session.create({
+    data: {
+      userId: user.id,
+      refreshToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
-    process.env.JWT_SECRET as string,
-    {
-      expiresIn: "1d",
-    },
-  );
+  });
 
   return {
-    token,
+    accessToken,
+    refreshToken,
+
     user: {
       id: user.id,
       name: user.name,
