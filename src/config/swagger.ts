@@ -10,11 +10,14 @@ const options = {
       description: "Blog App API documentation",
     },
 
-    // servers: [
-    //   {
-    //     url: "http://localhost:5000",
-    //   },
-    // ],
+    servers: [
+      {
+        url:
+          process.env.NODE_ENV === "production"
+            ? "https://auth-backend-trpd.onrender.com"
+            : "http://localhost:5000",
+      },
+    ],
 
     components: {
       securitySchemes: {
