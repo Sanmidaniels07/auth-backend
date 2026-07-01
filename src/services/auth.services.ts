@@ -3,7 +3,6 @@ import bcrypt from "bcrypt";
 import { AppError } from "../utils/appError";
 import { generateResetToken, generateVerificationToken } from "../utils/token";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt";
-import { welcomeTemplate } from "../templates/welcome.template";
 import { sendEmail } from "./email.services";
 import { verificationTemplate } from "../templates/verification.template";
 
@@ -61,6 +60,7 @@ export const signupService = async (data: SignupData) => {
     id: user.id,
     name: user.name,
     email: user.email,
+    isVerified: user.isVerified,
   };
 };
 
@@ -80,10 +80,6 @@ export const loginService = async (data: LoginData) => {
 
   if (!user) {
     throw new AppError("Invalid credentials", 401);
-  }
-
-  if (!user.isVerified) {
-    throw new AppError("Please verify your email", 401);
   }
 
   // Compare password
@@ -117,6 +113,7 @@ export const loginService = async (data: LoginData) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      isVerified: user.isVerified,
     },
   };
 };
