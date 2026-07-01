@@ -14,7 +14,12 @@ import notificationRoutes from "./routes/notification.routes";
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+  }),
+);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use(express.json());
 
@@ -26,7 +31,6 @@ app.get("/api/profile", authMiddleware, (req: AuthRequest, res) => {
     user: req.user,
   });
 });
-
 
 app.get("/swagger-json", (req, res) => {
   res.json(swaggerSpec);
@@ -49,29 +53,14 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/posts", postRoutes);
-app.use(
-  "/api/comments",
-  commentRoutes
-);
+app.use("/api/comments", commentRoutes);
 
-app.use(
-  "/api/likes",
-  likeRoutes
-);
+app.use("/api/likes", likeRoutes);
 
-app.use(
-  "/api/session",
-  sessionRoutes
-);
+app.use("/api/session", sessionRoutes);
 
-app.use(
-  "/api/verify-email",
-  verificationRoutes
-);
+app.use("/api/verify-email", verificationRoutes);
 
-app.use(
-  "/api/notifications",
-  notificationRoutes
-);
+app.use("/api/notifications", notificationRoutes);
 
 export default app;
