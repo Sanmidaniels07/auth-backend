@@ -19,6 +19,8 @@ import wishlistRoutes from "./modules/wishlist/wishlist.routes";
 import { authMiddleware } from "./middleware/auth-middleware";
 import { authorize } from "./middleware/role.middleware";
 import { errorHandler } from "./middleware/error.middleware";
+import { AppError } from "./utils/appError";
+import { getBackendUrl } from "./utils/getBackendUrl";
 
 import { swaggerSpec } from "./config/swagger";
 
@@ -27,6 +29,7 @@ const app = express();
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   "http://localhost:3000",
+  getBackendUrl(),
 ].filter(Boolean);
 
 app.use(
@@ -35,7 +38,7 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(new AppError("Not allowed by CORS", 403));
       }
     },
     credentials: true,

@@ -1,4 +1,5 @@
 import swaggerJsDoc from "swagger-jsdoc";
+import { getBackendUrl } from "../utils/getBackendUrl";
 
 const options = {
   definition: {
@@ -12,10 +13,7 @@ const options = {
 
     servers: [
       {
-        url:
-          process.env.NODE_ENV === "production"
-            ? "https://auth-backend-trpd.onrender.com"
-            : "http://localhost:5000",
+        url: getBackendUrl(),
       },
     ],
 
