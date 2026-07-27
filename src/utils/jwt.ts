@@ -1,9 +1,10 @@
+import { Role } from "@prisma/client";
 import jwt from "jsonwebtoken";
 
 export const generateAccessToken = (
   userId: string,
   email: string,
-  role: string
+  role: Role
 ) => {
   return jwt.sign(
     {
