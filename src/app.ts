@@ -14,6 +14,7 @@ import storeRoutes from "./modules/store/store.routes";
 import categoryRoutes from "./modules/category/category.routes";
 import productRoutes from "./modules/product/product.routes";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes";
+import wishlistRoutes from "./modules/wishlist/wishlist.routes";
 
 import { authMiddleware } from "./middleware/auth-middleware";
 import { authorize } from "./middleware/role.middleware";
@@ -107,6 +108,8 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
 
 app.use("/api/seller/dashboard", dashboardRoutes);
+
+app.use("/api/wishlist", wishlistRoutes);
 
 app.get("/", (_, res) => {
   res.send("API Running...");
