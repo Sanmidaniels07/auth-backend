@@ -1,0 +1,114 @@
+import { Request, Response } from "express";
+
+import { asyncHandler } from "../../utils/asyncHandlers";
+import { apiResponse } from "../../utils/apiResponse";
+import {
+  getDashboardStatsService,
+  getRecentOrdersService,
+  getInventorySnapshotService,
+  getSalesOverviewService,
+  getTopProductsService,
+  getAnalyticsService,
+} from "./dashboard.service";
+
+export const getDashboardStats = asyncHandler(
+  async (req: Request, res: Response) => {
+    const stats = await getDashboardStatsService(
+      req.user.id
+    );
+
+    res.status(200).json(
+      apiResponse(
+        stats,
+        "Dashboard stats fetched successfully"
+      )
+    );
+  }
+);
+
+export const getRecentOrders = asyncHandler(
+  async (req: Request, res: Response) => {
+    const limit = Number(req.query.limit) || 10;
+
+    const orders = await getRecentOrdersService(
+      req.user.id,
+      limit
+    );
+
+    res.status(200).json(
+      apiResponse(
+        orders,
+        "Recent orders fetched successfully"
+      )
+    );
+  }
+);
+
+export const getInventorySnapshot = asyncHandler(
+  async (req: Request, res: Response) => {
+    const threshold = Number(req.query.threshold) || 5;
+
+    const snapshot = await getInventorySnapshotService(
+      req.user.id,
+      threshold
+    );
+
+    res.status(200).json(
+      apiResponse(
+        snapshot,
+        "Inventory snapshot fetched successfully"
+      )
+    );
+  }
+);
+
+export const getSalesOverview = asyncHandler(
+  async (req: Request, res: Response) => {
+    const days = Number(req.query.days) || 30;
+
+    const overview = await getSalesOverviewService(
+      req.user.id,
+      days
+    );
+
+    res.status(200).json(
+      apiResponse(
+        overview,
+        "Sales overview fetched successfully"
+      )
+    );
+  }
+);
+
+export const getTopProducts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const limit = Number(req.query.limit) || 5;
+
+    const products = await getTopProductsService(
+      req.user.id,
+      limit
+    );
+
+    res.status(200).json(
+      apiResponse(
+        products,
+        "Top products fetched successfully"
+      )
+    );
+  }
+);
+
+export const getAnalytics = asyncHandler(
+  async (req: Request, res: Response) => {
+    const analytics = await getAnalyticsService(
+      req.user.id
+    );
+
+    res.status(200).json(
+      apiResponse(
+        analytics,
+        "Analytics fetched successfully"
+      )
+    );
+  }
+);

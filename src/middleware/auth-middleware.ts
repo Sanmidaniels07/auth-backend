@@ -7,19 +7,15 @@ export interface JwtPayload {
   role: string;
 }
 
-export interface AuthRequest extends Request {
-  user?: JwtPayload;
-}
-
 export const authMiddleware = (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
         success: false,
         message: "No token provided",

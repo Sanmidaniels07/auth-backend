@@ -1,16 +1,25 @@
 import express from "express";
 import cors from "cors";
-import authRoutes from "./routes/auth-routes";
-import { authMiddleware, AuthRequest } from "./middleware/auth-middleware";
-import { authorize } from "./middleware/role.middleware";
-import postRoutes from "./routes/post.routes";
 import swaggerUi from "swagger-ui-express";
+
+import authRoutes from "./modules/auth/auth-routes";
+import postRoutes from "./modules/posts/post.routes";
+import commentRoutes from "./modules/comment/comment.routes";
+import likeRoutes from "./modules/like/like.routes";
+import sessionRoutes from "./modules/session/session.route";
+import verificationRoutes from "./modules/verification/verification.routes";
+import notificationRoutes from "./modules/notification/notification.routes";
+import sellerRoutes from "./modules/seller/seller.routes";
+import storeRoutes from "./modules/store/store.routes";
+import categoryRoutes from "./modules/category/category.routes";
+import productRoutes from "./modules/product/product.routes";
+import dashboardRoutes from "./modules/dashboard/dashboard.routes";
+
+import { authMiddleware } from "./middleware/auth-middleware";
+import { authorize } from "./middleware/role.middleware";
+import { errorHandler } from "./middleware/error.middleware";
+
 import { swaggerSpec } from "./config/swagger";
-import commentRoutes from "./routes/comment.routes";
-import likeRoutes from "./routes/like.routes";
-import sessionRoutes from "./routes/session.route";
-import verificationRoutes from "./routes/verification.routes";
-import notificationRoutes from "./routes/notification.routes";
 
 const app = express();
 
@@ -29,42 +38,31 @@ app.use(
       }
     },
     credentials: true,
-  }),
+  })
 );
 
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use(express.json());
 
-app.use("/api/auth", authRoutes);
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec)
+);
 
-app.get("/api/profile", authMiddleware, (req: AuthRequest, res) => {
-  res.json({
-    success: true,
-    user: req.user,
-  });
-});
-
-app.get("/swagger-json", (req, res) => {
+app.get("/swagger-json", (_, res) => {
   res.json(swaggerSpec);
 });
 
-app.get(
-  "/api/admin/dashboard",
-  authMiddleware,
-  authorize("ADMIN"),
-  (req, res) => {
-    res.json({
-      success: true,
-      message: "Welcome Admin",
-    });
-  },
-);
+/*
+|--------------------------------------------------------------------------
+| Routes
+|--------------------------------------------------------------------------
+*/
 
-app.get("/", (req, res) => {
-  res.send("API Running...");
-});
+app.use("/api/auth", authRoutes);
 
 app.use("/api/posts", postRoutes);
+
 app.use("/api/comments", commentRoutes);
 
 app.use("/api/likes", likeRoutes);
@@ -74,5 +72,46 @@ app.use("/api/session", sessionRoutes);
 app.use("/api/verify-email", verificationRoutes);
 
 app.use("/api/notifications", notificationRoutes);
+
+/*
+|--------------------------------------------------------------------------
+| Protected Routes
+|--------------------------------------------------------------------------
+*/
+
+app.get("/api/profile", authMiddleware, (req, res) => {
+  res.json({
+    success: true,
+    user: req.user,
+  });
+});
+
+app.get(
+  "/api/admin/dashboard",
+  authMiddleware,
+  authorize("ADMIN"),
+  (_, res) => {
+    res.json({
+      success: true,
+      message: "Welcome Admin",
+    });
+  }
+);
+
+app.use("/api/seller", sellerRoutes);
+
+app.use("/api/stores", storeRoutes);
+
+app.use("/api/categories", categoryRoutes);
+
+app.use("/api/products", productRoutes);
+
+app.use("/api/seller/dashboard", dashboardRoutes);
+
+app.get("/", (_, res) => {
+  res.send("API Running...");
+});
+
+app.use(errorHandler);
 
 export default app;
