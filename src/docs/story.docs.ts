@@ -56,7 +56,7 @@
  * /api/stories/{id}:
  *   get:
  *     summary: Get a single story
- *     description: Records a StoryView for the requester unless they're the author. Not filtered by expiry - a direct link still resolves until the story is actually deleted.
+ *     description: Records a StoryView for the requester unless they're the author. Not filtered by expiry - a direct link still resolves until the story is actually deleted. Includes myReaction (the requester's own emoji reaction, or null), so the viewer's reaction persists across visits instead of resetting each session.
  *     tags:
  *       - Story
  *     security:

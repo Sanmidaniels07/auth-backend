@@ -131,7 +131,14 @@ export const getStoryByIdService = async (
     });
   }
 
-  return story;
+  const myReaction = await prisma.storyReaction.findUnique({
+    where: {
+      storyId_userId: { storyId, userId: viewerId },
+    },
+    select: { emoji: true },
+  });
+
+  return { ...story, myReaction: myReaction?.emoji ?? null };
 };
 
 export const deleteStoryService = async (
