@@ -25,3 +25,12 @@ export const updateOrderItemStatusSchema = z.object({
     status: z.nativeEnum(OrderItemStatus),
   }),
 });
+
+export const updateTrackingNumberSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+  body: z.object({
+    trackingNumber: z.string().trim().min(1),
+  }),
+});

@@ -11,6 +11,9 @@ const storeFields = {
   city: z.string().trim().optional(),
   state: z.string().trim().optional(),
   country: z.string().trim().optional(),
+  returnPolicy: z.string().trim().optional(),
+  shippingPolicy: z.string().trim().optional(),
+  warrantyPolicy: z.string().trim().optional(),
 };
 
 export const createStoreSchema = z.object({
@@ -53,6 +56,51 @@ export const storeProductsSchema = z.object({
   query: z.object({
     page: z.string().optional(),
     limit: z.string().optional(),
+  }),
+});
+
+export const storeSlugSchema = z.object({
+  params: z.object({
+    slug: z.string(),
+  }),
+});
+
+export const createShippingOptionSchema = z.object({
+  params: z.object({
+    slug: z.string(),
+  }),
+  body: z.object({
+    name: z.string().trim().min(1),
+    fee: z.number().min(0),
+    etaDays: z.number().int().min(0).optional(),
+  }),
+});
+
+export const updateShippingOptionSchema = z.object({
+  params: z.object({
+    slug: z.string(),
+    optionId: z.string(),
+  }),
+  body: z.object({
+    name: z.string().trim().min(1).optional(),
+    fee: z.number().min(0).optional(),
+    etaDays: z.number().int().min(0).optional(),
+  }),
+});
+
+export const deleteShippingOptionSchema = z.object({
+  params: z.object({
+    slug: z.string(),
+    optionId: z.string(),
+  }),
+});
+
+export const adminVerifyStoreSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+  body: z.object({
+    isVerified: z.boolean(),
   }),
 });
 

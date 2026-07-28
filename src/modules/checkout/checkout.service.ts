@@ -7,12 +7,23 @@ import {
   initializePaystackTransaction,
   verifyPaystackTransaction,
 } from "../../utils/paystack";
+import {
+  validateCouponForOrder,
+  redeemCouponService,
+} from "../coupon/coupon.service";
 
 const NAIRA_TO_KOBO = 100;
 
+interface ShippingSelection {
+  storeId: string;
+  shippingOptionId: string;
+}
+
 export const initiateCheckoutService = async (
   userId: string,
-  addressId: string
+  addressId: string,
+  shippingSelections: ShippingSelection[] = [],
+  couponCode?: string
 ) => {
   const [user, address, cart] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
@@ -56,10 +67,82 @@ export const initiateCheckoutService = async (
     0
   );
 
-  // No shipping-fee or tax rules exist yet, so these are 0 for now.
-  const deliveryFee = 0;
+  // A cart can span multiple stores, and each store may have its own
+  // shipping tiers - so shipping is selected and priced per store, not
+  // once for the whole order.
+  const storeIds = Array.from(
+    new Set(cart.items.map((item) => item.product.storeId))
+  );
+
+  const stores = await prisma.store.findMany({
+    where: { id: { in: storeIds } },
+    include: { shippingOptions: true },
+  });
+
+  const shippingRows: {
+    storeId: string;
+    optionName: string;
+    fee: number;
+    etaDays: number | null;
+  }[] = [];
+
+  let deliveryFee = 0;
+
+  for (const store of stores) {
+    if (store.shippingOptions.length === 0) {
+      continue;
+    }
+
+    const selection = shippingSelections.find(
+      (s) => s.storeId === store.id
+    );
+
+    if (!selection) {
+      throw new AppError(
+        `Select a shipping option for "${store.name}".`,
+        400
+      );
+    }
+
+    const option = store.shippingOptions.find(
+      (o) => o.id === selection.shippingOptionId
+    );
+
+    if (!option) {
+      throw new AppError(
+        `Invalid shipping option for "${store.name}".`,
+        400
+      );
+    }
+
+    shippingRows.push({
+      storeId: store.id,
+      optionName: option.name,
+      fee: option.fee,
+      etaDays: option.etaDays,
+    });
+
+    deliveryFee += option.fee;
+  }
+
+  // No tax rules exist yet.
   const tax = 0;
-  const total = subtotal + deliveryFee + tax;
+
+  let discountAmount = 0;
+  let appliedCouponCode: string | undefined;
+
+  if (couponCode) {
+    const validated = await validateCouponForOrder(
+      couponCode,
+      userId,
+      subtotal
+    );
+    discountAmount = validated.discountAmount;
+    appliedCouponCode = validated.coupon.code;
+  }
+
+  const total =
+    subtotal - discountAmount + deliveryFee + tax;
 
   const reference = `NESTLY_${crypto
     .randomUUID()
@@ -73,6 +156,8 @@ export const initiateCheckoutService = async (
       subtotal,
       deliveryFee,
       tax,
+      discountAmount,
+      couponCode: appliedCouponCode,
       total,
       paymentMethod: "PAYSTACK",
       paymentReference: reference,
@@ -84,8 +169,12 @@ export const initiateCheckoutService = async (
           totalPrice: item.product.price * item.quantity,
         })),
       },
+      shipping:
+        shippingRows.length > 0
+          ? { create: shippingRows }
+          : undefined,
     },
-    include: { items: true },
+    include: { items: true, shipping: true },
   });
 
   const paystackData = await initializePaystackTransaction({
@@ -140,7 +229,7 @@ export const confirmPaymentByReferenceService = async (
     throw new AppError("Payment amount mismatch.", 400);
   }
 
-  return prisma.$transaction(async (tx) => {
+  const updatedOrder = await prisma.$transaction(async (tx) => {
     for (const item of order.items) {
       const updatedProduct = await tx.product.update({
         where: { id: item.productId },
@@ -174,6 +263,27 @@ export const confirmPaymentByReferenceService = async (
       include: { items: true },
     });
   });
+
+  if (order.couponCode) {
+    const coupon = await prisma.coupon.findUnique({
+      where: { code: order.couponCode },
+    });
+
+    if (coupon) {
+      await redeemCouponService(
+        coupon.id,
+        order.userId,
+        order.id
+      ).catch((error) => {
+        console.error(
+          "Coupon redemption recording failed:",
+          error
+        );
+      });
+    }
+  }
+
+  return updatedOrder;
 };
 
 export const verifyCheckoutService = async (

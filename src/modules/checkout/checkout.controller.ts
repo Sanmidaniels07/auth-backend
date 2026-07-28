@@ -14,7 +14,9 @@ export const initiateCheckout = asyncHandler(
   async (req: Request, res: Response) => {
     const result = await initiateCheckoutService(
       req.user.id,
-      req.body.addressId
+      req.body.addressId,
+      req.body.shippingSelections,
+      req.body.couponCode
     );
 
     res.status(201).json(

@@ -3,6 +3,7 @@ import {
   Response,
   NextFunction,
 } from "express";
+import { MulterError } from "multer";
 import { AppError } from "../utils/appError";
 
 
@@ -16,6 +17,13 @@ export const errorHandler = (
 
   if (error instanceof AppError) {
     return res.status(error.statusCode).json({
+      success: false,
+      message: error.message,
+    });
+  }
+
+  if (error instanceof MulterError) {
+    return res.status(400).json({
       success: false,
       message: error.message,
     });

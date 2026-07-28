@@ -8,6 +8,36 @@ import {
   UpdateStoreInput,
 } from "./store.validation";
 
+const getOwnedStoreBySlug = async (
+  userId: string,
+  slug: string
+) => {
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { userId },
+  });
+
+  if (!seller) {
+    throw new AppError("Seller profile not found.", 404);
+  }
+
+  const store = await prisma.store.findUnique({
+    where: { slug },
+  });
+
+  if (!store) {
+    throw new AppError("Store not found.", 404);
+  }
+
+  if (store.sellerId !== seller.id) {
+    throw new AppError(
+      "You are not authorized to manage this store.",
+      403
+    );
+  }
+
+  return store;
+};
+
 export const createStoreService = async (
   userId: string,
   data: CreateStoreInput
@@ -111,7 +141,8 @@ export const updateStoreService = async (
 };
 
 export const getPublicStoreService = async (
-  slug: string
+  slug: string,
+  viewerId?: string
 ) => {
   const store = await prisma.store.findUnique({
     where: { slug },
@@ -126,6 +157,10 @@ export const getPublicStoreService = async (
           },
         },
       },
+      shippingOptions: true,
+      _count: {
+        select: { followers: true },
+      },
     },
   });
 
@@ -133,7 +168,105 @@ export const getPublicStoreService = async (
     throw new AppError("Store not found.", 404);
   }
 
-  return store;
+  let isFollowing = false;
+
+  if (viewerId) {
+    const follow = await prisma.storeFollow.findUnique({
+      where: {
+        userId_storeId: { userId: viewerId, storeId: store.id },
+      },
+    });
+    isFollowing = !!follow;
+  }
+
+  const { _count, ...rest } = store;
+
+  return {
+    ...rest,
+    followersCount: _count.followers,
+    isFollowing,
+  };
+};
+
+export const followStoreService = async (
+  userId: string,
+  slug: string
+) => {
+  const store = await prisma.store.findUnique({
+    where: { slug },
+  });
+
+  if (!store) {
+    throw new AppError("Store not found.", 404);
+  }
+
+  const existing = await prisma.storeFollow.findUnique({
+    where: {
+      userId_storeId: { userId, storeId: store.id },
+    },
+  });
+
+  if (existing) {
+    throw new AppError(
+      "You are already following this store.",
+      400
+    );
+  }
+
+  return prisma.storeFollow.create({
+    data: { userId, storeId: store.id },
+  });
+};
+
+export const unfollowStoreService = async (
+  userId: string,
+  slug: string
+) => {
+  const store = await prisma.store.findUnique({
+    where: { slug },
+  });
+
+  if (!store) {
+    throw new AppError("Store not found.", 404);
+  }
+
+  const existing = await prisma.storeFollow.findUnique({
+    where: {
+      userId_storeId: { userId, storeId: store.id },
+    },
+  });
+
+  if (!existing) {
+    throw new AppError(
+      "You are not following this store.",
+      404
+    );
+  }
+
+  await prisma.storeFollow.delete({
+    where: { id: existing.id },
+  });
+};
+
+export const getStoreFollowStatusService = async (
+  userId: string,
+  slug: string
+) => {
+  const store = await prisma.store.findUnique({
+    where: { slug },
+  });
+
+  if (!store) {
+    throw new AppError("Store not found.", 404);
+  }
+
+  const existing = await prisma.storeFollow.findUnique({
+    where: {
+      userId_storeId: { userId, storeId: store.id },
+    },
+  });
+
+  return { isFollowing: !!existing };
 };
 
 export const getSellerStoreService = async (
@@ -244,4 +377,82 @@ export const getStoreProductsService = async (
     limit,
     totalPages: Math.ceil(total / limit),
   };
+};
+
+interface ShippingOptionInput {
+  name: string;
+  fee: number;
+  etaDays?: number;
+}
+
+export const createShippingOptionService = async (
+  userId: string,
+  slug: string,
+  data: ShippingOptionInput
+) => {
+  const store = await getOwnedStoreBySlug(userId, slug);
+
+  return prisma.shippingOption.create({
+    data: { ...data, storeId: store.id },
+  });
+};
+
+export const updateShippingOptionService = async (
+  userId: string,
+  slug: string,
+  optionId: string,
+  data: Partial<ShippingOptionInput>
+) => {
+  const store = await getOwnedStoreBySlug(userId, slug);
+
+  const option = await prisma.shippingOption.findUnique({
+    where: { id: optionId },
+  });
+
+  if (!option || option.storeId !== store.id) {
+    throw new AppError("Shipping option not found.", 404);
+  }
+
+  return prisma.shippingOption.update({
+    where: { id: optionId },
+    data,
+  });
+};
+
+export const deleteShippingOptionService = async (
+  userId: string,
+  slug: string,
+  optionId: string
+) => {
+  const store = await getOwnedStoreBySlug(userId, slug);
+
+  const option = await prisma.shippingOption.findUnique({
+    where: { id: optionId },
+  });
+
+  if (!option || option.storeId !== store.id) {
+    throw new AppError("Shipping option not found.", 404);
+  }
+
+  await prisma.shippingOption.delete({
+    where: { id: optionId },
+  });
+};
+
+export const setStoreVerifiedService = async (
+  storeId: string,
+  isVerified: boolean
+) => {
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+  });
+
+  if (!store) {
+    throw new AppError("Store not found.", 404);
+  }
+
+  return prisma.store.update({
+    where: { id: storeId },
+    data: { isVerified },
+  });
 };

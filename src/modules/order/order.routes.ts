@@ -6,6 +6,7 @@ import {
   listOrdersSchema,
   listSellerOrdersSchema,
   updateOrderItemStatusSchema,
+  updateTrackingNumberSchema,
 } from "./order.validation";
 import {
   getCustomerOrders,
@@ -14,6 +15,7 @@ import {
   getSellerOrders,
   getSellerOrderById,
   updateOrderItemStatus,
+  updateOrderTrackingNumber,
 } from "./order.controller";
 
 const router = Router();
@@ -30,6 +32,12 @@ router.patch(
   "/seller/items/:orderItemId/status",
   validate(updateOrderItemStatusSchema),
   updateOrderItemStatus
+);
+
+router.patch(
+  "/seller/:id/tracking-number",
+  validate(updateTrackingNumberSchema),
+  updateOrderTrackingNumber
 );
 
 router.get("/seller/:id", getSellerOrderById);

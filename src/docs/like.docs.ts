@@ -84,6 +84,7 @@
  * /api/likes/{postId}:
  *   get:
  *     summary: Get total likes for a post
+ *     description: Public endpoint (personalized if authenticated - includes `likedByMe`).
  *     tags:
  *       - Likes
  *     parameters:
@@ -113,6 +114,9 @@
  *                     totalLikes:
  *                       type: integer
  *                       example: 12
+ *                     likedByMe:
+ *                       type: boolean
+ *                       example: true
  *       404:
  *         description: Post not found
  */

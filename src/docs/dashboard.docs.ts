@@ -143,4 +143,32 @@
  *         description: Seller has no store
  */
 
+/**
+ * @swagger
+ * /api/seller/dashboard/customers:
+ *   get:
+ *     summary: Get the seller's customers
+ *     description: Returns everyone who has ordered from this seller's store (paid+ orders), with total orders, total spent, and last order date. Paginated.
+ *     tags:
+ *       - Seller Dashboard
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Customers fetched successfully
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Seller has no store
+ */
+
 export {};

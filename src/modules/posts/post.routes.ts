@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { validate } from "../../middleware/validate.middleware";
-import { createPostSchema } from "./post.validations";
+import { createPostSchema, updatePostSchema } from "./post.validations";
 import { authMiddleware } from "../../middleware/auth-middleware";
 import { optionalAuthMiddleware } from "../../middleware/optional-auth-middleware";
 import { createPost, deletePost, getDeletedPosts, getPosts, getSinglePost, restorePost, updatePost } from "./post.controller";
@@ -28,6 +28,7 @@ router.get("/:id", optionalAuthMiddleware, getSinglePost);
 router.patch(
   "/:id",
   authMiddleware,
+  validate(updatePostSchema),
   updatePost
 );
 

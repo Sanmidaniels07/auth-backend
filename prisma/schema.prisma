@@ -49,12 +49,62 @@ enum OrderItemStatus {
   CANCELLED
 }
 
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum CommunityRole {
+  MEMBER
+  ADMIN
+}
+
+enum EventRsvpStatus {
+  GOING
+  INTERESTED
+}
+
+enum ReportTargetType {
+  POST
+  USER
+  PRODUCT
+  STORE
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+  ACTION_TAKEN
+}
+
+enum ReturnRequestStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  REFUNDED
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED
+}
+
 model User {
   id String @id @default(cuid())
 
   name     String
   email    String @unique
   password String
+
+  username String? @unique
+  avatar   String?
+  cover    String?
+  bio      String?
+  location String?
+  website  String?
+
+  socialLinks Json?
 
   role Role @default(USER)
 
@@ -87,7 +137,263 @@ model User {
 
   reviews Review[]
 
+  // Social
+  following Follow[] @relation("Follower")
+  followers Follow[] @relation("Following")
+
+  createdCommunities   Community[]       @relation("CommunityCreator")
+  communityMemberships CommunityMember[]
+
+  createdEvents    Event[]         @relation("EventCreator")
+  eventAttendances EventAttendee[]
+
+  profileViewsReceived ProfileView[] @relation("ProfileOwner")
+  profileViewsMade     ProfileView[] @relation("Viewer")
+
+  storeFollows StoreFollow[]
+
+  reports          Report[]
+  returnRequests   ReturnRequest[]
+  couponRedemptions CouponRedemption[]
+
+  conversationParticipations ConversationParticipant[]
+  sentMessages                Message[]
+
   createdAt DateTime @default(now())
+}
+
+model StoreFollow {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, storeId])
+}
+
+model Report {
+  id String @id @default(cuid())
+
+  reporterId String
+  reporter   User   @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  targetType ReportTargetType
+  targetId   String
+
+  reason String
+
+  status ReportStatus @default(PENDING)
+
+  reviewedBy String?
+  reviewedAt DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+model ReturnRequest {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  orderItemId String?
+  orderItem   OrderItem? @relation(fields: [orderItemId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  reason String
+
+  status ReturnRequestStatus @default(REQUESTED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Coupon {
+  id String @id @default(cuid())
+
+  code String @unique
+
+  type CouponType
+
+  value Float
+
+  minOrderAmount Float?
+
+  usageLimit Int?
+
+  usedCount Int @default(0)
+
+  expiresAt DateTime?
+
+  isActive Boolean @default(true)
+
+  redemptions CouponRedemption[]
+
+  createdAt DateTime @default(now())
+}
+
+model CouponRedemption {
+  id String @id @default(cuid())
+
+  couponId String
+  coupon   Coupon @relation(fields: [couponId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([couponId, userId])
+}
+
+model Conversation {
+  id String @id @default(cuid())
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ConversationParticipant {
+  id String @id @default(cuid())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id String @id @default(cuid())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  senderId String
+  sender   User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  content String
+
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+model Follow {
+  id String @id @default(cuid())
+
+  followerId String
+  follower   User   @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+
+  followingId String
+  following   User   @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([followerId, followingId])
+}
+
+model ProfileView {
+  id String @id @default(cuid())
+
+  profileUserId String
+  profileUser   User   @relation("ProfileOwner", fields: [profileUserId], references: [id], onDelete: Cascade)
+
+  viewerId String?
+  viewer   User?   @relation("Viewer", fields: [viewerId], references: [id], onDelete: SetNull)
+
+  viewedAt DateTime @default(now())
+}
+
+model Community {
+  id String @id @default(cuid())
+
+  name String
+
+  slug String @unique
+
+  description String?
+
+  icon String?
+
+  creatorId String
+  creator   User   @relation("CommunityCreator", fields: [creatorId], references: [id])
+
+  members CommunityMember[]
+
+  createdAt DateTime @default(now())
+}
+
+model CommunityMember {
+  id String @id @default(cuid())
+
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role CommunityRole @default(MEMBER)
+
+  joinedAt DateTime @default(now())
+
+  @@unique([communityId, userId])
+}
+
+model Event {
+  id String @id @default(cuid())
+
+  title String
+
+  description String?
+
+  coverImage String?
+
+  location String?
+
+  startAt DateTime
+
+  endAt DateTime?
+
+  creatorId String
+  creator   User   @relation("EventCreator", fields: [creatorId], references: [id])
+
+  attendees EventAttendee[]
+
+  createdAt DateTime @default(now())
+}
+
+model EventAttendee {
+  id String @id @default(cuid())
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status EventRsvpStatus @default(GOING)
+
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
 }
 
 model Post {
@@ -105,7 +411,48 @@ model Post {
 
   likes Like[]
 
+  media PostMedia[]
+
+  hashtags PostHashtag[]
+
   createdAt DateTime @default(now())
+}
+
+model PostMedia {
+  id String @id @default(cuid())
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  url String
+
+  type MediaType
+
+  order Int @default(0)
+}
+
+model Hashtag {
+  id String @id @default(cuid())
+
+  tag String @unique
+
+  posts PostHashtag[]
+
+  createdAt DateTime @default(now())
+}
+
+model PostHashtag {
+  id String @id @default(cuid())
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  hashtagId String
+  hashtag   Hashtag @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([postId, hashtagId])
 }
 
 model Comment {
@@ -212,9 +559,36 @@ model Store {
 
   totalSales Int @default(0)
 
+  isVerified Boolean @default(false)
+
+  returnPolicy String?
+  shippingPolicy String?
+  warrantyPolicy String?
+
   products Product[]
 
   reviews Review[]
+
+  followers StoreFollow[]
+
+  shippingOptions ShippingOption[]
+
+  orderShipments OrderShipping[]
+
+  createdAt DateTime @default(now())
+}
+
+model ShippingOption {
+  id String @id @default(cuid())
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  name String
+
+  fee Float
+
+  etaDays Int?
 
   createdAt DateTime @default(now())
 }
@@ -259,6 +633,8 @@ model Product {
   status ProductStatus @default(DRAFT)
 
   isFeatured Boolean @default(false)
+
+  highlights String[] @default([])
 
   price Float
 
@@ -422,16 +798,48 @@ model Order {
 
   tax Float
 
+  discountAmount Float @default(0)
+
+  couponCode String?
+
   total Float
 
   paymentMethod String?
 
   paymentReference String? @unique
 
+  trackingNumber String?
+
   items OrderItem[]
+
+  shipping OrderShipping[]
+
+  returnRequests ReturnRequest[]
+
+  couponRedemption CouponRedemption?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model OrderShipping {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  optionName String
+
+  fee Float
+
+  etaDays Int?
+
+  createdAt DateTime @default(now())
+
+  @@unique([orderId, storeId])
 }
 
 model OrderItem {
@@ -450,6 +858,8 @@ model OrderItem {
   totalPrice Float
 
   status OrderItemStatus @default(PENDING)
+
+  returnRequests ReturnRequest[]
 }
 
 model Review {

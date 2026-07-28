@@ -99,11 +99,15 @@ const CUSTOMER_ORDER_INCLUDE = {
             where: { isPrimary: true },
             take: 1,
           },
+          store: {
+            select: { id: true, name: true },
+          },
         },
       },
     },
   },
   address: true,
+  shipping: true,
 };
 
 export const getCustomerOrdersService = async (
@@ -350,5 +354,29 @@ export const updateOrderItemStatusService = async (
       data: { status: computeOrderStatus(allItems) },
       include: { items: true },
     });
+  });
+};
+
+export const updateOrderTrackingNumberService = async (
+  userId: string,
+  orderId: string,
+  trackingNumber: string
+) => {
+  const store = await getSellerStore(userId);
+
+  const order = await prisma.order.findFirst({
+    where: {
+      id: orderId,
+      items: { some: { product: { storeId: store.id } } },
+    },
+  });
+
+  if (!order) {
+    throw new AppError("Order not found.", 404);
+  }
+
+  return prisma.order.update({
+    where: { id: orderId },
+    data: { trackingNumber },
   });
 };

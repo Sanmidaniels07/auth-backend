@@ -7,6 +7,7 @@ import {
   inventorySnapshotSchema,
   salesOverviewSchema,
   topProductsSchema,
+  sellerCustomersSchema,
 } from "./dashboard.validation";
 import {
   getDashboardStats,
@@ -15,6 +16,7 @@ import {
   getSalesOverview,
   getTopProducts,
   getAnalytics,
+  getSellerCustomers,
 } from "./dashboard.controller";
 
 const router = Router();
@@ -48,5 +50,11 @@ router.get(
 );
 
 router.get("/analytics", getAnalytics);
+
+router.get(
+  "/customers",
+  validate(sellerCustomersSchema),
+  getSellerCustomers
+);
 
 export default router;

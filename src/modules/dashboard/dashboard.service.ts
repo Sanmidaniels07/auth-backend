@@ -301,3 +301,84 @@ export const getAnalyticsService = async (userId: string) => {
     ).sort((a, b) => b.revenue - a.revenue),
   };
 };
+
+interface CustomerSummary {
+  user: { id: string; name: string; email: string };
+  totalOrders: Set<string>;
+  totalSpent: number;
+  lastOrderAt: Date;
+}
+
+export const getSellerCustomersService = async (
+  userId: string,
+  page: number,
+  limit: number
+) => {
+  const store = await getSellerStore(userId);
+
+  const items = await prisma.orderItem.findMany({
+    where: {
+      product: { storeId: store.id },
+      order: { status: { not: OrderStatus.PENDING } },
+    },
+    select: {
+      totalPrice: true,
+      orderId: true,
+      order: {
+        select: {
+          userId: true,
+          createdAt: true,
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      },
+    },
+  });
+
+  const customerMap = new Map<string, CustomerSummary>();
+
+  for (const item of items) {
+    const customerId = item.order.userId;
+    const existing = customerMap.get(customerId);
+
+    if (existing) {
+      existing.totalOrders.add(item.orderId);
+      existing.totalSpent += item.totalPrice;
+      if (item.order.createdAt > existing.lastOrderAt) {
+        existing.lastOrderAt = item.order.createdAt;
+      }
+    } else {
+      customerMap.set(customerId, {
+        user: item.order.user,
+        totalOrders: new Set([item.orderId]),
+        totalSpent: item.totalPrice,
+        lastOrderAt: item.order.createdAt,
+      });
+    }
+  }
+
+  const allCustomers = Array.from(customerMap.values())
+    .map((customer) => ({
+      user: customer.user,
+      totalOrders: customer.totalOrders.size,
+      totalSpent: customer.totalSpent,
+      lastOrderAt: customer.lastOrderAt,
+    }))
+    .sort(
+      (a, b) =>
+        b.lastOrderAt.getTime() - a.lastOrderAt.getTime()
+    );
+
+  const total = allCustomers.length;
+  const skip = (page - 1) * limit;
+  const customers = allCustomers.slice(skip, skip + limit);
+
+  return {
+    customers,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+};

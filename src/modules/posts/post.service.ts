@@ -1,20 +1,81 @@
+import { MediaType } from "@prisma/client";
+
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
+import { syncPostHashtags } from "../hashtag/hashtag.service";
+
+interface MediaInput {
+  url: string;
+  type: MediaType;
+}
+
+const POST_INCLUDE = {
+  author: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  },
+  media: {
+    orderBy: { order: "asc" as const },
+  },
+  hashtags: {
+    include: { hashtag: true },
+  },
+  _count: {
+    select: { likes: true },
+  },
+};
+
+const withPostExtras = <
+  T extends {
+    _count: { likes: number };
+    hashtags: { hashtag: { tag: string } }[];
+  }
+>(
+  post: T,
+  likedByMe: boolean
+) => {
+  const { _count, hashtags, ...rest } = post;
+
+  return {
+    ...rest,
+    likeCount: _count.likes,
+    likedByMe,
+    hashtags: hashtags.map((ph) => ph.hashtag.tag),
+  };
+};
 
 export const createPostService = async (
   userId: string,
   data: {
     title: string;
     content: string;
+    media?: MediaInput[];
   },
 ) => {
-  return prisma.post.create({
+  const post = await prisma.post.create({
     data: {
       title: data.title,
       content: data.content,
       authorId: userId,
+      media: data.media
+        ? {
+            create: data.media.map((media, index) => ({
+              url: media.url,
+              type: media.type,
+              order: index,
+            })),
+          }
+        : undefined,
     },
+    include: POST_INCLUDE,
   });
+
+  await syncPostHashtags(post.id, data.content);
+
+  return withPostExtras(post, false);
 };
 
 export const getPostsService = async (
@@ -58,18 +119,7 @@ export const getPostsService = async (
 
     where,
 
-    include: {
-      author: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-      _count: {
-        select: { likes: true },
-      },
-    },
+    include: POST_INCLUDE,
 
     orderBy: {
       createdAt: sort === "asc" ? "asc" : "desc",
@@ -94,14 +144,12 @@ export const getPostsService = async (
     likedPostIds = new Set(likes.map((like) => like.postId));
   }
 
-  const postsWithLikeInfo = posts.map(({ _count, ...post }) => ({
-    ...post,
-    likeCount: _count.likes,
-    likedByMe: likedPostIds.has(post.id),
-  }));
+  const postsWithExtras = posts.map((post) =>
+    withPostExtras(post, likedPostIds.has(post.id))
+  );
 
   return {
-    posts: postsWithLikeInfo,
+    posts: postsWithExtras,
     total,
     page,
     limit,
@@ -118,18 +166,7 @@ export const getSinglePostService = async (
       id: postId,
       isDeleted: false,
     },
-    include: {
-      author: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-      _count: {
-        select: { likes: true },
-      },
-    },
+    include: POST_INCLUDE,
   });
 
   if (!post) {
@@ -144,13 +181,7 @@ export const getSinglePostService = async (
       })
     : null;
 
-  const { _count, ...rest } = post;
-
-  return {
-    ...rest,
-    likeCount: _count.likes,
-    likedByMe: !!like,
-  };
+  return withPostExtras(post, !!like);
 };
 
 export const getPostOwnerService = async (postId: string) => {
@@ -168,6 +199,7 @@ export const updatePostService = async (
   data: {
     title?: string;
     content?: string;
+    media?: MediaInput[];
   },
 ) => {
   const post = await prisma.post.findFirst({
@@ -185,13 +217,42 @@ export const updatePostService = async (
     throw new AppError("Unauthorized", 403);
   }
 
-  return prisma.post.update({
-    where: {
-      id: postId,
-    },
+  const { media, ...fields } = data;
 
-    data,
+  const updated = await prisma.$transaction(async (tx) => {
+    if (media) {
+      await tx.postMedia.deleteMany({
+        where: { postId },
+      });
+    }
+
+    return tx.post.update({
+      where: { id: postId },
+      data: {
+        ...fields,
+        media: media
+          ? {
+              create: media.map((m, index) => ({
+                url: m.url,
+                type: m.type,
+                order: index,
+              })),
+            }
+          : undefined,
+      },
+      include: POST_INCLUDE,
+    });
   });
+
+  if (data.content) {
+    await syncPostHashtags(postId, data.content);
+  }
+
+  const like = await prisma.like.findUnique({
+    where: { userId_postId: { userId, postId } },
+  });
+
+  return withPostExtras(updated, !!like);
 };
 
 export const deletePostService = async (postId: string, userId: string) => {

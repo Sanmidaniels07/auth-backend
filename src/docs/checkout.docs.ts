@@ -10,7 +10,10 @@
  * /api/checkout/initiate:
  *   post:
  *     summary: Initiate checkout
- *     description: Requires authentication. Validates the cart and the given address, creates a PENDING order (snapshotting current cart prices), and starts a Paystack transaction. Stock is NOT decremented and the cart is NOT cleared here - that only happens once payment is confirmed via verify or webhook.
+ *     description: |
+ *       Requires authentication. Validates the cart and the given address, creates a PENDING order (snapshotting current cart prices), and starts a Paystack transaction. Stock is NOT decremented and the cart is NOT cleared here - that only happens once payment is confirmed via verify or webhook.
+ *
+ *       Since a cart can span multiple stores and each store may have its own shipping tiers, `shippingSelections` must include one entry per store in the cart that has shipping options configured (stores with none configured contribute 0 delivery fee automatically). If `couponCode` is provided it's re-validated and applied server-side - the discount is never trusted from the client.
  *     tags:
  *       - Checkout
  *     security:
@@ -26,11 +29,22 @@
  *             properties:
  *               addressId:
  *                 type: string
+ *               shippingSelections:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     storeId:
+ *                       type: string
+ *                     shippingOptionId:
+ *                       type: string
+ *               couponCode:
+ *                 type: string
  *     responses:
  *       201:
  *         description: Checkout initiated successfully, returns the order plus a Paystack accessCode (for the inline popup) and authorizationUrl (for a redirect-based fallback)
  *       400:
- *         description: Cart is empty, or a product is unavailable / out of stock
+ *         description: Cart is empty, a product is unavailable/out of stock, a required shipping selection is missing/invalid, or the coupon is invalid
  *       401:
  *         description: Unauthorized - no or invalid token
  *       404:

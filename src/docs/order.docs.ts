@@ -150,6 +150,42 @@
 
 /**
  * @swagger
+ * /api/orders/seller/{id}/tracking-number:
+ *   patch:
+ *     summary: Set an order's shipment tracking number
+ *     description: Requires an existing store and that the order contains the seller's products. Note - trackingNumber lives on the shared Order record, so for an order spanning multiple sellers, any of them setting it will overwrite the same field.
+ *     tags:
+ *       - Order
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - trackingNumber
+ *             properties:
+ *               trackingNumber:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Tracking number updated successfully
+ *       403:
+ *         description: Seller has no store
+ *       404:
+ *         description: Order not found
+ */
+
+/**
+ * @swagger
  * /api/orders/seller/items/{orderItemId}/status:
  *   patch:
  *     summary: Update the fulfillment status of one of the seller's order items

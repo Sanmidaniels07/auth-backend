@@ -23,3 +23,10 @@ export const topProductsSchema = z.object({
     limit: z.string().optional(),
   }),
 });
+
+export const sellerCustomersSchema = z.object({
+  query: z.object({
+    page: z.string().optional(),
+    limit: z.string().optional(),
+  }),
+});

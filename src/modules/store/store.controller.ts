@@ -13,7 +13,19 @@ import {
   getSellerStoreService,
   listStoresService,
   getStoreProductsService,
+  followStoreService,
+  unfollowStoreService,
+  getStoreFollowStatusService,
+  createShippingOptionService,
+  updateShippingOptionService,
+  deleteShippingOptionService,
+  setStoreVerifiedService,
 } from "./store.service";
+
+interface ShippingOptionParams {
+  slug: string;
+  optionId: string;
+}
 import { getStoreReviewsService } from "../review/review.service";
 
 export const createStore = asyncHandler(
@@ -46,11 +58,51 @@ export const updateStore = asyncHandler(
 export const getPublicStore = asyncHandler(
   async (req: Request<SlugParams>, res: Response) => {
     const store = await getPublicStoreService(
-      req.params.slug
+      req.params.slug,
+      req.user?.id
     );
 
     res.status(200).json(
       apiResponse(store, "Store fetched successfully")
+    );
+  }
+);
+
+export const followStore = asyncHandler(
+  async (req: Request<SlugParams>, res: Response) => {
+    const follow = await followStoreService(
+      req.user.id,
+      req.params.slug
+    );
+
+    res.status(201).json(
+      apiResponse(follow, "Store followed successfully")
+    );
+  }
+);
+
+export const unfollowStore = asyncHandler(
+  async (req: Request<SlugParams>, res: Response) => {
+    await unfollowStoreService(req.user.id, req.params.slug);
+
+    res.status(200).json(
+      apiResponse(null, "Store unfollowed successfully")
+    );
+  }
+);
+
+export const getStoreFollowStatus = asyncHandler(
+  async (req: Request<SlugParams>, res: Response) => {
+    const result = await getStoreFollowStatusService(
+      req.user.id,
+      req.params.slug
+    );
+
+    res.status(200).json(
+      apiResponse(
+        result,
+        "Store follow status fetched successfully"
+      )
     );
   }
 );
@@ -122,6 +174,80 @@ export const getStoreProducts = asyncHandler(
       apiResponse(
         result,
         "Store products fetched successfully"
+      )
+    );
+  }
+);
+
+export const createShippingOption = asyncHandler(
+  async (req: Request<SlugParams>, res: Response) => {
+    const option = await createShippingOptionService(
+      req.user.id,
+      req.params.slug,
+      req.body
+    );
+
+    res.status(201).json(
+      apiResponse(
+        option,
+        "Shipping option created successfully"
+      )
+    );
+  }
+);
+
+export const updateShippingOption = asyncHandler(
+  async (
+    req: Request<ShippingOptionParams>,
+    res: Response
+  ) => {
+    const option = await updateShippingOptionService(
+      req.user.id,
+      req.params.slug,
+      req.params.optionId,
+      req.body
+    );
+
+    res.status(200).json(
+      apiResponse(
+        option,
+        "Shipping option updated successfully"
+      )
+    );
+  }
+);
+
+export const deleteShippingOption = asyncHandler(
+  async (
+    req: Request<ShippingOptionParams>,
+    res: Response
+  ) => {
+    await deleteShippingOptionService(
+      req.user.id,
+      req.params.slug,
+      req.params.optionId
+    );
+
+    res.status(200).json(
+      apiResponse(
+        null,
+        "Shipping option deleted successfully"
+      )
+    );
+  }
+);
+
+export const setStoreVerified = asyncHandler(
+  async (req: Request<IdParams>, res: Response) => {
+    const store = await setStoreVerifiedService(
+      req.params.id,
+      req.body.isVerified
+    );
+
+    res.status(200).json(
+      apiResponse(
+        store,
+        "Store verification status updated successfully"
       )
     );
   }

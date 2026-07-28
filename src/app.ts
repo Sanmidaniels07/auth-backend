@@ -20,6 +20,17 @@ import addressRoutes from "./modules/address/address.routes";
 import checkoutRoutes from "./modules/checkout/checkout.routes";
 import orderRoutes from "./modules/order/order.routes";
 import reviewRoutes from "./modules/review/review.routes";
+import profileRoutes from "./modules/profile/profile.routes";
+import followRoutes from "./modules/follow/follow.routes";
+import userRoutes from "./modules/user/user.routes";
+import hashtagRoutes from "./modules/hashtag/hashtag.routes";
+import communityRoutes from "./modules/community/community.routes";
+import eventRoutes from "./modules/event/event.routes";
+import uploadRoutes from "./modules/upload/upload.routes";
+import couponRoutes from "./modules/coupon/coupon.routes";
+import returnRequestRoutes from "./modules/return-request/return-request.routes";
+import reportRoutes from "./modules/report/report.routes";
+import conversationRoutes from "./modules/conversation/conversation.routes";
 
 import { authMiddleware } from "./middleware/auth-middleware";
 import { authorize } from "./middleware/role.middleware";
@@ -94,12 +105,7 @@ app.use("/api/notifications", notificationRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.get("/api/profile", authMiddleware, (req, res) => {
-  res.json({
-    success: true,
-    user: req.user,
-  });
-});
+app.use("/api/profile", profileRoutes);
 
 app.get(
   "/api/admin/dashboard",
@@ -134,6 +140,26 @@ app.use("/api/checkout", checkoutRoutes);
 app.use("/api/orders", orderRoutes);
 
 app.use("/api/reviews", reviewRoutes);
+
+app.use("/api/follow", followRoutes);
+
+app.use("/api/users", userRoutes);
+
+app.use("/api/hashtags", hashtagRoutes);
+
+app.use("/api/communities", communityRoutes);
+
+app.use("/api/events", eventRoutes);
+
+app.use("/api/uploads", uploadRoutes);
+
+app.use("/api/coupons", couponRoutes);
+
+app.use("/api/returns", returnRequestRoutes);
+
+app.use("/api/reports", reportRoutes);
+
+app.use("/api/conversations", conversationRoutes);
 
 app.get("/", (_, res) => {
   res.send("API Running...");

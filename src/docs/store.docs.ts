@@ -45,6 +45,12 @@
  *                 type: string
  *               country:
  *                 type: string
+ *               returnPolicy:
+ *                 type: string
+ *               shippingPolicy:
+ *                 type: string
+ *               warrantyPolicy:
+ *                 type: string
  *     responses:
  *       201:
  *         description: Store created successfully
@@ -136,7 +142,7 @@
  * /api/stores/{slug}:
  *   get:
  *     summary: Get a public store by slug
- *     description: Returns store details, including basic seller info. Public endpoint.
+ *     description: Returns store details, including basic seller info, shipping options, followersCount, and (if authenticated) isFollowing. Public endpoint.
  *     tags:
  *       - Store
  *     security: []
@@ -149,6 +155,218 @@
  *     responses:
  *       200:
  *         description: Store fetched successfully
+ *       404:
+ *         description: Store not found
+ */
+
+/**
+ * @swagger
+ * /api/stores/{slug}/follow:
+ *   post:
+ *     summary: Follow a store
+ *     description: Requires authentication.
+ *     tags:
+ *       - Store
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       201:
+ *         description: Store followed successfully
+ *       400:
+ *         description: Already following this store
+ *       404:
+ *         description: Store not found
+ *   delete:
+ *     summary: Unfollow a store
+ *     description: Requires authentication.
+ *     tags:
+ *       - Store
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Store unfollowed successfully
+ *       404:
+ *         description: Not following this store, or store not found
+ */
+
+/**
+ * @swagger
+ * /api/stores/{slug}/follow/status:
+ *   get:
+ *     summary: Check if the authenticated user follows a store
+ *     description: Requires authentication.
+ *     tags:
+ *       - Store
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Returns `{ isFollowing }`
+ *       404:
+ *         description: Store not found
+ */
+
+/**
+ * @swagger
+ * /api/stores/{slug}/shipping-options:
+ *   post:
+ *     summary: Add a shipping option to a store
+ *     description: Requires authentication and ownership of the store.
+ *     tags:
+ *       - Store
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - fee
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Express
+ *               fee:
+ *                 type: number
+ *               etaDays:
+ *                 type: integer
+ *     responses:
+ *       201:
+ *         description: Shipping option created successfully
+ *       403:
+ *         description: Not the owner of this store
+ *       404:
+ *         description: Store not found
+ */
+
+/**
+ * @swagger
+ * /api/stores/{slug}/shipping-options/{optionId}:
+ *   patch:
+ *     summary: Update a shipping option
+ *     description: Requires authentication and ownership of the store.
+ *     tags:
+ *       - Store
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: optionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               fee:
+ *                 type: number
+ *               etaDays:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Shipping option updated successfully
+ *       403:
+ *         description: Not the owner of this store
+ *       404:
+ *         description: Shipping option or store not found
+ *   delete:
+ *     summary: Delete a shipping option
+ *     description: Requires authentication and ownership of the store.
+ *     tags:
+ *       - Store
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: optionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Shipping option deleted successfully
+ *       403:
+ *         description: Not the owner of this store
+ *       404:
+ *         description: Shipping option or store not found
+ */
+
+/**
+ * @swagger
+ * /api/stores/{id}/verify:
+ *   patch:
+ *     summary: Set a store's verified badge
+ *     description: Requires authentication. ADMIN only - not exposed on the regular store update endpoint, so sellers can't self-verify.
+ *     tags:
+ *       - Store
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - isVerified
+ *             properties:
+ *               isVerified:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Store verification status updated successfully
+ *       403:
+ *         description: Admin only
  *       404:
  *         description: Store not found
  */
@@ -195,6 +413,12 @@
  *               state:
  *                 type: string
  *               country:
+ *                 type: string
+ *               returnPolicy:
+ *                 type: string
+ *               shippingPolicy:
+ *                 type: string
+ *               warrantyPolicy:
  *                 type: string
  *     responses:
  *       200:

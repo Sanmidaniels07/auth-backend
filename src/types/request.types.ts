@@ -41,3 +41,15 @@ export interface ReferenceParams {
 export interface OrderItemIdParams {
   orderItemId: string;
 }
+
+export interface UserIdParams {
+  userId: string;
+}
+
+export interface UsernameParams {
+  username: string;
+}
+
+export interface IdentifierParams {
+  identifier: string;
+}

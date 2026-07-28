@@ -50,6 +50,11 @@
  *                 type: integer
  *               isFeatured:
  *                 type: boolean
+ *               highlights:
+ *                 type: array
+ *                 maxItems: 10
+ *                 items:
+ *                   type: string
  *               images:
  *                 type: array
  *                 items:
@@ -343,6 +348,11 @@
  *                 type: integer
  *               isFeatured:
  *                 type: boolean
+ *               highlights:
+ *                 type: array
+ *                 maxItems: 10
+ *                 items:
+ *                   type: string
  *               images:
  *                 type: array
  *                 items:
