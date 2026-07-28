@@ -8,6 +8,7 @@ import {
   listProductsSchema,
   nearbyProductsSchema,
   relatedProductsSchema,
+  productReviewsSchema,
   sellerProductsSchema,
 } from "./product.validation";
 import {
@@ -18,6 +19,7 @@ import {
   getSellerProducts,
   getSellerProductById,
   getRelatedProducts,
+  getProductReviews,
   getProductById,
   updateProduct,
   deleteProduct,
@@ -59,6 +61,12 @@ router.get(
   "/:id/related",
   validate(relatedProductsSchema),
   getRelatedProducts
+);
+
+router.get(
+  "/:id/reviews",
+  validate(productReviewsSchema),
+  getProductReviews
 );
 
 router.get("/:id", getProductById);

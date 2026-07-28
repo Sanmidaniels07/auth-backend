@@ -92,6 +92,16 @@ export const relatedProductsSchema = z.object({
   }),
 });
 
+export const productReviewsSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+  query: z.object({
+    page: z.string().optional(),
+    limit: z.string().optional(),
+  }),
+});
+
 export const sellerProductsSchema = z.object({
   query: z.object({
     page: z.string().optional(),

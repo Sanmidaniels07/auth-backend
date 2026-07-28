@@ -33,3 +33,11 @@ export interface CategoryParams {
 export interface WishlistParams {
   productId: string;
 }
+
+export interface ReferenceParams {
+  reference: string;
+}
+
+export interface OrderItemIdParams {
+  orderItemId: string;
+}

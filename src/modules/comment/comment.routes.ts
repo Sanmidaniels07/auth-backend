@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { createComment, deleteComment, getPostComments, updateComment } from "./comment.controller";
-import { createCommentSchema, updateCommentSchema } from "./comment.validation";
+import { createCommentSchema, updateCommentSchema, deleteCommentSchema } from "./comment.validation";
 import { validate } from "../../middleware/validate.middleware";
 import { authMiddleware } from "../../middleware/auth-middleware";
 
@@ -28,6 +28,7 @@ router.patch(
 router.delete(
   "/:id",
   authMiddleware,
+  validate(deleteCommentSchema),
   deleteComment
 );
 

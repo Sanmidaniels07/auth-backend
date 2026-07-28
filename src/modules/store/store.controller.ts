@@ -14,6 +14,7 @@ import {
   listStoresService,
   getStoreProductsService,
 } from "./store.service";
+import { getStoreReviewsService } from "../review/review.service";
 
 export const createStore = asyncHandler(
   async (req: Request, res: Response) => {
@@ -82,6 +83,26 @@ export const listStores = asyncHandler(
 
     res.status(200).json(
       apiResponse(result, "Stores fetched successfully")
+    );
+  }
+);
+
+export const getStoreReviews = asyncHandler(
+  async (req: Request<SlugParams>, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+
+    const result = await getStoreReviewsService(
+      req.params.slug,
+      page,
+      limit
+    );
+
+    res.status(200).json(
+      apiResponse(
+        result,
+        "Store reviews fetched successfully"
+      )
     );
   }
 );

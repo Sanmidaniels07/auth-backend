@@ -7,6 +7,7 @@ import {
   updateStoreSchema,
   listStoresSchema,
   storeProductsSchema,
+  storeReviewsSchema,
 } from "./store.validation";
 import {
   createStore,
@@ -15,6 +16,7 @@ import {
   getSellerStore,
   listStores,
   getStoreProducts,
+  getStoreReviews,
 } from "./store.controller";
 
 const router = Router();
@@ -34,6 +36,12 @@ router.get(
   "/:slug/products",
   validate(storeProductsSchema),
   getStoreProducts
+);
+
+router.get(
+  "/:slug/reviews",
+  validate(storeReviewsSchema),
+  getStoreReviews
 );
 
 router.get("/:slug", getPublicStore);

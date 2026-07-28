@@ -4,6 +4,7 @@ import { ProductCondition, ProductStatus } from "@prisma/client";
 import { asyncHandler } from "../../utils/asyncHandlers";
 import { apiResponse } from "../../utils/apiResponse";
 import { IdParams } from "../../types/request.types";
+import { getProductReviewsService } from "../review/review.service";
 import {
   createProductService,
   updateProductService,
@@ -156,6 +157,26 @@ export const getRelatedProducts = asyncHandler(
       apiResponse(
         products,
         "Related products fetched successfully"
+      )
+    );
+  }
+);
+
+export const getProductReviews = asyncHandler(
+  async (req: Request<IdParams>, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+
+    const result = await getProductReviewsService(
+      req.params.id,
+      page,
+      limit
+    );
+
+    res.status(200).json(
+      apiResponse(
+        result,
+        "Product reviews fetched successfully"
       )
     );
   }

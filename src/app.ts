@@ -15,6 +15,11 @@ import categoryRoutes from "./modules/category/category.routes";
 import productRoutes from "./modules/product/product.routes";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes";
 import wishlistRoutes from "./modules/wishlist/wishlist.routes";
+import cartRoutes from "./modules/cart/cart.routes";
+import addressRoutes from "./modules/address/address.routes";
+import checkoutRoutes from "./modules/checkout/checkout.routes";
+import orderRoutes from "./modules/order/order.routes";
+import reviewRoutes from "./modules/review/review.routes";
 
 import { authMiddleware } from "./middleware/auth-middleware";
 import { authorize } from "./middleware/role.middleware";
@@ -45,7 +50,13 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      (req as express.Request).rawBody = buf;
+    },
+  })
+);
 
 app.use(
   "/api-docs",
@@ -113,6 +124,16 @@ app.use("/api/products", productRoutes);
 app.use("/api/seller/dashboard", dashboardRoutes);
 
 app.use("/api/wishlist", wishlistRoutes);
+
+app.use("/api/cart", cartRoutes);
+
+app.use("/api/addresses", addressRoutes);
+
+app.use("/api/checkout", checkoutRoutes);
+
+app.use("/api/orders", orderRoutes);
+
+app.use("/api/reviews", reviewRoutes);
 
 app.get("/", (_, res) => {
   res.send("API Running...");

@@ -41,6 +41,14 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum OrderItemStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
 model User {
   id String @id @default(cuid())
 
@@ -418,7 +426,7 @@ model Order {
 
   paymentMethod String?
 
-  paymentReference String?
+  paymentReference String? @unique
 
   items OrderItem[]
 
@@ -440,6 +448,8 @@ model OrderItem {
   unitPrice Float
 
   totalPrice Float
+
+  status OrderItemStatus @default(PENDING)
 }
 
 model Review {

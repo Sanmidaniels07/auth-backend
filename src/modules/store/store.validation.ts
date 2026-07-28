@@ -36,6 +36,16 @@ export const listStoresSchema = z.object({
   }),
 });
 
+export const storeReviewsSchema = z.object({
+  params: z.object({
+    slug: z.string(),
+  }),
+  query: z.object({
+    page: z.string().optional(),
+    limit: z.string().optional(),
+  }),
+});
+
 export const storeProductsSchema = z.object({
   params: z.object({
     slug: z.string(),
