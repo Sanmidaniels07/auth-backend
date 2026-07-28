@@ -12,6 +12,7 @@ import {
 import {
   createCommunity,
   listCommunities,
+  getMyCommunities,
   getTrendingCommunities,
   getCommunityBySlug,
   joinCommunity,
@@ -37,6 +38,13 @@ router.get(
   "/trending",
   validate(trendingCommunitiesSchema),
   getTrendingCommunities
+);
+
+router.get(
+  "/me",
+  authMiddleware,
+  validate(listCommunitiesSchema),
+  getMyCommunities
 );
 
 router.post(

@@ -78,6 +78,40 @@ export const listCommunitiesService = async (
   };
 };
 
+export const getMyCommunitiesService = async (
+  userId: string,
+  page: number,
+  limit: number
+) => {
+  const skip = (page - 1) * limit;
+
+  const where = { members: { some: { userId } } };
+
+  const [communities, total] = await Promise.all([
+    prisma.community.findMany({
+      where,
+      skip,
+      take: limit,
+      include: {
+        _count: { select: { members: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.community.count({ where }),
+  ]);
+
+  return {
+    communities: communities.map(({ _count, ...community }) => ({
+      ...community,
+      memberCount: _count.members,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+};
+
 export const getTrendingCommunitiesService = async (
   limit: number
 ) => {

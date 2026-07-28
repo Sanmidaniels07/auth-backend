@@ -6,6 +6,12 @@ import {
 import { logoutService, refreshSessionService } from "./session.service";
 import { asyncHandler } from "../../utils/asyncHandlers";
 import { apiResponse } from "../../utils/apiResponse";
+import { AppError } from "../../utils/appError";
+import {
+  REFRESH_COOKIE_NAME,
+  refreshCookieOptions,
+  clearRefreshCookieOptions,
+} from "../../utils/cookies";
 
 
 export const refreshToken =
@@ -14,13 +20,25 @@ export const refreshToken =
       req: Request,
       res: Response
     ) => {
-      const { refreshToken } =
-        req.body;
+      const token = req.cookies?.[REFRESH_COOKIE_NAME];
+
+      if (!token) {
+        throw new AppError(
+          "Refresh token missing.",
+          401
+        );
+      }
 
       const tokens =
         await refreshSessionService(
-          refreshToken
+          token
         );
+
+      res.cookie(
+        REFRESH_COOKIE_NAME,
+        tokens.refreshToken,
+        refreshCookieOptions
+      );
 
       res.json(
         apiResponse(
@@ -37,11 +55,17 @@ export const refreshToken =
       req: Request,
       res: Response
     ) => {
-      const { refreshToken } =
-        req.body;
+      const token = req.cookies?.[REFRESH_COOKIE_NAME];
 
-      await logoutService(
-        refreshToken
+      if (token) {
+        await logoutService(
+          token
+        );
+      }
+
+      res.clearCookie(
+        REFRESH_COOKIE_NAME,
+        clearRefreshCookieOptions
       );
 
       res.json(

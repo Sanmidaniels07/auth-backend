@@ -2,7 +2,7 @@
  * @swagger
  * tags:
  *   name: Conversation
- *   description: Direct messaging between users. New messages are also pushed in real time over the existing Socket.IO connection as a `message:new` event to the recipient's user-id room.
+ *   description: Direct messaging between users. New messages are also pushed in real time over the existing Socket.IO connection as a "message:new" event to the recipient's user-id room.
  */
 
 /**

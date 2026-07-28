@@ -42,6 +42,7 @@
  * /api/auth/login:
  *   post:
  *     summary: Login user
+ *     description: On success, also sets an httpOnly `refreshToken` cookie (scoped to /api/session) in addition to returning both tokens in the body during the frontend's transition off body-based refresh tokens.
  *     tags:
  *       - Authentication
  *     requestBody:

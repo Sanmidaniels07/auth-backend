@@ -5,6 +5,7 @@ import { apiResponse } from "../../utils/apiResponse";
 import {
   createCommunityService,
   listCommunitiesService,
+  getMyCommunitiesService,
   getTrendingCommunitiesService,
   getCommunityBySlugService,
   joinCommunityService,
@@ -47,6 +48,26 @@ export const listCommunities = asyncHandler(
       apiResponse(
         result,
         "Communities fetched successfully"
+      )
+    );
+  }
+);
+
+export const getMyCommunities = asyncHandler(
+  async (req: Request, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+
+    const result = await getMyCommunitiesService(
+      req.user.id,
+      page,
+      limit
+    );
+
+    res.status(200).json(
+      apiResponse(
+        result,
+        "Your communities fetched successfully"
       )
     );
   }

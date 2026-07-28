@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { forgotPasswordService, loginService, resetPasswordService, signupService } from "./auth.service";
 import { asyncHandler } from "../../utils/asyncHandlers";
 import { apiResponse } from "../../utils/apiResponse";
+import { REFRESH_COOKIE_NAME, refreshCookieOptions } from "../../utils/cookies";
 
 
 export const signup = asyncHandler(
@@ -20,6 +21,12 @@ export const signup = asyncHandler(
 export const login = asyncHandler(
   async (req: Request, res: Response) => {
     const result = await loginService(req.body);
+
+    res.cookie(
+      REFRESH_COOKIE_NAME,
+      result.refreshToken,
+      refreshCookieOptions
+    );
 
     res.status(200).json(
       apiResponse(

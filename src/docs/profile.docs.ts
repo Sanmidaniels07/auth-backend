@@ -63,6 +63,30 @@
  *                     type: string
  *                   youtube:
  *                     type: string
+ *               occupation:
+ *                 type: string
+ *               company:
+ *                 type: string
+ *               education:
+ *                 type: string
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date-time
+ *               skills:
+ *                 type: array
+ *                 maxItems: 20
+ *                 items:
+ *                   type: string
+ *               interests:
+ *                 type: array
+ *                 maxItems: 20
+ *                 items:
+ *                   type: string
+ *               languages:
+ *                 type: array
+ *                 maxItems: 20
+ *                 items:
+ *                   type: string
  *     responses:
  *       200:
  *         description: Profile updated successfully

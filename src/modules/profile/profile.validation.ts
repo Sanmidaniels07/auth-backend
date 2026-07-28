@@ -28,6 +28,13 @@ export const updateProfileSchema = z.object({
     location: z.string().trim().max(100).optional(),
     website: z.string().trim().optional(),
     socialLinks: socialLinksSchema.optional(),
+    occupation: z.string().trim().max(100).optional(),
+    company: z.string().trim().max(100).optional(),
+    education: z.string().trim().max(150).optional(),
+    dateOfBirth: z.coerce.date().optional(),
+    skills: z.array(z.string().trim().min(1)).max(20).optional(),
+    interests: z.array(z.string().trim().min(1)).max(20).optional(),
+    languages: z.array(z.string().trim().min(1)).max(20).optional(),
   }),
 });
 

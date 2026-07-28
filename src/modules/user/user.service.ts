@@ -100,6 +100,13 @@ export const getUserProfileService = async (
       location: true,
       website: true,
       socialLinks: true,
+      occupation: true,
+      company: true,
+      education: true,
+      dateOfBirth: true,
+      skills: true,
+      interests: true,
+      languages: true,
       createdAt: true,
       _count: {
         select: {

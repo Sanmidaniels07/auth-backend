@@ -13,6 +13,13 @@ const PROFILE_SELECT = {
   location: true,
   website: true,
   socialLinks: true,
+  occupation: true,
+  company: true,
+  education: true,
+  dateOfBirth: true,
+  skills: true,
+  interests: true,
+  languages: true,
   role: true,
   isVerified: true,
   createdAt: true,
@@ -25,6 +32,16 @@ const SIMPLE_COMPLETION_FIELDS = [
   "bio",
   "location",
   "website",
+  "occupation",
+  "company",
+  "education",
+  "dateOfBirth",
+] as const;
+
+const ARRAY_COMPLETION_FIELDS = [
+  "skills",
+  "interests",
+  "languages",
 ] as const;
 
 const hasAnySocialLink = (socialLinks: unknown): boolean => {
@@ -46,14 +63,23 @@ const withProfileCompletion = <
     (field) => !!user[field]
   ).length;
 
+  const arrayFilledCount = ARRAY_COMPLETION_FIELDS.filter(
+    (field) => Array.isArray(user[field]) && (user[field] as unknown[]).length > 0
+  ).length;
+
   const socialLinksFilled = hasAnySocialLink(
     user.socialLinks
   )
     ? 1
     : 0;
 
-  const totalFields = SIMPLE_COMPLETION_FIELDS.length + 1;
-  const filledCount = simpleFilledCount + socialLinksFilled;
+  const totalFields =
+    SIMPLE_COMPLETION_FIELDS.length +
+    ARRAY_COMPLETION_FIELDS.length +
+    1;
+
+  const filledCount =
+    simpleFilledCount + arrayFilledCount + socialLinksFilled;
 
   return {
     ...user,

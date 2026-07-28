@@ -106,6 +106,15 @@ model User {
 
   socialLinks Json?
 
+  occupation  String?
+  company     String?
+  education   String?
+  dateOfBirth DateTime?
+
+  skills    String[] @default([])
+  interests String[] @default([])
+  languages String[] @default([])
+
   role Role @default(USER)
 
   isVerified Boolean @default(false)
@@ -159,7 +168,62 @@ model User {
   conversationParticipations ConversationParticipant[]
   sentMessages                Message[]
 
+  stories        Story[]
+  storyViews     StoryView[]
+  storyReactions StoryReaction[]
+
   createdAt DateTime @default(now())
+}
+
+model Story {
+  id String @id @default(cuid())
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  mediaUrl String
+
+  mediaType MediaType
+
+  caption String?
+
+  createdAt DateTime @default(now())
+
+  expiresAt DateTime
+
+  views StoryView[]
+
+  reactions StoryReaction[]
+}
+
+model StoryView {
+  id String @id @default(cuid())
+
+  storyId String
+  story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  viewerId String
+  viewer   User   @relation(fields: [viewerId], references: [id])
+
+  viewedAt DateTime @default(now())
+
+  @@unique([storyId, viewerId])
+}
+
+model StoryReaction {
+  id String @id @default(cuid())
+
+  storyId String
+  story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  emoji String
+
+  createdAt DateTime @default(now())
+
+  @@unique([storyId, userId])
 }
 
 model StoreFollow {

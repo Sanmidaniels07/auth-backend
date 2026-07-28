@@ -81,6 +81,32 @@
 
 /**
  * @swagger
+ * /api/communities/me:
+ *   get:
+ *     summary: Get the authenticated user's communities
+ *     description: Requires authentication. Returns communities the user is a member of, paginated.
+ *     tags:
+ *       - Community
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Your communities fetched successfully
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ */
+
+/**
+ * @swagger
  * /api/communities/{slug}:
  *   get:
  *     summary: Get a community by slug

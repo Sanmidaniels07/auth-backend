@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 
 import authRoutes from "./modules/auth/auth-routes";
@@ -31,6 +32,7 @@ import couponRoutes from "./modules/coupon/coupon.routes";
 import returnRequestRoutes from "./modules/return-request/return-request.routes";
 import reportRoutes from "./modules/report/report.routes";
 import conversationRoutes from "./modules/conversation/conversation.routes";
+import storyRoutes from "./modules/story/story.routes";
 
 import { authMiddleware } from "./middleware/auth-middleware";
 import { authorize } from "./middleware/role.middleware";
@@ -68,6 +70,8 @@ app.use(
     },
   })
 );
+
+app.use(cookieParser());
 
 app.use(
   "/api-docs",
@@ -160,6 +164,8 @@ app.use("/api/returns", returnRequestRoutes);
 app.use("/api/reports", reportRoutes);
 
 app.use("/api/conversations", conversationRoutes);
+
+app.use("/api/stories", storyRoutes);
 
 app.get("/", (_, res) => {
   res.send("API Running...");
