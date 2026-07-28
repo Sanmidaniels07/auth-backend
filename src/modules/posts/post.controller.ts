@@ -38,7 +38,8 @@ export const getPosts = asyncHandler(
       limit,
       search,
       authorId,
-      sort
+      sort,
+      req.user?.id
     );
 
     res.status(200).json(
@@ -51,7 +52,10 @@ export const getSinglePost = asyncHandler(
   async (req: Request<IdParams>, res: Response) => {
     const postId = req.params.id;
 
-    const post = await getSinglePostService(postId);
+    const post = await getSinglePostService(
+      postId,
+      req.user?.id
+    );
 
     res.status(200).json(
       apiResponse(post, "Post fetched successfully")

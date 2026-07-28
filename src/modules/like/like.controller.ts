@@ -52,7 +52,8 @@ export const getPostLikes = asyncHandler(
     res: Response
   ) => {
     const likes = await getPostLikesService(
-      req.params.postId
+      req.params.postId,
+      req.user?.id
     );
 
     res.status(200).json(

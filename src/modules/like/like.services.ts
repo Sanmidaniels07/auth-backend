@@ -80,16 +80,25 @@ export const unlikePostService = async (
   return null;
 };
 
-export const getPostLikesService =
-  async (postId: string) => {
-    const count =
-      await prisma.like.count({
-        where: {
-          postId,
-        },
-      });
+export const getPostLikesService = async (
+  postId: string,
+  userId?: string
+) => {
+  const [count, like] = await Promise.all([
+    prisma.like.count({
+      where: { postId },
+    }),
+    userId
+      ? prisma.like.findUnique({
+          where: {
+            userId_postId: { userId, postId },
+          },
+        })
+      : null,
+  ]);
 
-    return {
-      totalLikes: count,
-    };
+  return {
+    totalLikes: count,
+    likedByMe: !!like,
   };
+};

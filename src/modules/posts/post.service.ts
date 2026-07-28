@@ -23,6 +23,7 @@ export const getPostsService = async (
   search?: string,
   authorId?: string,
   sort?: string,
+  userId?: string,
 ) => {
   const skip = (page - 1) * limit;
 
@@ -65,6 +66,9 @@ export const getPostsService = async (
           email: true,
         },
       },
+      _count: {
+        select: { likes: true },
+      },
     },
 
     orderBy: {
@@ -76,8 +80,28 @@ export const getPostsService = async (
     where,
   });
 
+  let likedPostIds = new Set<string>();
+
+  if (userId && posts.length > 0) {
+    const likes = await prisma.like.findMany({
+      where: {
+        userId,
+        postId: { in: posts.map((post) => post.id) },
+      },
+      select: { postId: true },
+    });
+
+    likedPostIds = new Set(likes.map((like) => like.postId));
+  }
+
+  const postsWithLikeInfo = posts.map(({ _count, ...post }) => ({
+    ...post,
+    likeCount: _count.likes,
+    likedByMe: likedPostIds.has(post.id),
+  }));
+
   return {
-    posts,
+    posts: postsWithLikeInfo,
     total,
     page,
     limit,
@@ -85,7 +109,10 @@ export const getPostsService = async (
   };
 };
 
-export const getSinglePostService = async (postId: string) => {
+export const getSinglePostService = async (
+  postId: string,
+  userId?: string,
+) => {
   const post = await prisma.post.findFirst({
     where: {
       id: postId,
@@ -99,6 +126,9 @@ export const getSinglePostService = async (postId: string) => {
           email: true,
         },
       },
+      _count: {
+        select: { likes: true },
+      },
     },
   });
 
@@ -106,7 +136,21 @@ export const getSinglePostService = async (postId: string) => {
     throw new AppError("Post not found", 404);
   }
 
-  return post;
+  const like = userId
+    ? await prisma.like.findUnique({
+        where: {
+          userId_postId: { userId, postId },
+        },
+      })
+    : null;
+
+  const { _count, ...rest } = post;
+
+  return {
+    ...rest,
+    likeCount: _count.likes,
+    likedByMe: !!like,
+  };
 };
 
 export const getPostOwnerService = async (postId: string) => {

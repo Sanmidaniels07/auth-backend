@@ -8,6 +8,7 @@ import {
 
 import { authMiddleware }
 from "../../middleware/auth-middleware";
+import { optionalAuthMiddleware } from "../../middleware/optional-auth-middleware";
 
 const router = Router();
 
@@ -25,6 +26,7 @@ router.delete(
 
 router.get(
   "/:postId",
+  optionalAuthMiddleware,
   getPostLikes
 );
 
