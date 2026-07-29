@@ -1,3 +1,5 @@
+import { NotificationType } from "@prisma/client";
+
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { createNotificationService } from "../notification/notification.service";
@@ -41,7 +43,8 @@ export const likePostService = async (
     createNotificationService(
       post.authorId,
       "New Like",
-      `${user.name} liked your post`
+      `${user.name} liked your post`,
+      NotificationType.LIKE
     ).catch((error) => {
       console.error("Notification failed:", error);
     });

@@ -44,3 +44,42 @@ export const listAttendeesSchema = z.object({
     limit: z.string().optional(),
   }),
 });
+
+export const updateEventSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+  body: z.object({
+    title: z.string().trim().min(2).optional(),
+    description: z.string().trim().optional(),
+    coverImage: z.string().trim().optional(),
+    location: z.string().trim().optional(),
+    startAt: z.coerce.date().optional(),
+    endAt: z.coerce.date().optional(),
+  }),
+});
+
+export const createEventCommentSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+  body: z.object({
+    content: z.string().trim().min(1),
+  }),
+});
+
+export const listEventCommentsSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+  query: z.object({
+    page: z.string().optional(),
+    limit: z.string().optional(),
+  }),
+});
+
+export const eventCommentIdSchema = z.object({
+  params: z.object({
+    commentId: z.string(),
+  }),
+});

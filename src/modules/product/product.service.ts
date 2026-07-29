@@ -477,6 +477,91 @@ export const getSellerProductsService = async (
   };
 };
 
+export const bulkUpdateProductStatusService = async (
+  userId: string,
+  productIds: string[],
+  status: ProductStatus
+) => {
+  const store = await getSellerStore(userId);
+
+  const result = await prisma.product.updateMany({
+    where: { id: { in: productIds }, storeId: store.id },
+    data: { status },
+  });
+
+  return { updatedCount: result.count };
+};
+
+export const bulkDeleteProductsService = async (
+  userId: string,
+  productIds: string[]
+) => {
+  const store = await getSellerStore(userId);
+
+  const result = await prisma.product.updateMany({
+    where: { id: { in: productIds }, storeId: store.id },
+    data: { status: ProductStatus.ARCHIVED },
+  });
+
+  return { archivedCount: result.count };
+};
+
+const escapeCsvField = (value: unknown) => {
+  const str = String(value ?? "");
+  if (/[",\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+};
+
+export const exportSellerProductsCsvService = async (
+  userId: string
+) => {
+  const store = await getSellerStore(userId);
+
+  const products = await prisma.product.findMany({
+    where: { storeId: store.id },
+    include: {
+      category: { select: { name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const headers = [
+    "id",
+    "title",
+    "sku",
+    "category",
+    "price",
+    "originalPrice",
+    "stock",
+    "status",
+    "condition",
+    "brand",
+    "createdAt",
+  ];
+
+  const rows = products.map((product) =>
+    [
+      product.id,
+      product.title,
+      product.sku,
+      product.category.name,
+      product.price,
+      product.originalPrice ?? "",
+      product.stock,
+      product.status,
+      product.condition,
+      product.brand ?? "",
+      product.createdAt.toISOString(),
+    ]
+      .map(escapeCsvField)
+      .join(",")
+  );
+
+  return [headers.join(","), ...rows].join("\n");
+};
+
 export const getSellerProductByIdService = async (
   userId: string,
   productId: string

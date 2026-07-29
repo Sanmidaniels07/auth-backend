@@ -90,6 +90,15 @@ enum CouponType {
   FIXED
 }
 
+enum NotificationType {
+  LIKE
+  COMMENT
+  FOLLOW
+  MESSAGE
+  ORDER
+  SYSTEM
+}
+
 model User {
   id String @id @default(cuid())
 
@@ -118,6 +127,11 @@ model User {
   role Role @default(USER)
 
   isVerified Boolean @default(false)
+
+  deletedAt DateTime?
+
+  twoFactorSecret  String?
+  twoFactorEnabled Boolean @default(false)
 
   verificationToken       String?
   verificationTokenExpiry DateTime?
@@ -171,6 +185,81 @@ model User {
   stories        Story[]
   storyViews     StoryView[]
   storyReactions StoryReaction[]
+
+  blockedUsers   Block[] @relation("Blocker")
+  blockedByUsers Block[] @relation("Blocked")
+
+  notificationPreferences NotificationPreference[]
+  pushTokens              PushToken[]
+
+  savedCards SavedCard[]
+
+  eventComments EventComment[]
+
+  storeViews StoreView[]
+
+  createdAt DateTime @default(now())
+}
+
+model Block {
+  id String @id @default(cuid())
+
+  blockerId String
+  blocker   User   @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+
+  blockedId String
+  blocked   User   @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+}
+
+model NotificationPreference {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type NotificationType
+
+  enabled Boolean @default(true)
+
+  @@unique([userId, type])
+}
+
+model PushToken {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token String @unique
+
+  platform String?
+
+  createdAt DateTime @default(now())
+}
+
+model SavedCard {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  authorizationCode String @unique
+
+  last4 String?
+
+  expMonth String?
+
+  expYear String?
+
+  bank String?
+
+  cardType String?
+
+  isDefault Boolean @default(false)
 
   createdAt DateTime @default(now())
 }
@@ -441,6 +530,22 @@ model Event {
 
   attendees EventAttendee[]
 
+  comments EventComment[]
+
+  createdAt DateTime @default(now())
+}
+
+model EventComment {
+  id String @id @default(cuid())
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  content String
+
   createdAt DateTime @default(now())
 }
 
@@ -557,6 +662,9 @@ model Session {
 
   expiresAt DateTime
 
+  userAgent String?
+  ipAddress String?
+
   createdAt DateTime @default(now())
 }
 
@@ -565,6 +673,8 @@ model Notification {
 
   userId String
   user   User   @relation(fields: [userId], references: [id])
+
+  type NotificationType @default(SYSTEM)
 
   title   String
   message String
@@ -639,7 +749,38 @@ model Store {
 
   orderShipments OrderShipping[]
 
+  payouts Payout[]
+
+  storeViews StoreView[]
+
   createdAt DateTime @default(now())
+}
+
+model Payout {
+  id String @id @default(cuid())
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  amount Float
+
+  note String?
+
+  createdBy String
+
+  createdAt DateTime @default(now())
+}
+
+model StoreView {
+  id String @id @default(cuid())
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  viewerId String?
+  viewer   User?   @relation(fields: [viewerId], references: [id], onDelete: SetNull)
+
+  viewedAt DateTime @default(now())
 }
 
 model ShippingOption {
@@ -941,6 +1082,9 @@ model Review {
   rating Int
 
   comment String?
+
+  reply     String?
+  repliedAt DateTime?
 
   createdAt DateTime @default(now())
 

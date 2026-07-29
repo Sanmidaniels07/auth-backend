@@ -10,7 +10,16 @@ import {
   rsvpToEventService,
   cancelRsvpService,
   getEventAttendeesService,
+  updateEventService,
+  cancelEventService,
+  createEventCommentService,
+  getEventCommentsService,
+  deleteEventCommentService,
 } from "./event.service";
+
+interface CommentIdParams {
+  commentId: string;
+}
 
 export const createEvent = asyncHandler(
   async (req: Request, res: Response) => {
@@ -79,6 +88,77 @@ export const cancelRsvp = asyncHandler(
 
     res.status(200).json(
       apiResponse(null, "RSVP cancelled successfully")
+    );
+  }
+);
+
+export const updateEvent = asyncHandler(
+  async (req: Request<IdParams>, res: Response) => {
+    const event = await updateEventService(
+      req.user.id,
+      req.params.id,
+      req.body
+    );
+
+    res.status(200).json(
+      apiResponse(event, "Event updated successfully")
+    );
+  }
+);
+
+export const cancelEvent = asyncHandler(
+  async (req: Request<IdParams>, res: Response) => {
+    await cancelEventService(req.user.id, req.params.id);
+
+    res.status(200).json(
+      apiResponse(null, "Event cancelled successfully")
+    );
+  }
+);
+
+export const createEventComment = asyncHandler(
+  async (req: Request<IdParams>, res: Response) => {
+    const comment = await createEventCommentService(
+      req.user.id,
+      req.params.id,
+      req.body.content
+    );
+
+    res.status(201).json(
+      apiResponse(comment, "Comment added successfully")
+    );
+  }
+);
+
+export const listEventComments = asyncHandler(
+  async (req: Request<IdParams>, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+
+    const result = await getEventCommentsService(
+      req.params.id,
+      page,
+      limit
+    );
+
+    res.status(200).json(
+      apiResponse(
+        result,
+        "Comments fetched successfully"
+      )
+    );
+  }
+);
+
+export const deleteEventComment = asyncHandler(
+  async (req: Request<CommentIdParams>, res: Response) => {
+    await deleteEventCommentService(
+      req.user.id,
+      req.params.commentId
+    );
+
+    res.status(200).json(
+      apiResponse(null, "Comment deleted successfully")
     );
   }
 );

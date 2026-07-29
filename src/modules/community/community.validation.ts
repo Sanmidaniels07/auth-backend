@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CommunityRole } from "@prisma/client";
 
 export const createCommunitySchema = z.object({
   body: z.object({
@@ -25,5 +26,22 @@ export const trendingCommunitiesSchema = z.object({
 export const communitySlugSchema = z.object({
   params: z.object({
     slug: z.string(),
+  }),
+});
+
+export const updateMemberRoleSchema = z.object({
+  params: z.object({
+    slug: z.string(),
+    userId: z.string(),
+  }),
+  body: z.object({
+    role: z.nativeEnum(CommunityRole),
+  }),
+});
+
+export const removeMemberSchema = z.object({
+  params: z.object({
+    slug: z.string(),
+    userId: z.string(),
   }),
 });

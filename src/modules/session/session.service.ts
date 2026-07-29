@@ -7,7 +7,10 @@ import {
 import { AppError } from "../../utils/appError";
 
 export const refreshSessionService =
-  async (refreshToken: string) => {
+  async (
+    refreshToken: string,
+    device: { userAgent?: string; ipAddress?: string } = {}
+  ) => {
     const decoded = jwt.verify(
       refreshToken,
       process.env.JWT_REFRESH_SECRET as string
@@ -38,6 +41,13 @@ export const refreshSessionService =
     ) {
       throw new AppError(
         "Session expired",
+        401
+      );
+    }
+
+    if (session.user.deletedAt) {
+      throw new AppError(
+        "This account has been deleted",
         401
       );
     }
@@ -73,6 +83,8 @@ export const refreshSessionService =
               60 *
               1000
         ),
+        userAgent: device.userAgent,
+        ipAddress: device.ipAddress,
       },
     });
 

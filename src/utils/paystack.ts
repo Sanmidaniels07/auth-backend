@@ -58,10 +58,21 @@ export const initializePaystackTransaction = async (
   return json.data;
 };
 
+interface PaystackAuthorization {
+  authorization_code: string;
+  last4: string;
+  exp_month: string;
+  exp_year: string;
+  bank: string | null;
+  card_type: string | null;
+  reusable: boolean;
+}
+
 interface VerifyTransactionResult {
   status: string;
   amount: number;
   reference: string;
+  authorization?: PaystackAuthorization;
 }
 
 export const verifyPaystackTransaction = async (
@@ -70,6 +81,38 @@ export const verifyPaystackTransaction = async (
   const json = await paystackFetch(
     `/transaction/verify/${encodeURIComponent(reference)}`,
     { method: "GET" }
+  );
+
+  return json.data;
+};
+
+interface ChargeAuthorizationParams {
+  email: string;
+  amountKobo: number;
+  reference: string;
+  authorizationCode: string;
+}
+
+interface ChargeAuthorizationResult {
+  status: string;
+  reference: string;
+  amount: number;
+}
+
+export const chargeAuthorization = async (
+  params: ChargeAuthorizationParams
+): Promise<ChargeAuthorizationResult> => {
+  const json = await paystackFetch(
+    "/transaction/charge_authorization",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        email: params.email,
+        amount: params.amountKobo,
+        reference: params.reference,
+        authorization_code: params.authorizationCode,
+      }),
+    }
   );
 
   return json.data;

@@ -33,6 +33,12 @@ import returnRequestRoutes from "./modules/return-request/return-request.routes"
 import reportRoutes from "./modules/report/report.routes";
 import conversationRoutes from "./modules/conversation/conversation.routes";
 import storyRoutes from "./modules/story/story.routes";
+import accountRoutes from "./modules/account/account.routes";
+import twoFactorRoutes from "./modules/twofactor/twofactor.routes";
+import blockRoutes from "./modules/block/block.routes";
+import searchRoutes from "./modules/search/search.routes";
+import payoutRoutes from "./modules/payout/payout.routes";
+import paymentMethodRoutes from "./modules/payment-method/payment-method.routes";
 
 import { authMiddleware } from "./middleware/auth-middleware";
 import { authorize } from "./middleware/role.middleware";
@@ -166,6 +172,18 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/conversations", conversationRoutes);
 
 app.use("/api/stories", storyRoutes);
+
+app.use("/api/account", accountRoutes);
+
+app.use("/api/2fa", twoFactorRoutes);
+
+app.use("/api/blocks", blockRoutes);
+
+app.use("/api/search", searchRoutes);
+
+app.use("/api/admin/payouts", payoutRoutes);
+
+app.use("/api/payment-methods", paymentMethodRoutes);
 
 app.get("/", (_, res) => {
   res.send("API Running...");

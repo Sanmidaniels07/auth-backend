@@ -2,6 +2,7 @@ import { OrderItemStatus } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
+import { getSellerStore } from "../seller/seller.utils";
 import { UpdateReviewInput } from "./review.validation";
 
 const recomputeStoreRating = async (storeId: string) => {
@@ -130,6 +131,34 @@ export const deleteReviewService = async (
   await recomputeStoreRating(review.storeId);
 };
 
+export const replyToReviewService = async (
+  userId: string,
+  reviewId: string,
+  reply: string
+) => {
+  const store = await getSellerStore(userId);
+
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+  });
+
+  if (!review) {
+    throw new AppError("Review not found.", 404);
+  }
+
+  if (review.storeId !== store.id) {
+    throw new AppError(
+      "You are not authorized to reply to this review.",
+      403
+    );
+  }
+
+  return prisma.review.update({
+    where: { id: reviewId },
+    data: { reply, repliedAt: new Date() },
+  });
+};
+
 export const getProductReviewsService = async (
   productId: string,
   page: number,
@@ -144,7 +173,7 @@ export const getProductReviewsService = async (
       take: limit,
       orderBy: { createdAt: "desc" },
       include: {
-        user: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true, username: true, avatar: true } },
       },
     }),
     prisma.review.count({ where: { productId } }),
@@ -186,7 +215,7 @@ export const getStoreReviewsService = async (
       take: limit,
       orderBy: { createdAt: "desc" },
       include: {
-        user: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true, username: true, avatar: true } },
         product: {
           select: { id: true, title: true, slug: true },
         },

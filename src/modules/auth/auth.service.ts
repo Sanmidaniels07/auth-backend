@@ -2,7 +2,7 @@ import prisma from "../../prisma/prisma";
 import bcrypt from "bcrypt";
 import { AppError } from "../../utils/appError";
 import { generateResetToken, generateVerificationToken } from "../../utils/token";
-import { generateAccessToken, generateRefreshToken } from "../../utils/jwt";
+import { generateAccessToken, generateRefreshToken, generateTwoFactorToken } from "../../utils/jwt";
 import { sendEmail } from "./email.services";
 import { verificationTemplate } from "../../templates/verification.template";
 
@@ -16,6 +16,47 @@ interface LoginData {
   email: string;
   password: string;
 }
+
+interface DeviceInfo {
+  userAgent?: string;
+  ipAddress?: string;
+}
+
+export const issueUserSession = async (
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: import("@prisma/client").Role;
+    isVerified: boolean;
+  },
+  device: DeviceInfo = {}
+) => {
+  const accessToken = generateAccessToken(user.id, user.email, user.role);
+  const refreshToken = generateRefreshToken(user.id);
+
+  await prisma.session.create({
+    data: {
+      userId: user.id,
+      refreshToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      userAgent: device.userAgent,
+      ipAddress: device.ipAddress,
+    },
+  });
+
+  return {
+    accessToken,
+    refreshToken,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isVerified: user.isVerified,
+    },
+  };
+};
 export const signupService = async (data: SignupData) => {
   const { name, email, password } = data;
 
@@ -64,7 +105,10 @@ export const signupService = async (data: SignupData) => {
   };
 };
 
-export const loginService = async (data: LoginData) => {
+export const loginService = async (
+  data: LoginData,
+  device: DeviceInfo = {}
+) => {
   const { email, password } = data;
 
   if (!email || !password) {
@@ -82,6 +126,10 @@ export const loginService = async (data: LoginData) => {
     throw new AppError("Invalid credentials", 401);
   }
 
+  if (user.deletedAt) {
+    throw new AppError("This account has been deleted", 401);
+  }
+
   // Compare password
   const isPasswordCorrect = await bcrypt.compare(password, user.password);
 
@@ -89,33 +137,14 @@ export const loginService = async (data: LoginData) => {
     throw new AppError("Invalid credentials", 401);
   }
 
-  // Generate access token
-  const accessToken = generateAccessToken(user.id, user.email, user.role);
+  if (user.twoFactorEnabled) {
+    return {
+      requires2FA: true as const,
+      twoFactorToken: generateTwoFactorToken(user.id),
+    };
+  }
 
-  // Generate refresh token
-  const refreshToken = generateRefreshToken(user.id);
-
-  // Store refresh token in DB
-  await prisma.session.create({
-    data: {
-      userId: user.id,
-      refreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
-  });
-
-  return {
-    accessToken,
-    refreshToken,
-
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      isVerified: user.isVerified,
-    },
-  };
+  return issueUserSession(user, device);
 };
 
 export const forgotPasswordService = async (email: string) => {

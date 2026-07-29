@@ -1,28 +1,36 @@
 import crypto from "crypto";
-import { OrderStatus, ProductStatus } from "@prisma/client";
+import {
+  OrderStatus,
+  ProductStatus,
+  NotificationType,
+} from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import {
   initializePaystackTransaction,
   verifyPaystackTransaction,
+  chargeAuthorization,
 } from "../../utils/paystack";
 import {
   validateCouponForOrder,
   redeemCouponService,
 } from "../coupon/coupon.service";
+import { createNotificationService } from "../notification/notification.service";
+import { saveCardFromAuthorization } from "../payment-method/payment-method.service";
 
 const NAIRA_TO_KOBO = 100;
+const LOW_STOCK_THRESHOLD = 5;
 
 interface ShippingSelection {
   storeId: string;
   shippingOptionId: string;
 }
 
-export const initiateCheckoutService = async (
+const buildPendingOrder = async (
   userId: string,
   addressId: string,
-  shippingSelections: ShippingSelection[] = [],
+  shippingSelections: ShippingSelection[],
   couponCode?: string
 ) => {
   const [user, address, cart] = await Promise.all([
@@ -177,63 +185,38 @@ export const initiateCheckoutService = async (
     include: { items: true, shipping: true },
   });
 
-  const paystackData = await initializePaystackTransaction({
-    email: user.email,
-    amountKobo: Math.round(total * NAIRA_TO_KOBO),
-    reference,
-    callbackUrl: process.env.FRONTEND_URL
-      ? `${process.env.FRONTEND_URL}/checkout/callback`
-      : undefined,
-  });
-
-  return {
-    order,
-    authorizationUrl: paystackData.authorization_url,
-    accessCode: paystackData.access_code,
-    reference,
-  };
+  return { user, order, reference, total };
 };
 
-export const confirmPaymentByReferenceService = async (
-  reference: string
+const notifyLowStock = (
+  sellerUserId: string,
+  productTitle: string,
+  stock: number
 ) => {
-  const order = await prisma.order.findUnique({
-    where: { paymentReference: reference },
-    include: { items: true },
+  createNotificationService(
+    sellerUserId,
+    "Low stock alert",
+    `"${productTitle}" is down to ${stock} unit${
+      stock === 1 ? "" : "s"
+    } in stock.`,
+    NotificationType.ORDER
+  ).catch((error) => {
+    console.error("Notification failed:", error);
   });
+};
 
-  if (!order) {
-    throw new AppError(
-      "Order not found for this payment reference.",
-      404
-    );
-  }
-
-  // Idempotent: a webhook and a manual verify call can both land on the same order.
-  if (order.status !== OrderStatus.PENDING) {
-    return order;
-  }
-
-  const paystackData = await verifyPaystackTransaction(
-    reference
-  );
-
-  if (paystackData.status !== "success") {
-    throw new AppError("Payment was not successful.", 400);
-  }
-
-  if (
-    Math.round(order.total * NAIRA_TO_KOBO) !==
-    paystackData.amount
-  ) {
-    throw new AppError("Payment amount mismatch.", 400);
-  }
-
+const finalizeOrderPayment = async (order: {
+  id: string;
+  userId: string;
+  couponCode: string | null;
+  items: { productId: string; quantity: number }[];
+}) => {
   const updatedOrder = await prisma.$transaction(async (tx) => {
     for (const item of order.items) {
       const updatedProduct = await tx.product.update({
         where: { id: item.productId },
         data: { stock: { decrement: item.quantity } },
+        include: { store: { select: { sellerId: true } } },
       });
 
       if (
@@ -244,6 +227,23 @@ export const confirmPaymentByReferenceService = async (
           where: { id: item.productId },
           data: { status: ProductStatus.OUT_OF_STOCK },
         });
+      }
+
+      if (
+        updatedProduct.stock > 0 &&
+        updatedProduct.stock <= LOW_STOCK_THRESHOLD
+      ) {
+        const seller = await tx.sellerProfile.findUnique({
+          where: { id: updatedProduct.store.sellerId },
+        });
+
+        if (seller) {
+          notifyLowStock(
+            seller.userId,
+            updatedProduct.title,
+            updatedProduct.stock
+          );
+        }
       }
     }
 
@@ -281,6 +281,126 @@ export const confirmPaymentByReferenceService = async (
         );
       });
     }
+  }
+
+  return updatedOrder;
+};
+
+export const initiateCheckoutService = async (
+  userId: string,
+  addressId: string,
+  shippingSelections: ShippingSelection[] = [],
+  couponCode?: string
+) => {
+  const { user, order, reference, total } =
+    await buildPendingOrder(
+      userId,
+      addressId,
+      shippingSelections,
+      couponCode
+    );
+
+  const paystackData = await initializePaystackTransaction({
+    email: user.email,
+    amountKobo: Math.round(total * NAIRA_TO_KOBO),
+    reference,
+    callbackUrl: process.env.FRONTEND_URL
+      ? `${process.env.FRONTEND_URL}/checkout/callback`
+      : undefined,
+  });
+
+  return {
+    order,
+    authorizationUrl: paystackData.authorization_url,
+    accessCode: paystackData.access_code,
+    reference,
+  };
+};
+
+export const checkoutWithSavedCardService = async (
+  userId: string,
+  addressId: string,
+  savedCardId: string,
+  shippingSelections: ShippingSelection[] = [],
+  couponCode?: string
+) => {
+  const savedCard = await prisma.savedCard.findUnique({
+    where: { id: savedCardId },
+  });
+
+  if (!savedCard || savedCard.userId !== userId) {
+    throw new AppError("Saved card not found.", 404);
+  }
+
+  const { user, order, reference, total } =
+    await buildPendingOrder(
+      userId,
+      addressId,
+      shippingSelections,
+      couponCode
+    );
+
+  const chargeResult = await chargeAuthorization({
+    email: user.email,
+    amountKobo: Math.round(total * NAIRA_TO_KOBO),
+    reference,
+    authorizationCode: savedCard.authorizationCode,
+  });
+
+  if (chargeResult.status !== "success") {
+    throw new AppError(
+      "Charge was not successful. Please try a different payment method.",
+      400
+    );
+  }
+
+  return finalizeOrderPayment(order);
+};
+
+export const confirmPaymentByReferenceService = async (
+  reference: string
+) => {
+  const order = await prisma.order.findUnique({
+    where: { paymentReference: reference },
+    include: { items: true },
+  });
+
+  if (!order) {
+    throw new AppError(
+      "Order not found for this payment reference.",
+      404
+    );
+  }
+
+  // Idempotent: a webhook and a manual verify call can both land on the same order.
+  if (order.status !== OrderStatus.PENDING) {
+    return order;
+  }
+
+  const paystackData = await verifyPaystackTransaction(
+    reference
+  );
+
+  if (paystackData.status !== "success") {
+    throw new AppError("Payment was not successful.", 400);
+  }
+
+  if (
+    Math.round(order.total * NAIRA_TO_KOBO) !==
+    paystackData.amount
+  ) {
+    throw new AppError("Payment amount mismatch.", 400);
+  }
+
+  const updatedOrder = await finalizeOrderPayment(order);
+
+  if (paystackData.authorization?.reusable) {
+    saveCardFromAuthorization(
+      order.userId,
+      paystackData.authorization
+    ).catch((error) => {
+      console.error("Saving card failed:", error);
+    });
   }
 
   return updatedOrder;

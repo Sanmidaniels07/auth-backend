@@ -8,6 +8,8 @@ import {
   listCommunitiesSchema,
   trendingCommunitiesSchema,
   communitySlugSchema,
+  updateMemberRoleSchema,
+  removeMemberSchema,
 } from "./community.validation";
 import {
   createCommunity,
@@ -17,6 +19,9 @@ import {
   getCommunityBySlug,
   joinCommunity,
   leaveCommunity,
+  updateMemberRole,
+  removeMember,
+  deleteCommunity,
 } from "./community.controller";
 
 const router = Router();
@@ -59,6 +64,27 @@ router.delete(
   authMiddleware,
   validate(communitySlugSchema),
   leaveCommunity
+);
+
+router.patch(
+  "/:slug/members/:userId/role",
+  authMiddleware,
+  validate(updateMemberRoleSchema),
+  updateMemberRole
+);
+
+router.delete(
+  "/:slug/members/:userId",
+  authMiddleware,
+  validate(removeMemberSchema),
+  removeMember
+);
+
+router.delete(
+  "/:slug",
+  authMiddleware,
+  validate(communitySlugSchema),
+  deleteCommunity
 );
 
 router.get(

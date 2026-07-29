@@ -53,6 +53,52 @@
 
 /**
  * @swagger
+ * /api/checkout/charge-saved-card:
+ *   post:
+ *     summary: Checkout using a previously saved card
+ *     description: Requires authentication. Same cart/address/shipping/coupon validation as /api/checkout/initiate, but charges a saved Paystack authorization code directly instead of starting an inline popup - the order is finalized synchronously in the same request when the charge succeeds.
+ *     tags:
+ *       - Checkout
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - addressId
+ *               - savedCardId
+ *             properties:
+ *               addressId:
+ *                 type: string
+ *               savedCardId:
+ *                 type: string
+ *               shippingSelections:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     storeId:
+ *                       type: string
+ *                     shippingOptionId:
+ *                       type: string
+ *               couponCode:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Payment charged and order finalized successfully
+ *       400:
+ *         description: Cart is empty, a product is unavailable/out of stock, a required shipping selection is missing/invalid, the coupon is invalid, or the card charge failed
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       404:
+ *         description: Address or saved card not found
+ */
+
+/**
+ * @swagger
  * /api/checkout/verify/{reference}:
  *   get:
  *     summary: Verify a Paystack payment

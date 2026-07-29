@@ -31,7 +31,13 @@ export const refreshToken =
 
       const tokens =
         await refreshSessionService(
-          token
+          token,
+          {
+            userAgent: req.headers["user-agent"] as
+              | string
+              | undefined,
+            ipAddress: req.ip,
+          }
         );
 
       res.cookie(

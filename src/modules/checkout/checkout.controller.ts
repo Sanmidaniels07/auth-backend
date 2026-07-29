@@ -6,6 +6,7 @@ import { ReferenceParams } from "../../types/request.types";
 import { verifyPaystackWebhookSignature } from "../../utils/paystack";
 import {
   initiateCheckoutService,
+  checkoutWithSavedCardService,
   verifyCheckoutService,
   confirmPaymentByReferenceService,
 } from "./checkout.service";
@@ -21,6 +22,22 @@ export const initiateCheckout = asyncHandler(
 
     res.status(201).json(
       apiResponse(result, "Checkout initiated successfully")
+    );
+  }
+);
+
+export const checkoutWithSavedCard = asyncHandler(
+  async (req: Request, res: Response) => {
+    const order = await checkoutWithSavedCardService(
+      req.user.id,
+      req.body.addressId,
+      req.body.savedCardId,
+      req.body.shippingSelections,
+      req.body.couponCode
+    );
+
+    res.status(200).json(
+      apiResponse(order, "Payment successful")
     );
   }
 );

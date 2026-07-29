@@ -24,6 +24,15 @@ export const deleteReviewSchema = z.object({
   }),
 });
 
+export const replyToReviewSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+  body: z.object({
+    reply: z.string().trim().min(1),
+  }),
+});
+
 export type UpdateReviewInput = z.infer<
   typeof updateReviewSchema
 >["body"];

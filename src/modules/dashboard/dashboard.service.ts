@@ -2,14 +2,10 @@ import { OrderStatus } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { getSellerStore } from "../seller/seller.utils";
-
-// Orders only count toward revenue once payment has actually happened.
-const REVENUE_STATUSES: OrderStatus[] = [
-  OrderStatus.PAID,
-  OrderStatus.PROCESSING,
-  OrderStatus.SHIPPED,
-  OrderStatus.DELIVERED,
-];
+import {
+  REVENUE_STATUSES,
+  getStoreAvailableBalance,
+} from "../../utils/sellerRevenue";
 
 const PENDING_STATUSES: OrderStatus[] = [
   OrderStatus.PENDING,
@@ -376,6 +372,95 @@ export const getSellerCustomersService = async (
 
   return {
     customers,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+};
+
+export const getSellerEarningsService = async (
+  userId: string
+) => {
+  const store = await getSellerStore(userId);
+
+  return getStoreAvailableBalance(store.id);
+};
+
+export const getStoreTrafficService = async (
+  userId: string,
+  days: number
+) => {
+  const store = await getSellerStore(userId);
+
+  const since = new Date();
+  since.setHours(0, 0, 0, 0);
+  since.setDate(since.getDate() - (days - 1));
+
+  const [totalViews, uniqueVisitorRows, views] = await Promise.all([
+    prisma.storeView.count({
+      where: { storeId: store.id, viewedAt: { gte: since } },
+    }),
+    prisma.storeView.findMany({
+      where: {
+        storeId: store.id,
+        viewedAt: { gte: since },
+        viewerId: { not: null },
+      },
+      select: { viewerId: true },
+      distinct: ["viewerId"],
+    }),
+    prisma.storeView.findMany({
+      where: { storeId: store.id, viewedAt: { gte: since } },
+      select: { viewedAt: true },
+    }),
+  ]);
+
+  const byDate = new Map<string, number>();
+
+  for (let i = 0; i < days; i++) {
+    const d = new Date(since);
+    d.setDate(d.getDate() + i);
+    byDate.set(d.toISOString().slice(0, 10), 0);
+  }
+
+  for (const view of views) {
+    const key = view.viewedAt.toISOString().slice(0, 10);
+    byDate.set(key, (byDate.get(key) ?? 0) + 1);
+  }
+
+  return {
+    totalViews,
+    uniqueVisitors: uniqueVisitorRows.length,
+    followersCount: await prisma.storeFollow.count({
+      where: { storeId: store.id },
+    }),
+    dailyViews: Array.from(byDate.entries()).map(
+      ([date, views]) => ({ date, views })
+    ),
+  };
+};
+
+export const getSellerPayoutsService = async (
+  userId: string,
+  page: number,
+  limit: number
+) => {
+  const store = await getSellerStore(userId);
+  const skip = (page - 1) * limit;
+
+  const [payouts, total] = await Promise.all([
+    prisma.payout.findMany({
+      where: { storeId: store.id },
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.payout.count({ where: { storeId: store.id } }),
+  ]);
+
+  return {
+    payouts,
     total,
     page,
     limit,

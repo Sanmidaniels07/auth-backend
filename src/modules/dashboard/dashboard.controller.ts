@@ -10,6 +10,9 @@ import {
   getTopProductsService,
   getAnalyticsService,
   getSellerCustomersService,
+  getSellerEarningsService,
+  getSellerPayoutsService,
+  getStoreTrafficService,
 } from "./dashboard.service";
 
 export const getDashboardStats = asyncHandler(
@@ -129,6 +132,59 @@ export const getAnalytics = asyncHandler(
       apiResponse(
         analytics,
         "Analytics fetched successfully"
+      )
+    );
+  }
+);
+
+export const getSellerEarnings = asyncHandler(
+  async (req: Request, res: Response) => {
+    const earnings = await getSellerEarningsService(
+      req.user.id
+    );
+
+    res.status(200).json(
+      apiResponse(
+        earnings,
+        "Earnings fetched successfully"
+      )
+    );
+  }
+);
+
+export const getStoreTraffic = asyncHandler(
+  async (req: Request, res: Response) => {
+    const days = Number(req.query.days) || 30;
+
+    const traffic = await getStoreTrafficService(
+      req.user.id,
+      days
+    );
+
+    res.status(200).json(
+      apiResponse(
+        traffic,
+        "Store traffic fetched successfully"
+      )
+    );
+  }
+);
+
+export const getSellerPayouts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+
+    const result = await getSellerPayoutsService(
+      req.user.id,
+      page,
+      limit
+    );
+
+    res.status(200).json(
+      apiResponse(
+        result,
+        "Payouts fetched successfully"
       )
     );
   }

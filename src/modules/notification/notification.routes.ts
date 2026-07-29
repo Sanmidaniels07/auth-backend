@@ -1,22 +1,50 @@
 import { Router } from "express";
 
-
 import { authMiddleware } from "../../middleware/auth-middleware";
-import { getNotifications, markNotificationRead } from "./notification.controller";
-
+import { validate } from "../../middleware/validate.middleware";
+import {
+  updatePreferenceSchema,
+  registerPushTokenSchema,
+  unregisterPushTokenSchema,
+} from "./notification.validation";
+import {
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  getNotificationPreferences,
+  updateNotificationPreference,
+  registerPushToken,
+  unregisterPushToken,
+} from "./notification.controller";
 
 const router = Router();
 
-router.get(
-  "/",
-  authMiddleware,
-  getNotifications
-);
+router.use(authMiddleware);
+
+router.get("/", getNotifications);
+
+router.patch("/read-all", markAllNotificationsRead);
+
+router.patch("/:id/read", markNotificationRead);
+
+router.get("/preferences", getNotificationPreferences);
 
 router.patch(
-  "/:id/read",
-  authMiddleware,
-  markNotificationRead
+  "/preferences",
+  validate(updatePreferenceSchema),
+  updateNotificationPreference
+);
+
+router.post(
+  "/push-tokens",
+  validate(registerPushTokenSchema),
+  registerPushToken
+);
+
+router.delete(
+  "/push-tokens/:token",
+  validate(unregisterPushTokenSchema),
+  unregisterPushToken
 );
 
 export default router;

@@ -3,6 +3,7 @@ import { MediaType } from "@prisma/client";
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { syncPostHashtags } from "../hashtag/hashtag.service";
+import { getBlockedUserIds } from "../block/block.service";
 
 interface MediaInput {
   url: string;
@@ -15,6 +16,8 @@ const POST_INCLUDE = {
       id: true,
       name: true,
       email: true,
+      username: true,
+      avatar: true,
     },
   },
   media: {
@@ -111,6 +114,15 @@ export const getPostsService = async (
 
   if (authorId) {
     where.authorId = authorId;
+  }
+
+  // Only applied to general feed browsing - a specific authorId filter
+  // (e.g. viewing one user's profile) is left as-is.
+  if (userId && !authorId) {
+    const blockedIds = await getBlockedUserIds(userId);
+    if (blockedIds.length > 0) {
+      where.authorId = { notIn: blockedIds };
+    }
   }
 
   const posts = await prisma.post.findMany({
@@ -315,6 +327,8 @@ export const getDeletedPostsService = async () => {
           id: true,
           name: true,
           email: true,
+          username: true,
+          avatar: true,
         },
       },
     },

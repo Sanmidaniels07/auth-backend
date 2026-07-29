@@ -16,6 +16,9 @@ import {
   getRelatedProductsService,
   getSellerProductsService,
   getSellerProductByIdService,
+  bulkUpdateProductStatusService,
+  bulkDeleteProductsService,
+  exportSellerProductsCsvService,
 } from "./product.service";
 
 export const createProduct = asyncHandler(
@@ -128,6 +131,49 @@ export const getSellerProducts = asyncHandler(
         "Your products fetched successfully"
       )
     );
+  }
+);
+
+export const bulkUpdateProductStatus = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result = await bulkUpdateProductStatusService(
+      req.user.id,
+      req.body.productIds,
+      req.body.status
+    );
+
+    res.status(200).json(
+      apiResponse(result, "Products updated successfully")
+    );
+  }
+);
+
+export const bulkDeleteProducts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result = await bulkDeleteProductsService(
+      req.user.id,
+      req.body.productIds
+    );
+
+    res.status(200).json(
+      apiResponse(result, "Products archived successfully")
+    );
+  }
+);
+
+export const exportSellerProductsCsv = asyncHandler(
+  async (req: Request, res: Response) => {
+    const csv = await exportSellerProductsCsvService(
+      req.user.id
+    );
+
+    res.status(200);
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="products.csv"'
+    );
+    res.send(csv);
   }
 );
 

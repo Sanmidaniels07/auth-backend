@@ -7,6 +7,7 @@ import {
   createReviewService,
   updateReviewService,
   deleteReviewService,
+  replyToReviewService,
 } from "./review.service";
 
 export const createReview = asyncHandler(
@@ -44,6 +45,20 @@ export const deleteReview = asyncHandler(
 
     res.status(200).json(
       apiResponse(null, "Review deleted successfully")
+    );
+  }
+);
+
+export const replyToReview = asyncHandler(
+  async (req: Request<IdParams>, res: Response) => {
+    const review = await replyToReviewService(
+      req.user.id,
+      req.params.id,
+      req.body.reply
+    );
+
+    res.status(200).json(
+      apiResponse(review, "Reply added successfully")
     );
   }
 );

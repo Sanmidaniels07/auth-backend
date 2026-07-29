@@ -160,6 +160,135 @@ export const cancelRsvpService = async (
   });
 };
 
+interface UpdateEventInput {
+  title?: string;
+  description?: string;
+  coverImage?: string;
+  location?: string;
+  startAt?: Date;
+  endAt?: Date;
+}
+
+export const updateEventService = async (
+  userId: string,
+  eventId: string,
+  data: UpdateEventInput
+) => {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+  });
+
+  if (!event) {
+    throw new AppError("Event not found.", 404);
+  }
+
+  if (event.creatorId !== userId) {
+    throw new AppError(
+      "You are not authorized to update this event.",
+      403
+    );
+  }
+
+  return prisma.event.update({
+    where: { id: eventId },
+    data,
+  });
+};
+
+export const cancelEventService = async (
+  userId: string,
+  eventId: string
+) => {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+  });
+
+  if (!event) {
+    throw new AppError("Event not found.", 404);
+  }
+
+  if (event.creatorId !== userId) {
+    throw new AppError(
+      "You are not authorized to cancel this event.",
+      403
+    );
+  }
+
+  await prisma.event.delete({
+    where: { id: eventId },
+  });
+};
+
+export const createEventCommentService = async (
+  userId: string,
+  eventId: string,
+  content: string
+) => {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+  });
+
+  if (!event) {
+    throw new AppError("Event not found.", 404);
+  }
+
+  return prisma.eventComment.create({
+    data: { eventId, userId, content },
+    include: { user: { select: ATTENDEE_USER_SELECT } },
+  });
+};
+
+export const getEventCommentsService = async (
+  eventId: string,
+  page: number,
+  limit: number
+) => {
+  const skip = (page - 1) * limit;
+
+  const [comments, total] = await Promise.all([
+    prisma.eventComment.findMany({
+      where: { eventId },
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: { user: { select: ATTENDEE_USER_SELECT } },
+    }),
+    prisma.eventComment.count({ where: { eventId } }),
+  ]);
+
+  return {
+    comments,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+};
+
+export const deleteEventCommentService = async (
+  userId: string,
+  commentId: string
+) => {
+  const comment = await prisma.eventComment.findUnique({
+    where: { id: commentId },
+  });
+
+  if (!comment) {
+    throw new AppError("Comment not found.", 404);
+  }
+
+  if (comment.userId !== userId) {
+    throw new AppError(
+      "You are not authorized to delete this comment.",
+      403
+    );
+  }
+
+  await prisma.eventComment.delete({
+    where: { id: commentId },
+  });
+};
+
 export const getEventAttendeesService = async (
   eventId: string,
   page: number,

@@ -10,10 +10,18 @@ import {
   getCommunityBySlugService,
   joinCommunityService,
   leaveCommunityService,
+  updateMemberRoleService,
+  removeMemberService,
+  deleteCommunityService,
 } from "./community.service";
 
 interface SlugParams {
   slug: string;
+}
+
+interface SlugUserParams {
+  slug: string;
+  userId: string;
 }
 
 export const createCommunity = asyncHandler(
@@ -125,6 +133,51 @@ export const leaveCommunity = asyncHandler(
 
     res.status(200).json(
       apiResponse(null, "Left community successfully")
+    );
+  }
+);
+
+export const updateMemberRole = asyncHandler(
+  async (req: Request<SlugUserParams>, res: Response) => {
+    const membership = await updateMemberRoleService(
+      req.user.id,
+      req.params.slug,
+      req.params.userId,
+      req.body.role
+    );
+
+    res.status(200).json(
+      apiResponse(
+        membership,
+        "Member role updated successfully"
+      )
+    );
+  }
+);
+
+export const removeMember = asyncHandler(
+  async (req: Request<SlugUserParams>, res: Response) => {
+    await removeMemberService(
+      req.user.id,
+      req.params.slug,
+      req.params.userId
+    );
+
+    res.status(200).json(
+      apiResponse(null, "Member removed successfully")
+    );
+  }
+);
+
+export const deleteCommunity = asyncHandler(
+  async (req: Request<SlugParams>, res: Response) => {
+    await deleteCommunityService(
+      req.user.id,
+      req.params.slug
+    );
+
+    res.status(200).json(
+      apiResponse(null, "Community deleted successfully")
     );
   }
 );

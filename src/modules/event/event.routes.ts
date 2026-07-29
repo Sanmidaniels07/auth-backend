@@ -9,6 +9,10 @@ import {
   eventIdSchema,
   rsvpSchema,
   listAttendeesSchema,
+  updateEventSchema,
+  createEventCommentSchema,
+  listEventCommentsSchema,
+  eventCommentIdSchema,
 } from "./event.validation";
 import {
   createEvent,
@@ -17,6 +21,11 @@ import {
   rsvpToEvent,
   cancelRsvp,
   getEventAttendees,
+  updateEvent,
+  cancelEvent,
+  createEventComment,
+  listEventComments,
+  deleteEventComment,
 } from "./event.controller";
 
 const router = Router();
@@ -53,6 +62,40 @@ router.delete(
   authMiddleware,
   validate(eventIdSchema),
   cancelRsvp
+);
+
+router.patch(
+  "/:id",
+  authMiddleware,
+  validate(updateEventSchema),
+  updateEvent
+);
+
+router.delete(
+  "/:id",
+  authMiddleware,
+  validate(eventIdSchema),
+  cancelEvent
+);
+
+router.post(
+  "/:id/comments",
+  authMiddleware,
+  validate(createEventCommentSchema),
+  createEventComment
+);
+
+router.get(
+  "/:id/comments",
+  validate(listEventCommentsSchema),
+  listEventComments
+);
+
+router.delete(
+  "/comments/:commentId",
+  authMiddleware,
+  validate(eventCommentIdSchema),
+  deleteEventComment
 );
 
 router.get(

@@ -259,6 +259,97 @@
 
 /**
  * @swagger
+ * /api/products/me/export:
+ *   get:
+ *     summary: Export the authenticated seller's products as CSV
+ *     description: Requires authentication and an existing store. Returns a text/csv attachment covering every product regardless of status.
+ *     tags:
+ *       - Product
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: CSV file streamed successfully
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Seller has no store
+ */
+
+/**
+ * @swagger
+ * /api/products/me/bulk-status:
+ *   patch:
+ *     summary: Bulk update product status
+ *     description: Requires authentication. Only updates products owned by the authenticated seller's store; ids not owned by the seller are silently skipped.
+ *     tags:
+ *       - Product
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - productIds
+ *               - status
+ *             properties:
+ *               productIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               status:
+ *                 type: string
+ *                 enum: [DRAFT, PUBLISHED, OUT_OF_STOCK, ARCHIVED]
+ *     responses:
+ *       200:
+ *         description: Products updated successfully, returns updatedCount
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Seller has no store
+ */
+
+/**
+ * @swagger
+ * /api/products/me/bulk-delete:
+ *   post:
+ *     summary: Bulk archive (soft-delete) products
+ *     description: Requires authentication. Only archives products owned by the authenticated seller's store; ids not owned by the seller are silently skipped.
+ *     tags:
+ *       - Product
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - productIds
+ *             properties:
+ *               productIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Products archived successfully, returns archivedCount
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Seller has no store
+ */
+
+/**
+ * @swagger
  * /api/products/{id}/related:
  *   get:
  *     summary: Get related products

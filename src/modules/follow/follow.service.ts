@@ -1,6 +1,9 @@
+import { NotificationType } from "@prisma/client";
+
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { createNotificationService } from "../notification/notification.service";
+import { isBlockedEitherWay } from "../block/block.service";
 
 const USER_SUMMARY_SELECT = {
   id: true,
@@ -27,6 +30,13 @@ export const followUserService = async (
     throw new AppError("User not found.", 404);
   }
 
+  if (await isBlockedEitherWay(followerId, followingId)) {
+    throw new AppError(
+      "You cannot follow this user.",
+      403
+    );
+  }
+
   const existing = await prisma.follow.findUnique({
     where: {
       followerId_followingId: { followerId, followingId },
@@ -47,7 +57,8 @@ export const followUserService = async (
   createNotificationService(
     followingId,
     "New Follower",
-    `${follower.name} started following you`
+    `${follower.name} started following you`,
+    NotificationType.FOLLOW
   ).catch((error) => {
     console.error("Notification failed:", error);
   });

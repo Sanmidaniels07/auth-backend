@@ -10,6 +10,8 @@ import {
   relatedProductsSchema,
   productReviewsSchema,
   sellerProductsSchema,
+  bulkUpdateProductStatusSchema,
+  bulkDeleteProductsSchema,
 } from "./product.validation";
 import {
   createProduct,
@@ -23,6 +25,9 @@ import {
   getProductById,
   updateProduct,
   deleteProduct,
+  bulkUpdateProductStatus,
+  bulkDeleteProducts,
+  exportSellerProductsCsv,
 } from "./product.controller";
 
 const router = Router();
@@ -49,6 +54,26 @@ router.get(
   authMiddleware,
   validate(sellerProductsSchema),
   getSellerProducts
+);
+
+router.get(
+  "/me/export",
+  authMiddleware,
+  exportSellerProductsCsv
+);
+
+router.patch(
+  "/me/bulk-status",
+  authMiddleware,
+  validate(bulkUpdateProductStatusSchema),
+  bulkUpdateProductStatus
+);
+
+router.post(
+  "/me/bulk-delete",
+  authMiddleware,
+  validate(bulkDeleteProductsSchema),
+  bulkDeleteProducts
 );
 
 router.get(

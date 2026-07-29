@@ -238,3 +238,126 @@ export const leaveCommunityService = async (
     where: { id: existing.id },
   });
 };
+
+const requireAdminMember = async (
+  communityId: string,
+  userId: string
+) => {
+  const membership = await prisma.communityMember.findUnique({
+    where: {
+      communityId_userId: { communityId, userId },
+    },
+  });
+
+  if (!membership || membership.role !== CommunityRole.ADMIN) {
+    throw new AppError(
+      "You must be a community admin to do this.",
+      403
+    );
+  }
+};
+
+export const updateMemberRoleService = async (
+  actingUserId: string,
+  slug: string,
+  targetUserId: string,
+  role: CommunityRole
+) => {
+  const community = await prisma.community.findUnique({
+    where: { slug },
+  });
+
+  if (!community) {
+    throw new AppError("Community not found.", 404);
+  }
+
+  await requireAdminMember(community.id, actingUserId);
+
+  const membership = await prisma.communityMember.findUnique({
+    where: {
+      communityId_userId: {
+        communityId: community.id,
+        userId: targetUserId,
+      },
+    },
+  });
+
+  if (!membership) {
+    throw new AppError(
+      "This user is not a member of the community.",
+      404
+    );
+  }
+
+  return prisma.communityMember.update({
+    where: { id: membership.id },
+    data: { role },
+  });
+};
+
+export const removeMemberService = async (
+  actingUserId: string,
+  slug: string,
+  targetUserId: string
+) => {
+  const community = await prisma.community.findUnique({
+    where: { slug },
+  });
+
+  if (!community) {
+    throw new AppError("Community not found.", 404);
+  }
+
+  if (targetUserId === community.creatorId) {
+    throw new AppError(
+      "The community creator cannot be removed.",
+      400
+    );
+  }
+
+  await requireAdminMember(community.id, actingUserId);
+
+  const membership = await prisma.communityMember.findUnique({
+    where: {
+      communityId_userId: {
+        communityId: community.id,
+        userId: targetUserId,
+      },
+    },
+  });
+
+  if (!membership) {
+    throw new AppError(
+      "This user is not a member of the community.",
+      404
+    );
+  }
+
+  await prisma.communityMember.delete({
+    where: { id: membership.id },
+  });
+};
+
+export const deleteCommunityService = async (
+  userId: string,
+  slug: string
+) => {
+  const community = await prisma.community.findUnique({
+    where: { slug },
+  });
+
+  if (!community) {
+    throw new AppError("Community not found.", 404);
+  }
+
+  if (community.creatorId !== userId) {
+    throw new AppError(
+      "Only the community creator can delete it.",
+      403
+    );
+  }
+
+  await prisma.community.delete({
+    where: { id: community.id },
+  });
+};

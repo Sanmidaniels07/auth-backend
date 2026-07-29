@@ -1,6 +1,10 @@
+import { NotificationType } from "@prisma/client";
+
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { getIO } from "../../socket";
+import { createNotificationService } from "../notification/notification.service";
+import { isBlockedEitherWay } from "../block/block.service";
 
 const PARTICIPANT_USER_SELECT = {
   id: true,
@@ -39,6 +43,13 @@ export const getOrCreateConversationService = async (
 
   if (!otherUser) {
     throw new AppError("User not found.", 404);
+  }
+
+  if (await isBlockedEitherWay(userId, otherUserId)) {
+    throw new AppError(
+      "You cannot message this user.",
+      403
+    );
   }
 
   const myConversations = await prisma.conversation.findMany({
@@ -169,6 +180,20 @@ export const sendMessageService = async (
 ) => {
   await assertParticipant(userId, conversationId);
 
+  const otherParticipants =
+    await prisma.conversationParticipant.findMany({
+      where: { conversationId, NOT: { userId } },
+    });
+
+  for (const participant of otherParticipants) {
+    if (await isBlockedEitherWay(userId, participant.userId)) {
+      throw new AppError(
+        "You cannot message this user.",
+        403
+      );
+    }
+  }
+
   const [message] = await prisma.$transaction([
     prisma.message.create({
       data: { conversationId, senderId: userId, content },
@@ -182,14 +207,6 @@ export const sendMessageService = async (
     }),
   ]);
 
-  const otherParticipants =
-    await prisma.conversationParticipant.findMany({
-      where: {
-        conversationId,
-        NOT: { userId },
-      },
-    });
-
   try {
     const io = getIO();
     for (const participant of otherParticipants) {
@@ -200,6 +217,17 @@ export const sendMessageService = async (
       "Realtime message delivery failed:",
       error
     );
+  }
+
+  for (const participant of otherParticipants) {
+    createNotificationService(
+      participant.userId,
+      "New Message",
+      `${message.sender.name} sent you a message`,
+      NotificationType.MESSAGE
+    ).catch((error) => {
+      console.error("Notification failed:", error);
+    });
   }
 
   return message;

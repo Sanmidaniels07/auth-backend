@@ -112,6 +112,19 @@ export const sellerProductsSchema = z.object({
   }),
 });
 
+export const bulkUpdateProductStatusSchema = z.object({
+  body: z.object({
+    productIds: z.array(z.string()).min(1),
+    status: z.nativeEnum(ProductStatus),
+  }),
+});
+
+export const bulkDeleteProductsSchema = z.object({
+  body: z.object({
+    productIds: z.array(z.string()).min(1),
+  }),
+});
+
 export type CreateProductInput = z.infer<
   typeof createProductSchema
 >["body"];

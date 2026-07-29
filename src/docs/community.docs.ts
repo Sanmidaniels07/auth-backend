@@ -179,4 +179,109 @@
  *         description: Not a member, or community not found
  */
 
+/**
+ * @swagger
+ * /api/communities/{slug}/members/{userId}/role:
+ *   patch:
+ *     summary: Update a member's role
+ *     description: Requires authentication and ADMIN membership in the community.
+ *     tags:
+ *       - Community
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - role
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [ADMIN, MODERATOR, MEMBER]
+ *     responses:
+ *       200:
+ *         description: Member role updated successfully
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Forbidden - requires ADMIN membership
+ *       404:
+ *         description: Community or member not found
+ */
+
+/**
+ * @swagger
+ * /api/communities/{slug}/members/{userId}:
+ *   delete:
+ *     summary: Remove a member from a community
+ *     description: Requires authentication and ADMIN membership in the community. The community creator cannot be removed.
+ *     tags:
+ *       - Community
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Member removed successfully
+ *       400:
+ *         description: Cannot remove the community creator
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Forbidden - requires ADMIN membership
+ *       404:
+ *         description: Community or member not found
+ */
+
+/**
+ * @swagger
+ * /api/communities/{slug}:
+ *   delete:
+ *     summary: Delete a community
+ *     description: Requires authentication. Only the community creator can delete it.
+ *     tags:
+ *       - Community
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Community deleted successfully
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Forbidden - only the creator can delete this community
+ *       404:
+ *         description: Community not found
+ */
+
 export {};

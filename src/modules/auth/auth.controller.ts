@@ -20,7 +20,22 @@ export const signup = asyncHandler(
 
 export const login = asyncHandler(
   async (req: Request, res: Response) => {
-    const result = await loginService(req.body);
+    const result = await loginService(req.body, {
+      userAgent: req.headers["user-agent"] as
+        | string
+        | undefined,
+      ipAddress: req.ip,
+    });
+
+    if ("requires2FA" in result) {
+      res.status(200).json(
+        apiResponse(
+          result,
+          "Two-factor authentication required"
+        )
+      );
+      return;
+    }
 
     res.cookie(
       REFRESH_COOKIE_NAME,

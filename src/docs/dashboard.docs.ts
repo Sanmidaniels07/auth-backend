@@ -171,4 +171,76 @@
  *         description: Seller has no store
  */
 
+/**
+ * @swagger
+ * /api/seller/dashboard/earnings:
+ *   get:
+ *     summary: Get the seller's available balance
+ *     description: Returns the store's earnings from paid+ orders minus recorded payouts.
+ *     tags:
+ *       - Seller Dashboard
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Earnings fetched successfully
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Seller has no store
+ */
+
+/**
+ * @swagger
+ * /api/seller/dashboard/payouts:
+ *   get:
+ *     summary: Get the seller's payout history
+ *     description: Returns payouts recorded against this store by an admin, paginated.
+ *     tags:
+ *       - Seller Dashboard
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Payouts fetched successfully
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Seller has no store
+ */
+
+/**
+ * @swagger
+ * /api/seller/dashboard/traffic:
+ *   get:
+ *     summary: Get store traffic analytics
+ *     description: Returns total views, unique visitors, follower count, and a daily view series for the store's public page over the last N days.
+ *     tags:
+ *       - Seller Dashboard
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *     responses:
+ *       200:
+ *         description: Store traffic fetched successfully
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Seller has no store
+ */
+
 export {};

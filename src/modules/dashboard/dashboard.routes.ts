@@ -17,6 +17,9 @@ import {
   getTopProducts,
   getAnalytics,
   getSellerCustomers,
+  getSellerEarnings,
+  getSellerPayouts,
+  getStoreTraffic,
 } from "./dashboard.controller";
 
 const router = Router();
@@ -55,6 +58,20 @@ router.get(
   "/customers",
   validate(sellerCustomersSchema),
   getSellerCustomers
+);
+
+router.get("/earnings", getSellerEarnings);
+
+router.get(
+  "/traffic",
+  validate(salesOverviewSchema),
+  getStoreTraffic
+);
+
+router.get(
+  "/payouts",
+  validate(sellerCustomersSchema),
+  getSellerPayouts
 );
 
 export default router;

@@ -1,3 +1,5 @@
+import { NotificationType } from "@prisma/client";
+
 import { createNotificationService } from '../notification/notification.service';
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
@@ -29,7 +31,8 @@ export const createCommentService = async (
     await createNotificationService(
       post.authorId,
       "New Comment",
-      `${user.name} commented on your post`
+      `${user.name} commented on your post`,
+      NotificationType.COMMENT
     ).catch((error) => {
       console.error("Notification failed:", error);
     });
@@ -50,6 +53,8 @@ export const getPostCommentsService =
           select: {
             id: true,
             name: true,
+            username: true,
+            avatar: true,
           },
         },
       },

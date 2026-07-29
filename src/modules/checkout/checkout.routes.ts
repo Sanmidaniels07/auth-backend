@@ -4,10 +4,12 @@ import { authMiddleware } from "../../middleware/auth-middleware";
 import { validate } from "../../middleware/validate.middleware";
 import {
   initiateCheckoutSchema,
+  checkoutWithSavedCardSchema,
   verifyCheckoutSchema,
 } from "./checkout.validation";
 import {
   initiateCheckout,
+  checkoutWithSavedCard,
   verifyCheckout,
   paystackWebhook,
 } from "./checkout.controller";
@@ -22,6 +24,13 @@ router.post(
   authMiddleware,
   validate(initiateCheckoutSchema),
   initiateCheckout
+);
+
+router.post(
+  "/charge-saved-card",
+  authMiddleware,
+  validate(checkoutWithSavedCardSchema),
+  checkoutWithSavedCard
 );
 
 router.get(

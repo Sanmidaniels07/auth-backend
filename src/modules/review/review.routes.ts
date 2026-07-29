@@ -6,11 +6,13 @@ import {
   createReviewSchema,
   updateReviewSchema,
   deleteReviewSchema,
+  replyToReviewSchema,
 } from "./review.validation";
 import {
   createReview,
   updateReview,
   deleteReview,
+  replyToReview,
 } from "./review.controller";
 
 const router = Router();
@@ -29,6 +31,12 @@ router.delete(
   "/:id",
   validate(deleteReviewSchema),
   deleteReview
+);
+
+router.post(
+  "/:id/reply",
+  validate(replyToReviewSchema),
+  replyToReview
 );
 
 export default router;

@@ -110,6 +110,44 @@
 
 /**
  * @swagger
+ * /api/reviews/{id}/reply:
+ *   post:
+ *     summary: Reply to a review as the seller
+ *     description: Requires authentication. Only the owner of the store the review belongs to can reply. Replacing an existing reply overwrites it and updates repliedAt.
+ *     tags:
+ *       - Review
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reply
+ *             properties:
+ *               reply:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Reply added successfully
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Not the owner of the store this review belongs to
+ *       404:
+ *         description: Review not found
+ */
+
+/**
+ * @swagger
  * /api/products/{id}/reviews:
  *   get:
  *     summary: Get reviews for a product

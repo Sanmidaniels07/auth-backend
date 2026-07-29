@@ -179,6 +179,16 @@ export const getPublicStoreService = async (
     isFollowing = !!follow;
   }
 
+  // Don't count the owner's own visits; anonymous viewers are logged with a null viewerId.
+  if (viewerId !== store.seller.user.id) {
+    await prisma.storeView.create({
+      data: {
+        storeId: store.id,
+        viewerId: viewerId ?? null,
+      },
+    });
+  }
+
   const { _count, ...rest } = store;
 
   return {
