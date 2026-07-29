@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Role } from "@prisma/client";
+import { Role, UserStatus } from "@prisma/client";
 
 export const updateUserRoleSchema = z.object({
   params: z.object({
@@ -7,5 +7,34 @@ export const updateUserRoleSchema = z.object({
   }),
   body: z.object({
     role: z.nativeEnum(Role),
+  }),
+});
+
+export const updateUserStatusSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+  body: z
+    .object({
+      status: z.nativeEnum(UserStatus),
+      reason: z.string().trim().min(1).optional(),
+    })
+    .refine(
+      (data) => data.status === UserStatus.ACTIVE || !!data.reason,
+      {
+        message:
+          "A reason is required when suspending or banning a user.",
+        path: ["reason"],
+      }
+    ),
+});
+
+export const listUsersAdminSchema = z.object({
+  query: z.object({
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    search: z.string().optional(),
+    role: z.nativeEnum(Role).optional(),
+    status: z.nativeEnum(UserStatus).optional(),
   }),
 });

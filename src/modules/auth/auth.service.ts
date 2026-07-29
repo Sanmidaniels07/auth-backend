@@ -1,4 +1,5 @@
 import prisma from "../../prisma/prisma";
+import { UserStatus } from "@prisma/client";
 import bcrypt from "bcrypt";
 import { AppError } from "../../utils/appError";
 import { generateResetToken, generateVerificationToken } from "../../utils/token";
@@ -128,6 +129,24 @@ export const loginService = async (
 
   if (user.deletedAt) {
     throw new AppError("This account has been deleted", 401);
+  }
+
+  if (user.status === UserStatus.BANNED) {
+    throw new AppError(
+      user.statusReason
+        ? `Your account has been banned: ${user.statusReason}`
+        : "Your account has been banned.",
+      403
+    );
+  }
+
+  if (user.status === UserStatus.SUSPENDED) {
+    throw new AppError(
+      user.statusReason
+        ? `Your account has been suspended: ${user.statusReason}`
+        : "Your account has been suspended.",
+      403
+    );
   }
 
   // Compare password

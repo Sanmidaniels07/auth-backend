@@ -1,4 +1,5 @@
 import prisma from "../../prisma/prisma";
+import { UserStatus } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import {
   generateAccessToken,
@@ -49,6 +50,15 @@ export const refreshSessionService =
       throw new AppError(
         "This account has been deleted",
         401
+      );
+    }
+
+    if (session.user.status !== UserStatus.ACTIVE) {
+      throw new AppError(
+        session.user.status === UserStatus.BANNED
+          ? "This account has been banned"
+          : "This account has been suspended",
+        403
       );
     }
 
