@@ -23,7 +23,13 @@ export const validate =
       // the parsed-but-discarded value silently being thrown away.
       if (parsed.body !== undefined) req.body = parsed.body;
       if (parsed.params !== undefined) req.params = parsed.params;
-      if (parsed.query !== undefined) req.query = parsed.query;
+      // req.query is a getter-only accessor in Express 5 (no setter), so
+      // `req.query = parsed.query` throws a TypeError here - mutate the
+      // existing object in place instead of replacing the reference.
+      if (parsed.query !== undefined) {
+        Object.keys(req.query).forEach((key) => delete req.query[key]);
+        Object.assign(req.query, parsed.query);
+      }
 
       next();
     } catch (error: any) {
