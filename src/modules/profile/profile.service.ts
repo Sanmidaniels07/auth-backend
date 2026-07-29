@@ -22,6 +22,7 @@ const PROFILE_SELECT = {
   languages: true,
   role: true,
   isVerified: true,
+  twoFactorEnabled: true,
   createdAt: true,
 };
 

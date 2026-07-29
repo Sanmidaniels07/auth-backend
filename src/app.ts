@@ -39,6 +39,7 @@ import blockRoutes from "./modules/block/block.routes";
 import searchRoutes from "./modules/search/search.routes";
 import payoutRoutes from "./modules/payout/payout.routes";
 import paymentMethodRoutes from "./modules/payment-method/payment-method.routes";
+import adminRoutes from "./modules/admin/admin.routes";
 
 import { authMiddleware } from "./middleware/auth-middleware";
 import { authorize } from "./middleware/role.middleware";
@@ -184,6 +185,8 @@ app.use("/api/search", searchRoutes);
 app.use("/api/admin/payouts", payoutRoutes);
 
 app.use("/api/payment-methods", paymentMethodRoutes);
+
+app.use("/api/admin", adminRoutes);
 
 app.get("/", (_, res) => {
   res.send("API Running...");
