@@ -77,7 +77,24 @@ export const updateUserStatusService = async (
       await tx.session.deleteMany({ where: { userId: targetUserId } });
     }
 
-    return updated;
+    // If this user is a seller, suspending/banning them also pulls their
+    // store out of marketplace browsing; reactivating them un-suspends it.
+    const sellerProfile = await tx.sellerProfile.findUnique({
+      where: { userId: targetUserId },
+      include: { store: true },
+    });
+
+    let storeSuspended: boolean | null = null;
+
+    if (sellerProfile?.store) {
+      const updatedStore = await tx.store.update({
+        where: { id: sellerProfile.store.id },
+        data: { isSuspended: status !== UserStatus.ACTIVE },
+      });
+      storeSuspended = updatedStore.isSuspended;
+    }
+
+    return { ...updated, storeSuspended };
   });
 };
 

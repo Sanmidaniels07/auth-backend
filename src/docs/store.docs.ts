@@ -62,7 +62,7 @@
  *         description: Unauthorized - no or invalid token
  *   get:
  *     summary: List stores
- *     description: Returns a paginated, public list of stores. Supports search and city filters.
+ *     description: Returns a paginated, public list of stores. Supports search and city filters. Suspended stores (owner banned/suspended by an admin) are excluded.
  *     tags:
  *       - Store
  *     security: []
@@ -112,7 +112,7 @@
  * /api/stores/{slug}/products:
  *   get:
  *     summary: List a store's published products
- *     description: Returns a paginated list of published products belonging to the store identified by slug. Public endpoint.
+ *     description: Returns a paginated list of published products belonging to the store identified by slug. Public endpoint. Returns 404 if the store is suspended.
  *     tags:
  *       - Store
  *     security: []
@@ -142,7 +142,7 @@
  * /api/stores/{slug}:
  *   get:
  *     summary: Get a public store by slug
- *     description: Returns store details, including basic seller info, shipping options, followersCount, and (if authenticated) isFollowing. Public endpoint.
+ *     description: Returns store details, including basic seller info, shipping options, followersCount, and (if authenticated) isFollowing. Public endpoint. Returns 404 if the store is suspended (owner banned/suspended by an admin), regardless of who is asking.
  *     tags:
  *       - Store
  *     security: []

@@ -116,7 +116,7 @@
  * /api/admin/users/{id}/status:
  *   patch:
  *     summary: Suspend, ban, or reactivate a user
- *     description: Requires authentication and ADMIN role. An admin cannot change their own status - another admin must do it. Suspension/ban is indefinite until an admin sets status back to ACTIVE. Setting a non-ACTIVE status immediately revokes all of the user's sessions, so they will not be able to refresh into a new access token (an already-issued access token can still be used until it naturally expires, up to 15 minutes). A reason is required when suspending or banning.
+ *     description: Requires authentication and ADMIN role. An admin cannot change their own status - another admin must do it. Suspension/ban is indefinite until an admin sets status back to ACTIVE. Setting a non-ACTIVE status immediately revokes all of the user's sessions, so they will not be able to refresh into a new access token (an already-issued access token can still be used until it naturally expires, up to 15 minutes). A reason is required when suspending or banning. If the user is a seller, their store is automatically suspended (hidden from marketplace browsing and search) along with them, and un-suspended when they're set back to ACTIVE.
  *     tags:
  *       - Administration
  *     security:

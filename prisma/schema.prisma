@@ -744,6 +744,8 @@ model Store {
 
   isVerified Boolean @default(false)
 
+  isSuspended Boolean @default(false)
+
   returnPolicy String?
   shippingPolicy String?
   warrantyPolicy String?

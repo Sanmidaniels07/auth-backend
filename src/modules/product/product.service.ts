@@ -236,7 +236,10 @@ export const getProductsService = async (
 
   const skip = (page - 1) * limit;
 
-  const where: any = { status: ProductStatus.PUBLISHED };
+  const where: any = {
+    status: ProductStatus.PUBLISHED,
+    store: { isSuspended: false },
+  };
 
   if (search) {
     where.OR = [
@@ -314,7 +317,11 @@ export const getPublicProductByIdService = async (
   id: string
 ) => {
   const product = await prisma.product.findFirst({
-    where: { id, status: ProductStatus.PUBLISHED },
+    where: {
+      id,
+      status: ProductStatus.PUBLISHED,
+      store: { isSuspended: false },
+    },
     include: {
       ...FULL_PRODUCT_INCLUDE,
       store: {
@@ -343,6 +350,7 @@ export const getFeaturedProductsService = async (
     where: {
       isFeatured: true,
       status: ProductStatus.PUBLISHED,
+      store: { isSuspended: false },
     },
     take: limit,
     orderBy: { createdAt: "desc" },
@@ -370,7 +378,7 @@ export const getNearbyProductsService = async (
 
   const skip = (page - 1) * limit;
 
-  const storeFilter: any = {};
+  const storeFilter: any = { isSuspended: false };
   if (city) storeFilter.city = { equals: city, mode: "insensitive" };
   if (state) storeFilter.state = { equals: state, mode: "insensitive" };
 
@@ -426,6 +434,7 @@ export const getRelatedProductsService = async (
     where: {
       categoryId: product.categoryId,
       status: ProductStatus.PUBLISHED,
+      store: { isSuspended: false },
       NOT: { id: productId },
     },
     take: limit,

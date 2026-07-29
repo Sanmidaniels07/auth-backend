@@ -164,7 +164,7 @@ export const getPublicStoreService = async (
     },
   });
 
-  if (!store) {
+  if (!store || store.isSuspended) {
     throw new AppError("Store not found.", 404);
   }
 
@@ -315,7 +315,7 @@ export const listStoresService = async (
 ) => {
   const skip = (page - 1) * limit;
 
-  const where: any = {};
+  const where: any = { isSuspended: false };
 
   if (search) {
     where.name = {
@@ -359,7 +359,7 @@ export const getStoreProductsService = async (
     where: { slug },
   });
 
-  if (!store) {
+  if (!store || store.isSuspended) {
     throw new AppError("Store not found.", 404);
   }
 
