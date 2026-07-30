@@ -395,6 +395,23 @@ export const confirmPaymentByReferenceService = async (
     throw new AppError("Payment amount mismatch.", 400);
   }
 
+  // Atomically claim the order before finalizing it. A webhook and a manual
+  // verify call can both reach this point for the same order almost
+  // simultaneously - without this, both would pass the PENDING check above
+  // and both would run finalizeOrderPayment, double-decrementing stock.
+  // Only the caller whose conditional update actually matches a row wins.
+  const claim = await prisma.order.updateMany({
+    where: { id: order.id, status: OrderStatus.PENDING },
+    data: { status: OrderStatus.PAID },
+  });
+
+  if (claim.count === 0) {
+    return prisma.order.findUniqueOrThrow({
+      where: { id: order.id },
+      include: { items: true },
+    });
+  }
+
   const updatedOrder = await finalizeOrderPayment(order);
 
   if (paystackData.authorization?.reusable) {
