@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { asyncHandler } from "../../utils/asyncHandlers";
 import { apiResponse } from "../../utils/apiResponse";
 import { IdParams } from "../../types/request.types";
+import { listPaystackBanks } from "../../utils/paystack";
 import {
   listSavedCardsService,
   deleteSavedCardService,
@@ -44,6 +45,16 @@ export const setDefaultSavedCard = asyncHandler(
         null,
         "Default saved card updated successfully"
       )
+    );
+  }
+);
+
+export const listBanks = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const banks = await listPaystackBanks();
+
+    res.status(200).json(
+      apiResponse(banks, "Banks fetched successfully")
     );
   }
 );

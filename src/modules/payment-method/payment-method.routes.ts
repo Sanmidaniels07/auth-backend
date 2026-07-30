@@ -7,11 +7,14 @@ import {
   listSavedCards,
   deleteSavedCard,
   setDefaultSavedCard,
+  listBanks,
 } from "./payment-method.controller";
 
 const router = Router();
 
 router.use(authMiddleware);
+
+router.get("/banks", listBanks);
 
 router.get("/", listSavedCards);
 

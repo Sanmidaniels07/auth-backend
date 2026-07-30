@@ -11,6 +11,7 @@ import {
   initializePaystackTransaction,
   verifyPaystackTransaction,
   chargeAuthorization,
+  PaystackSplitConfig,
 } from "../../utils/paystack";
 import {
   validateCouponForOrder,
@@ -133,6 +134,43 @@ const buildPendingOrder = async (
     deliveryFee += option.fee;
   }
 
+  // Stores with a Paystack subaccount get their net-of-commission share
+  // routed straight to them via a dynamic split, built fresh for this
+  // order. Stores without one keep accruing in the manual Payout ledger,
+  // same as before - this is what lets both flows coexist.
+  const storeById = new Map(stores.map((store) => [store.id, store]));
+  const netKoboByStore = new Map<string, number>();
+
+  for (const item of cart.items) {
+    const store = storeById.get(item.product.storeId);
+    if (!store?.paystackSubaccountCode) continue;
+
+    const net =
+      item.product.price *
+      item.quantity *
+      (1 - item.product.category.commissionRate / 100);
+
+    netKoboByStore.set(
+      store.id,
+      (netKoboByStore.get(store.id) ?? 0) + Math.round(net * NAIRA_TO_KOBO)
+    );
+  }
+
+  const split: PaystackSplitConfig | undefined =
+    netKoboByStore.size > 0
+      ? {
+          type: "flat",
+          currency: "NGN",
+          bearer_type: "account",
+          subaccounts: Array.from(netKoboByStore.entries()).map(
+            ([storeId, shareKobo]) => ({
+              subaccount: storeById.get(storeId)!.paystackSubaccountCode!,
+              share: shareKobo,
+            })
+          ),
+        }
+      : undefined;
+
   // No tax rules exist yet.
   const tax = 0;
 
@@ -178,6 +216,8 @@ const buildPendingOrder = async (
           // Snapshot the category's current commission rate so a later
           // rate change doesn't retroactively affect this order.
           commissionRate: item.product.category.commissionRate,
+          autoPaidViaSplit: !!storeById.get(item.product.storeId)
+            ?.paystackSubaccountCode,
         })),
       },
       shipping:
@@ -188,7 +228,7 @@ const buildPendingOrder = async (
     include: { items: true, shipping: true },
   });
 
-  return { user, order, reference, total };
+  return { user, order, reference, total, split };
 };
 
 const notifyLowStock = (
@@ -298,7 +338,7 @@ export const initiateCheckoutService = async (
   shippingSelections: ShippingSelection[] = [],
   couponCode?: string
 ) => {
-  const { user, order, reference, total } =
+  const { user, order, reference, total, split } =
     await buildPendingOrder(
       userId,
       addressId,
@@ -313,6 +353,7 @@ export const initiateCheckoutService = async (
     callbackUrl: process.env.FRONTEND_URL
       ? `${process.env.FRONTEND_URL}/checkout/callback`
       : undefined,
+    split,
   });
 
   return {
@@ -338,7 +379,7 @@ export const checkoutWithSavedCardService = async (
     throw new AppError("Saved card not found.", 404);
   }
 
-  const { user, order, reference, total } =
+  const { user, order, reference, total, split } =
     await buildPendingOrder(
       userId,
       addressId,
@@ -351,6 +392,7 @@ export const checkoutWithSavedCardService = async (
     amountKobo: Math.round(total * NAIRA_TO_KOBO),
     reference,
     authorizationCode: savedCard.authorizationCode,
+    split,
   });
 
   if (chargeResult.status !== "success") {

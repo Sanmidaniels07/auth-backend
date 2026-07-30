@@ -18,6 +18,10 @@ export const getStoreAvailableBalance = async (
       where: {
         product: { storeId },
         order: { status: { in: REVENUE_STATUSES } },
+        // Items already routed straight to the seller via a Paystack split
+        // at checkout aren't part of this manual ledger - that money never
+        // touched the platform's main account.
+        autoPaidViaSplit: false,
       },
       select: { totalPrice: true, commissionRate: true },
     }),

@@ -20,6 +20,7 @@ import {
   updateShippingOptionService,
   deleteShippingOptionService,
   setStoreVerifiedService,
+  setupPayoutAccountService,
 } from "./store.service";
 
 interface ShippingOptionParams {
@@ -51,6 +52,21 @@ export const updateStore = asyncHandler(
 
     res.status(200).json(
       apiResponse(store, "Store updated successfully")
+    );
+  }
+);
+
+export const setupPayoutAccount = asyncHandler(
+  async (req: Request<SlugParams>, res: Response) => {
+    const store = await setupPayoutAccountService(
+      req.user.id,
+      req.params.slug,
+      req.body.bankCode,
+      req.body.accountNumber
+    );
+
+    res.status(200).json(
+      apiResponse(store, "Payout account set up successfully")
     );
   }
 );

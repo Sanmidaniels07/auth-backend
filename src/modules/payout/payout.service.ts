@@ -11,6 +11,7 @@ export const getStorePayoutInfoService = async (storeId: string) => {
       payoutBankName: true,
       payoutAccountNumber: true,
       payoutAccountName: true,
+      paystackSubaccountCode: true,
     },
   });
 

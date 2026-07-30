@@ -5,6 +5,11 @@ import { AppError } from "../../utils/appError";
 import { generateUniqueSlug } from "../../utils/slugify";
 import { getApprovedSellerProfile } from "../seller/seller.utils";
 import {
+  resolveBankAccount,
+  createOrUpdateSubaccount,
+  listPaystackBanks,
+} from "../../utils/paystack";
+import {
   CreateStoreInput,
   UpdateStoreInput,
 } from "./store.validation";
@@ -113,6 +118,42 @@ export const updateStoreService = async (
     data: {
       ...data,
       slug,
+    },
+  });
+};
+
+export const setupPayoutAccountService = async (
+  userId: string,
+  slug: string,
+  bankCode: string,
+  accountNumber: string
+) => {
+  const store = await getOwnedStoreBySlug(userId, slug);
+
+  const banks = await listPaystackBanks();
+  const bank = banks.find((b) => b.code === bankCode);
+
+  if (!bank) {
+    throw new AppError("Unknown bank.", 400);
+  }
+
+  const resolved = await resolveBankAccount(accountNumber, bankCode);
+
+  const subaccount = await createOrUpdateSubaccount({
+    businessName: store.name,
+    bankCode,
+    accountNumber,
+    existingSubaccountCode: store.paystackSubaccountCode,
+  });
+
+  return prisma.store.update({
+    where: { id: store.id },
+    data: {
+      payoutBankName: bank.name,
+      payoutBankCode: bankCode,
+      payoutAccountNumber: accountNumber,
+      payoutAccountName: resolved.account_name,
+      paystackSubaccountCode: subaccount.subaccount_code,
     },
   });
 };

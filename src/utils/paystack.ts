@@ -29,11 +29,24 @@ const paystackFetch = async (
   return json;
 };
 
+// A per-transaction split, built fresh for each checkout from whichever
+// stores in the cart have a Paystack subaccount. `share` is a flat kobo
+// amount (not a percentage) - each subaccount gets exactly its net-of-commission
+// revenue for this order, and whatever's left (commission + shipping + tax +
+// stores without a subaccount) settles to the main account automatically.
+export interface PaystackSplitConfig {
+  type: "flat";
+  currency: "NGN";
+  bearer_type: "account";
+  subaccounts: { subaccount: string; share: number }[];
+}
+
 interface InitializeTransactionParams {
   email: string;
   amountKobo: number;
   reference: string;
   callbackUrl?: string;
+  split?: PaystackSplitConfig;
 }
 
 interface InitializeTransactionResult {
@@ -52,6 +65,7 @@ export const initializePaystackTransaction = async (
       amount: params.amountKobo,
       reference: params.reference,
       callback_url: params.callbackUrl,
+      split: params.split,
     }),
   });
 
@@ -91,6 +105,7 @@ interface ChargeAuthorizationParams {
   amountKobo: number;
   reference: string;
   authorizationCode: string;
+  split?: PaystackSplitConfig;
 }
 
 interface ChargeAuthorizationResult {
@@ -111,9 +126,94 @@ export const chargeAuthorization = async (
         amount: params.amountKobo,
         reference: params.reference,
         authorization_code: params.authorizationCode,
+        split: params.split,
       }),
     }
   );
+
+  return json.data;
+};
+
+export interface PaystackBank {
+  name: string;
+  code: string;
+}
+
+let bankListCache: { banks: PaystackBank[]; fetchedAt: number } | null = null;
+const BANK_LIST_TTL_MS = 24 * 60 * 60 * 1000;
+
+export const listPaystackBanks = async (): Promise<PaystackBank[]> => {
+  if (bankListCache && Date.now() - bankListCache.fetchedAt < BANK_LIST_TTL_MS) {
+    return bankListCache.banks;
+  }
+
+  const json = await paystackFetch(
+    "/bank?country=nigeria&currency=NGN",
+    { method: "GET" }
+  );
+
+  const banks: PaystackBank[] = json.data.map(
+    (bank: { name: string; code: string }) => ({
+      name: bank.name,
+      code: bank.code,
+    })
+  );
+
+  bankListCache = { banks, fetchedAt: Date.now() };
+
+  return banks;
+};
+
+interface ResolvedAccount {
+  account_number: string;
+  account_name: string;
+}
+
+export const resolveBankAccount = async (
+  accountNumber: string,
+  bankCode: string
+): Promise<ResolvedAccount> => {
+  const json = await paystackFetch(
+    `/bank/resolve?account_number=${encodeURIComponent(
+      accountNumber
+    )}&bank_code=${encodeURIComponent(bankCode)}`,
+    { method: "GET" }
+  );
+
+  return json.data;
+};
+
+interface SubaccountParams {
+  businessName: string;
+  bankCode: string;
+  accountNumber: string;
+  existingSubaccountCode?: string | null;
+}
+
+interface SubaccountResult {
+  subaccount_code: string;
+}
+
+// Percentage_charge is required by Paystack but irrelevant here - every
+// checkout passes its own explicit flat split, which overrides it.
+const SUBACCOUNT_PLACEHOLDER_CHARGE = 0;
+
+export const createOrUpdateSubaccount = async (
+  params: SubaccountParams
+): Promise<SubaccountResult> => {
+  const body = JSON.stringify({
+    business_name: params.businessName,
+    bank_code: params.bankCode,
+    account_number: params.accountNumber,
+    percentage_charge: SUBACCOUNT_PLACEHOLDER_CHARGE,
+  });
+
+  const json = params.existingSubaccountCode
+    ? await paystackFetch(
+        `/subaccount/${params.existingSubaccountCode}`,
+        { method: "PUT", body }
+      )
+    : await paystackFetch("/subaccount", { method: "POST", body });
 
   return json.data;
 };

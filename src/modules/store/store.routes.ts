@@ -15,6 +15,7 @@ import {
   updateShippingOptionSchema,
   deleteShippingOptionSchema,
   adminVerifyStoreSchema,
+  setupPayoutAccountSchema,
 } from "./store.validation";
 import {
   createStore,
@@ -31,6 +32,7 @@ import {
   updateShippingOption,
   deleteShippingOption,
   setStoreVerified,
+  setupPayoutAccount,
 } from "./store.controller";
 
 const router = Router();
@@ -106,6 +108,13 @@ router.delete(
   authMiddleware,
   validate(deleteShippingOptionSchema),
   deleteShippingOption
+);
+
+router.post(
+  "/:slug/payout-account",
+  authMiddleware,
+  validate(setupPayoutAccountSchema),
+  setupPayoutAccount
 );
 
 router.get(

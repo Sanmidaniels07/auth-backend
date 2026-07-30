@@ -757,11 +757,17 @@ model Store {
   shippingPolicy String?
   warrantyPolicy String?
 
-  // Bank details the seller registers so admin knows where to send payouts.
-  // Manual/off-platform transfer for now - see Payout model.
-  payoutBankName      String?
-  payoutAccountNumber String?
-  payoutAccountName   String?
+  // Bank details the seller registers for payouts. Once resolved and a
+  // Paystack subaccount is created (payoutBankCode + paystackSubaccountCode
+  // both set), new orders route this store's share straight to them via a
+  // Paystack dynamic split at checkout. Until then (or if subaccount
+  // creation fails), revenue accrues in the manual Payout ledger instead -
+  // see Payout model.
+  payoutBankName        String?
+  payoutBankCode        String?
+  payoutAccountNumber   String?
+  payoutAccountName     String?
+  paystackSubaccountCode String?
 
   products Product[]
 
@@ -1097,6 +1103,12 @@ model OrderItem {
   // this order was placed. Existing rows default to 0 so past orders
   // aren't retroactively charged a commission that didn't exist yet.
   commissionRate Float @default(0)
+
+  // True if this item's net revenue was routed straight to the seller's
+  // Paystack subaccount via a dynamic split at checkout (their store had
+  // one configured at the time). False means the money is sitting in the
+  // platform's main account and still needs a manual Payout record.
+  autoPaidViaSplit Boolean @default(false)
 
   status OrderItemStatus @default(PENDING)
 
