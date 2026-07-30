@@ -190,6 +190,7 @@ const buildPendingOrder = async (
 
 const notifyLowStock = (
   sellerUserId: string,
+  productId: string,
   productTitle: string,
   stock: number
 ) => {
@@ -199,7 +200,8 @@ const notifyLowStock = (
     `"${productTitle}" is down to ${stock} unit${
       stock === 1 ? "" : "s"
     } in stock.`,
-    NotificationType.ORDER
+    NotificationType.ORDER,
+    { type: "PRODUCT", id: productId }
   ).catch((error) => {
     console.error("Notification failed:", error);
   });
@@ -240,6 +242,7 @@ const finalizeOrderPayment = async (order: {
         if (seller) {
           notifyLowStock(
             seller.userId,
+            updatedProduct.id,
             updatedProduct.title,
             updatedProduct.stock
           );

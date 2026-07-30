@@ -7,7 +7,8 @@ export const createNotificationService = async (
   userId: string,
   title: string,
   message: string,
-  type: NotificationType = NotificationType.SYSTEM
+  type: NotificationType = NotificationType.SYSTEM,
+  target?: { type: string; id: string }
 ) => {
   const preference = await prisma.notificationPreference.findUnique({
     where: {
@@ -26,6 +27,8 @@ export const createNotificationService = async (
       title,
       message,
       type,
+      targetType: target?.type,
+      targetId: target?.id,
     },
   });
 

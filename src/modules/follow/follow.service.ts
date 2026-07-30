@@ -58,7 +58,8 @@ export const followUserService = async (
     followingId,
     "New Follower",
     `${follower.name} started following you`,
-    NotificationType.FOLLOW
+    NotificationType.FOLLOW,
+    { type: "USER", id: followerId }
   ).catch((error) => {
     console.error("Notification failed:", error);
   });

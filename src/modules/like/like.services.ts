@@ -44,7 +44,8 @@ export const likePostService = async (
       post.authorId,
       "New Like",
       `${user.name} liked your post`,
-      NotificationType.LIKE
+      NotificationType.LIKE,
+      { type: "POST", id: postId }
     ).catch((error) => {
       console.error("Notification failed:", error);
     });

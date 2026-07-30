@@ -32,7 +32,8 @@ export const createCommentService = async (
       post.authorId,
       "New Comment",
       `${user.name} commented on your post`,
-      NotificationType.COMMENT
+      NotificationType.COMMENT,
+      { type: "POST", id: postId }
     ).catch((error) => {
       console.error("Notification failed:", error);
     });

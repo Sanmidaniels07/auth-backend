@@ -224,7 +224,8 @@ export const sendMessageService = async (
       participant.userId,
       "New Message",
       `${message.sender.name} sent you a message`,
-      NotificationType.MESSAGE
+      NotificationType.MESSAGE,
+      { type: "CONVERSATION", id: conversationId }
     ).catch((error) => {
       console.error("Notification failed:", error);
     });

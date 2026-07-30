@@ -227,7 +227,9 @@ export const updateSellerStatusService = async (
       : "Seller application rejected",
     status === SellerStatus.APPROVED
       ? "Your seller application has been approved. You can now create your store."
-      : `Your seller application was rejected.${reason ? ` Reason: ${reason}` : ""}`
+      : `Your seller application was rejected.${reason ? ` Reason: ${reason}` : ""}`,
+    undefined,
+    { type: "SELLER_APPLICATION", id: seller.id }
   );
 
   return updated;

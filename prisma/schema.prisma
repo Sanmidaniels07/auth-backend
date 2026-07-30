@@ -688,6 +688,12 @@ model Notification {
   title   String
   message String
 
+  // What the notification is about, so the client can deep-link to it
+  // (e.g. targetType "POST" + targetId -> that post). Null for
+  // notifications with no single destination (e.g. account status change).
+  targetType String?
+  targetId   String?
+
   isRead Boolean @default(false)
 
   createdAt DateTime @default(now())
