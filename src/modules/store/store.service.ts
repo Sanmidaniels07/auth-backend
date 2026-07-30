@@ -3,6 +3,7 @@ import { ProductStatus } from "@prisma/client";
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { generateUniqueSlug } from "../../utils/slugify";
+import { getApprovedSellerProfile } from "../seller/seller.utils";
 import {
   CreateStoreInput,
   UpdateStoreInput,
@@ -12,13 +13,7 @@ const getOwnedStoreBySlug = async (
   userId: string,
   slug: string
 ) => {
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId },
-  });
-
-  if (!seller) {
-    throw new AppError("Seller profile not found.", 404);
-  }
+  const seller = await getApprovedSellerProfile(userId);
 
   const store = await prisma.store.findUnique({
     where: { slug },
@@ -42,16 +37,7 @@ export const createStoreService = async (
   userId: string,
   data: CreateStoreInput
 ) => {
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId },
-  });
-
-  if (!seller) {
-    throw new AppError(
-      "You must become a seller before creating a store.",
-      403
-    );
-  }
+  const seller = await getApprovedSellerProfile(userId);
 
   const existingStore = await prisma.store.findUnique({
     where: { sellerId: seller.id },
@@ -88,16 +74,7 @@ export const updateStoreService = async (
   storeId: string,
   data: UpdateStoreInput
 ) => {
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId },
-  });
-
-  if (!seller) {
-    throw new AppError(
-      "Seller profile not found.",
-      404
-    );
-  }
+  const seller = await getApprovedSellerProfile(userId);
 
   const store = await prisma.store.findUnique({
     where: { id: storeId },

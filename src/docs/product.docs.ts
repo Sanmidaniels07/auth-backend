@@ -10,7 +10,7 @@
  * /api/products:
  *   post:
  *     summary: Create a product
- *     description: Creates a product under the authenticated seller's store. Requires authentication and an existing store. Accepts nested images, specifications and variants.
+ *     description: Creates a product under the authenticated seller's store. Requires authentication, an APPROVED seller profile, and an existing store. Accepts nested images, specifications and variants.
  *     tags:
  *       - Product
  *     security:
@@ -92,7 +92,7 @@
  *       400:
  *         description: SKU already in use
  *       403:
- *         description: Seller has no store
+ *         description: Seller has no store, or seller application is pending/rejected
  *       404:
  *         description: Category not found
  *   get:

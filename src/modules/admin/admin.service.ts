@@ -1,7 +1,8 @@
-import { Role, UserStatus } from "@prisma/client";
+import { Role, UserStatus, SellerStatus } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
+import { createNotificationService } from "../notification/notification.service";
 
 const ADMIN_USER_SELECT = {
   id: true,
@@ -148,4 +149,86 @@ export const listUsersAdminService = async (
     limit,
     totalPages: Math.ceil(total / limit),
   };
+};
+
+const ADMIN_SELLER_SELECT = {
+  id: true,
+  status: true,
+  statusReason: true,
+  cacNumber: true,
+  isVerified: true,
+  createdAt: true,
+  user: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      username: true,
+    },
+  },
+};
+
+export const listSellersAdminService = async (
+  page: number,
+  limit: number,
+  status?: SellerStatus
+) => {
+  const skip = (page - 1) * limit;
+  const where: any = {};
+
+  if (status) where.status = status;
+
+  const [sellers, total] = await Promise.all([
+    prisma.sellerProfile.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      select: ADMIN_SELLER_SELECT,
+    }),
+    prisma.sellerProfile.count({ where }),
+  ]);
+
+  return {
+    sellers,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+};
+
+export const updateSellerStatusService = async (
+  sellerId: string,
+  status: SellerStatus,
+  reason?: string
+) => {
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { id: sellerId },
+  });
+
+  if (!seller) {
+    throw new AppError("Seller profile not found.", 404);
+  }
+
+  const updated = await prisma.sellerProfile.update({
+    where: { id: sellerId },
+    data: {
+      status,
+      statusReason: status === SellerStatus.APPROVED ? null : reason,
+    },
+    select: ADMIN_SELLER_SELECT,
+  });
+
+  await createNotificationService(
+    seller.userId,
+    status === SellerStatus.APPROVED
+      ? "Seller application approved"
+      : "Seller application rejected",
+    status === SellerStatus.APPROVED
+      ? "Your seller application has been approved. You can now create your store."
+      : `Your seller application was rejected.${reason ? ` Reason: ${reason}` : ""}`
+  );
+
+  return updated;
 };

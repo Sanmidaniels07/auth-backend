@@ -10,7 +10,7 @@
  * /api/stores:
  *   post:
  *     summary: Create a store
- *     description: Creates a store for the authenticated seller. Requires authentication and an existing seller profile. A seller may only have one store.
+ *     description: Creates a store for the authenticated seller. Requires authentication and a seller profile with status APPROVED (see POST /api/seller/become-seller and the admin approval endpoint). A seller may only have one store.
  *     tags:
  *       - Store
  *     security:
@@ -57,9 +57,11 @@
  *       400:
  *         description: Seller already has a store
  *       403:
- *         description: Not a seller
+ *         description: Seller application is still pending or was rejected
  *       401:
  *         description: Unauthorized - no or invalid token
+ *       404:
+ *         description: Seller profile not found
  *   get:
  *     summary: List stores
  *     description: Returns a paginated, public list of stores. Supports search and city filters. Suspended stores (owner banned/suspended by an admin) are excluded.

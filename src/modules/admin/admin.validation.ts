@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Role, UserStatus } from "@prisma/client";
+import { Role, UserStatus, SellerStatus } from "@prisma/client";
 
 export const updateUserRoleSchema = z.object({
   params: z.object({
@@ -36,5 +36,31 @@ export const listUsersAdminSchema = z.object({
     search: z.string().optional(),
     role: z.nativeEnum(Role).optional(),
     status: z.nativeEnum(UserStatus).optional(),
+  }),
+});
+
+export const updateSellerStatusSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+  body: z
+    .object({
+      status: z.enum(["APPROVED", "REJECTED"]),
+      reason: z.string().trim().min(1).optional(),
+    })
+    .refine(
+      (data) => data.status === "APPROVED" || !!data.reason,
+      {
+        message: "A reason is required when rejecting a seller.",
+        path: ["reason"],
+      }
+    ),
+});
+
+export const listSellersAdminSchema = z.object({
+  query: z.object({
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    status: z.nativeEnum(SellerStatus).optional(),
   }),
 });

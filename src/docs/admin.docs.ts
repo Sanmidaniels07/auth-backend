@@ -155,4 +155,81 @@
  *         description: User not found
  */
 
+/**
+ * @swagger
+ * /api/admin/sellers:
+ *   get:
+ *     summary: List seller applications
+ *     description: Requires authentication and ADMIN role. Defaults to all statuses; filter by status to see only pending applications.
+ *     tags:
+ *       - Administration
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [PENDING, APPROVED, REJECTED]
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Sellers fetched successfully
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Forbidden - admin role required
+ */
+
+/**
+ * @swagger
+ * /api/admin/sellers/{id}/status:
+ *   patch:
+ *     summary: Approve or reject a seller application
+ *     description: Requires authentication and ADMIN role. The id is the SellerProfile id, not the user id (use GET /api/admin/sellers to look it up). A newly-created seller profile starts PENDING and cannot create a store or products until approved - the same createStoreService, createProductService, and every other seller-owned action check this status. A reason is required when rejecting. The seller is notified either way.
+ *     tags:
+ *       - Administration
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [APPROVED, REJECTED]
+ *               reason:
+ *                 type: string
+ *                 description: Required when status is REJECTED
+ *     responses:
+ *       200:
+ *         description: Seller status updated successfully
+ *       400:
+ *         description: Missing reason when rejecting
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Forbidden - admin role required
+ *       404:
+ *         description: Seller profile not found
+ */
+
 export {};

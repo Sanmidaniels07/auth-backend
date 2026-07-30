@@ -10,7 +10,7 @@
  * /api/seller/become-seller:
  *   post:
  *     summary: Become a seller
- *     description: Creates a seller profile for the authenticated user. Requires authentication. Fails if a seller profile already exists for this user.
+ *     description: Creates a seller profile for the authenticated user, with status PENDING. Requires authentication. Fails if a seller profile already exists for this user. An admin must approve the application (PATCH /api/admin/sellers/{id}/status) before this user can create a store or products.
  *     tags:
  *       - Seller
  *     security:
@@ -39,7 +39,7 @@
  * /api/seller/me:
  *   get:
  *     summary: Get the authenticated user's seller profile
- *     description: Returns the seller profile (including its store, if one exists) for the authenticated user. Requires authentication and an existing seller profile.
+ *     description: Returns the seller profile (including its store, if one exists) for the authenticated user. Requires authentication and an existing seller profile. Check the status field (PENDING, APPROVED, REJECTED) and statusReason to see approval state.
  *     tags:
  *       - Seller
  *     security:
