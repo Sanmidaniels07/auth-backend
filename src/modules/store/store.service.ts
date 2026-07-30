@@ -353,6 +353,9 @@ export const getStoreProductsService = async (
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
+      include: {
+        images: { where: { isPrimary: true }, take: 1 },
+      },
     }),
     prisma.product.count({ where }),
   ]);
