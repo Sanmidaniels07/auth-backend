@@ -14,6 +14,9 @@ const storeFields = {
   returnPolicy: z.string().trim().optional(),
   shippingPolicy: z.string().trim().optional(),
   warrantyPolicy: z.string().trim().optional(),
+  payoutBankName: z.string().trim().optional(),
+  payoutAccountNumber: z.string().trim().optional(),
+  payoutAccountName: z.string().trim().optional(),
 };
 
 export const createStoreSchema = z.object({

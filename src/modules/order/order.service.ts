@@ -247,7 +247,16 @@ export const getSellerOrdersService = async (
         items: {
           where: { product: { storeId: store.id } },
           include: {
-            product: { select: { id: true, title: true } },
+            product: {
+              select: {
+                id: true,
+                title: true,
+                images: {
+                  where: { isPrimary: true },
+                  take: 1,
+                },
+              },
+            },
           },
         },
       },
@@ -281,7 +290,16 @@ export const getSellerOrderByIdService = async (
       items: {
         where: { product: { storeId: store.id } },
         include: {
-          product: { select: { id: true, title: true } },
+          product: {
+            select: {
+              id: true,
+              title: true,
+              images: {
+                where: { isPrimary: true },
+                take: 1,
+              },
+            },
+          },
         },
       },
     },

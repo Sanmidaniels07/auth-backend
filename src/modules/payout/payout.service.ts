@@ -2,6 +2,27 @@ import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { getStoreAvailableBalance } from "../../utils/sellerRevenue";
 
+export const getStorePayoutInfoService = async (storeId: string) => {
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+    select: {
+      id: true,
+      name: true,
+      payoutBankName: true,
+      payoutAccountNumber: true,
+      payoutAccountName: true,
+    },
+  });
+
+  if (!store) {
+    throw new AppError("Store not found.", 404);
+  }
+
+  const balance = await getStoreAvailableBalance(storeId);
+
+  return { store, ...balance };
+};
+
 export const createPayoutService = async (
   adminUserId: string,
   storeId: string,

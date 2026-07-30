@@ -19,7 +19,7 @@ export const getStoreAvailableBalance = async (
         product: { storeId },
         order: { status: { in: REVENUE_STATUSES } },
       },
-      select: { totalPrice: true },
+      select: { totalPrice: true, commissionRate: true },
     }),
     prisma.payout.aggregate({
       where: { storeId },
@@ -27,8 +27,11 @@ export const getStoreAvailableBalance = async (
     }),
   ]);
 
+  // Net of the platform's commission - each item carries the commission
+  // rate that was in effect when it was ordered, so this isn't affected
+  // by later changes to a category's rate.
   const totalRevenue = items.reduce(
-    (sum, item) => sum + item.totalPrice,
+    (sum, item) => sum + item.totalPrice * (1 - item.commissionRate / 100),
     0
   );
   const totalPaidOut = payouts._sum.amount ?? 0;

@@ -5,7 +5,9 @@ import { apiResponse } from "../../utils/apiResponse";
 import {
   createPayoutService,
   listPayoutsService,
+  getStorePayoutInfoService,
 } from "./payout.service";
+import { StoreParams } from "../../types/request.types";
 
 export const createPayout = asyncHandler(
   async (req: Request, res: Response) => {
@@ -36,6 +38,18 @@ export const listPayouts = asyncHandler(
 
     res.status(200).json(
       apiResponse(result, "Payouts fetched successfully")
+    );
+  }
+);
+
+export const getStorePayoutInfo = asyncHandler(
+  async (req: Request<StoreParams>, res: Response) => {
+    const info = await getStorePayoutInfoService(
+      req.params.storeId
+    );
+
+    res.status(200).json(
+      apiResponse(info, "Store payout info fetched successfully")
     );
   }
 );

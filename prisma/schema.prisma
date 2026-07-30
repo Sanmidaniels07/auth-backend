@@ -757,6 +757,12 @@ model Store {
   shippingPolicy String?
   warrantyPolicy String?
 
+  // Bank details the seller registers so admin knows where to send payouts.
+  // Manual/off-platform transfer for now - see Payout model.
+  payoutBankName      String?
+  payoutAccountNumber String?
+  payoutAccountName   String?
+
   products Product[]
 
   reviews Review[]
@@ -826,6 +832,13 @@ model Category {
   icon String?
 
   isFeatured Boolean @default(false)
+
+  // Platform commission for products in this category, as a percentage
+  // (10 = 10%). Varies by category, Jumia-style - electronics lower,
+  // fashion/beauty higher. Applied at checkout time (snapshotted onto
+  // OrderItem.commissionRate) so later changes here don't retroactively
+  // change already-placed orders.
+  commissionRate Float @default(10)
 
   products Product[]
 
@@ -1079,6 +1092,11 @@ model OrderItem {
   unitPrice Float
 
   totalPrice Float
+
+  // Snapshot of the product's category commission rate (%) at the time
+  // this order was placed. Existing rows default to 0 so past orders
+  // aren't retroactively charged a commission that didn't exist yet.
+  commissionRate Float @default(0)
 
   status OrderItemStatus @default(PENDING)
 

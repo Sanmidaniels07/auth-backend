@@ -38,7 +38,7 @@ const buildPendingOrder = async (
     prisma.address.findUnique({ where: { id: addressId } }),
     prisma.cart.findUnique({
       where: { userId },
-      include: { items: { include: { product: true } } },
+      include: { items: { include: { product: { include: { category: true } } } } },
     }),
   ]);
 
@@ -175,6 +175,9 @@ const buildPendingOrder = async (
           quantity: item.quantity,
           unitPrice: item.product.price,
           totalPrice: item.product.price * item.quantity,
+          // Snapshot the category's current commission rate so a later
+          // rate change doesn't retroactively affect this order.
+          commissionRate: item.product.category.commissionRate,
         })),
       },
       shipping:

@@ -5,6 +5,7 @@ export const createCategorySchema = z.object({
     name: z.string().trim().min(2),
     icon: z.string().trim().optional(),
     isFeatured: z.boolean().optional(),
+    commissionRate: z.number().min(0).max(100).optional(),
   }),
 });
 
@@ -16,6 +17,7 @@ export const updateCategorySchema = z.object({
     name: z.string().trim().min(2).optional(),
     icon: z.string().trim().optional(),
     isFeatured: z.boolean().optional(),
+    commissionRate: z.number().min(0).max(100).optional(),
   }),
 });
 
