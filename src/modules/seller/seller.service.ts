@@ -1,5 +1,35 @@
+import { Role } from "@prisma/client";
+
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
+import { createNotificationService } from "../notification/notification.service";
+
+const notifyAdminsOfNewSellerApplication = async (
+  applicantId: string,
+  sellerProfileId: string
+) => {
+  const [applicant, admins] = await Promise.all([
+    prisma.user.findUnique({ where: { id: applicantId } }),
+    prisma.user.findMany({
+      where: { role: Role.ADMIN },
+      select: { id: true },
+    }),
+  ]);
+
+  if (!applicant) return;
+
+  for (const admin of admins) {
+    createNotificationService(
+      admin.id,
+      "New seller application",
+      `${applicant.name} applied to become a seller.`,
+      undefined,
+      { type: "ADMIN_SELLER_APPLICATION", id: sellerProfileId }
+    ).catch((error) => {
+      console.error("Notification failed:", error);
+    });
+  }
+};
 
 export const becomeSellerService = async (
   userId: string,
@@ -26,6 +56,10 @@ export const becomeSellerService = async (
         cacNumber,
       },
     });
+
+  notifyAdminsOfNewSellerApplication(userId, seller.id).catch((error) => {
+    console.error("Failed to notify admins of new seller application:", error);
+  });
 
   return seller;
 };
