@@ -53,8 +53,8 @@ const withPostExtras = <
 export const createPostService = async (
   userId: string,
   data: {
-    title: string;
-    content: string;
+    title?: string;
+    content?: string;
     media?: MediaInput[];
   },
 ) => {
@@ -76,7 +76,7 @@ export const createPostService = async (
     include: POST_INCLUDE,
   });
 
-  await syncPostHashtags(post.id, data.content);
+  await syncPostHashtags(post.id, data.content ?? "");
 
   return withPostExtras(post, false);
 };
@@ -219,6 +219,7 @@ export const updatePostService = async (
       id: postId,
       isDeleted: false,
     },
+    include: { media: true },
   });
 
   if (!post) {
@@ -227,6 +228,18 @@ export const updatePostService = async (
 
   if (post.authorId !== userId) {
     throw new AppError("Unauthorized", 403);
+  }
+
+  const finalContent =
+    data.content !== undefined ? data.content : post.content;
+  const finalMediaCount =
+    data.media !== undefined ? data.media.length : post.media.length;
+
+  if (!finalContent && finalMediaCount === 0) {
+    throw new AppError(
+      "A post needs text content, at least one image or video, or both.",
+      400
+    );
   }
 
   const { media, ...fields } = data;

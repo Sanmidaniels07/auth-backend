@@ -7,11 +7,20 @@ const mediaItemSchema = z.object({
 });
 
 export const createPostSchema = z.object({
-  body: z.object({
-    title: z.string().min(1),
-    content: z.string().min(1),
-    media: z.array(mediaItemSchema).max(10).optional(),
-  }),
+  body: z
+    .object({
+      title: z.string().trim().min(1).optional(),
+      content: z.string().trim().min(1).optional(),
+      media: z.array(mediaItemSchema).max(10).optional(),
+    })
+    .refine(
+      (data) => !!data.content || (data.media && data.media.length > 0),
+      {
+        message:
+          "A post needs text content, at least one image or video, or both.",
+        path: ["content"],
+      }
+    ),
 });
 
 export const updatePostSchema = z.object({

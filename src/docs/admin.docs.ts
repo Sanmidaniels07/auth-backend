@@ -193,7 +193,7 @@
  * /api/admin/sellers/{id}/status:
  *   patch:
  *     summary: Approve or reject a seller application
- *     description: Requires authentication and ADMIN role. The id is the SellerProfile id, not the user id (use GET /api/admin/sellers to look it up). A newly-created seller profile starts PENDING and cannot create a store or products until approved - the same createStoreService, createProductService, and every other seller-owned action check this status. A reason is required when rejecting. The seller is notified either way.
+ *     description: Requires authentication and ADMIN role. The id is the SellerProfile id, not the user id (use GET /api/admin/sellers to look it up). A newly-created seller profile starts PENDING and cannot create a store or products until approved - the same createStoreService, createProductService, and every other seller-owned action check this status. A reason is required when rejecting. The seller is notified either way. Rejecting starts a 3-day cooldown (tracked via statusUpdatedAt) before the seller can reapply via POST /api/seller/become-seller - see that endpoint's docs for details.
  *     tags:
  *       - Administration
  *     security:

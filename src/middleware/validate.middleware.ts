@@ -36,7 +36,7 @@ export const validate =
       return res.status(400).json({
         success: false,
         message:
-          error.errors?.[0]?.message ||
+          error.issues?.[0]?.message ||
           "Validation failed",
       });
     }

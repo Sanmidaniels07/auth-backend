@@ -10,7 +10,7 @@
  * /api/posts:
  *   post:
  *     summary: Create a post
- *     description: Requires authentication. Hashtags (#like-this) in `content` are extracted and tracked automatically. Media must be uploaded first via POST /api/uploads to get the URLs to pass here.
+ *     description: Requires authentication. A post needs at least one of `content` or `media` - text-only, image/video-only, or both are all valid; `title` is always optional. Hashtags (#like-this) in `content` are extracted and tracked automatically. Media must be uploaded first via POST /api/uploads to get the URLs to pass here.
  *     tags:
  *       - Posts
  *     security:
@@ -21,9 +21,6 @@
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - title
- *               - content
  *             properties:
  *               title:
  *                 type: string
@@ -43,6 +40,8 @@
  *     responses:
  *       201:
  *         description: Post created
+ *       400:
+ *         description: Post has neither content nor media
  *       401:
  *         description: Unauthorized - no or invalid token
  *   get:
@@ -98,7 +97,7 @@
  *         description: Post not found
  *   patch:
  *     summary: Update a post
- *     description: Requires authentication and authorship. Providing `media` replaces the existing set entirely. Re-extracts hashtags if `content` changes.
+ *     description: Requires authentication and authorship. Providing `media` replaces the existing set entirely. Re-extracts hashtags if `content` changes. The resulting post must still end up with at least content or media - e.g. clearing `content` on a post with no media is rejected.
  *     tags:
  *       - Posts
  *     security:
@@ -134,6 +133,8 @@
  *     responses:
  *       200:
  *         description: Post updated successfully
+ *       400:
+ *         description: Update would leave the post with neither content nor media
  *       401:
  *         description: Unauthorized - no or invalid token
  *       403:

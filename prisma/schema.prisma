@@ -577,8 +577,8 @@ model EventAttendee {
 model Post {
   id String @id @default(cuid())
 
-  title   String
-  content String
+  title   String?
+  content String?
 
   authorId String
   author   User   @relation(fields: [authorId], references: [id])
@@ -705,8 +705,9 @@ model SellerProfile {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id])
 
-  status       SellerStatus @default(PENDING)
-  statusReason String?
+  status          SellerStatus @default(PENDING)
+  statusReason    String?
+  statusUpdatedAt DateTime?
 
   cacNumber String?
 

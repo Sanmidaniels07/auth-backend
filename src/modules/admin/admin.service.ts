@@ -3,6 +3,7 @@ import { Role, UserStatus, SellerStatus } from "@prisma/client";
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { createNotificationService } from "../notification/notification.service";
+import { SELLER_REAPPLY_COOLDOWN_DAYS } from "../seller/seller.service";
 
 const ADMIN_USER_SELECT = {
   id: true,
@@ -155,6 +156,7 @@ const ADMIN_SELLER_SELECT = {
   id: true,
   status: true,
   statusReason: true,
+  statusUpdatedAt: true,
   cacNumber: true,
   isVerified: true,
   createdAt: true,
@@ -211,14 +213,22 @@ export const updateSellerStatusService = async (
     throw new AppError("Seller profile not found.", 404);
   }
 
+  const now = new Date();
+
   const updated = await prisma.sellerProfile.update({
     where: { id: sellerId },
     data: {
       status,
       statusReason: status === SellerStatus.APPROVED ? null : reason,
+      statusUpdatedAt: now,
     },
     select: ADMIN_SELLER_SELECT,
   });
+
+  const reapplyMessage =
+    status === SellerStatus.REJECTED
+      ? ` You can reapply in ${SELLER_REAPPLY_COOLDOWN_DAYS} days.`
+      : "";
 
   await createNotificationService(
     seller.userId,
@@ -227,7 +237,7 @@ export const updateSellerStatusService = async (
       : "Seller application rejected",
     status === SellerStatus.APPROVED
       ? "Your seller application has been approved. You can now create your store."
-      : `Your seller application was rejected.${reason ? ` Reason: ${reason}` : ""}`,
+      : `Your seller application was rejected.${reason ? ` Reason: ${reason}` : ""}${reapplyMessage}`,
     undefined,
     { type: "SELLER_APPLICATION", id: seller.id }
   );
