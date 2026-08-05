@@ -19,6 +19,7 @@ import {
 } from "../coupon/coupon.service";
 import { createNotificationService } from "../notification/notification.service";
 import { saveCardFromAuthorization } from "../payment-method/payment-method.service";
+import { isPayoutAccountEligibleForSplit } from "../store/store.service";
 
 const NAIRA_TO_KOBO = 100;
 const LOW_STOCK_THRESHOLD = 5;
@@ -136,14 +137,16 @@ const buildPendingOrder = async (
 
   // Stores with a Paystack subaccount get their net-of-commission share
   // routed straight to them via a dynamic split, built fresh for this
-  // order. Stores without one keep accruing in the manual Payout ledger,
-  // same as before - this is what lets both flows coexist.
+  // order - unless that subaccount's bank details changed too recently
+  // (see isPayoutAccountEligibleForSplit), in which case they fall back to
+  // the manual Payout ledger for now, same as a store with no subaccount
+  // at all. This is what lets both flows coexist.
   const storeById = new Map(stores.map((store) => [store.id, store]));
   const netKoboByStore = new Map<string, number>();
 
   for (const item of cart.items) {
     const store = storeById.get(item.product.storeId);
-    if (!store?.paystackSubaccountCode) continue;
+    if (!store || !isPayoutAccountEligibleForSplit(store)) continue;
 
     const net =
       item.product.price *
@@ -216,8 +219,10 @@ const buildPendingOrder = async (
           // Snapshot the category's current commission rate so a later
           // rate change doesn't retroactively affect this order.
           commissionRate: item.product.category.commissionRate,
-          autoPaidViaSplit: !!storeById.get(item.product.storeId)
-            ?.paystackSubaccountCode,
+          autoPaidViaSplit: (() => {
+            const itemStore = storeById.get(item.product.storeId);
+            return !!itemStore && isPayoutAccountEligibleForSplit(itemStore);
+          })(),
         })),
       },
       shipping:

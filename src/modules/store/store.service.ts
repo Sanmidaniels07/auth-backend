@@ -1,4 +1,4 @@
-import { ProductStatus } from "@prisma/client";
+import { ProductStatus, Role } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
@@ -9,10 +9,79 @@ import {
   createOrUpdateSubaccount,
   listPaystackBanks,
 } from "../../utils/paystack";
+import { sendEmail } from "../auth/email.services";
+import { payoutAccountChangedTemplate } from "../../templates/payout-account-changed.template";
+import { createNotificationService } from "../notification/notification.service";
 import {
   CreateStoreInput,
   UpdateStoreInput,
 } from "./store.validation";
+
+// A newly changed payout account isn't eligible for automatic checkout
+// splits until this many hours have passed - see buildPendingOrder in
+// checkout.service.ts, which falls back to the manual Payout ledger for
+// stores still inside this window. Gives admin/the seller a chance to
+// catch and reverse a fraudulent change before real money moves.
+export const PAYOUT_ACCOUNT_HOLD_HOURS = 48;
+
+export const isPayoutAccountEligibleForSplit = (store: {
+  paystackSubaccountCode: string | null;
+  payoutAccountUpdatedAt: Date | null;
+}) => {
+  if (!store.paystackSubaccountCode) return false;
+  if (!store.payoutAccountUpdatedAt) return true;
+
+  const holdUntil =
+    store.payoutAccountUpdatedAt.getTime() +
+    PAYOUT_ACCOUNT_HOLD_HOURS * 60 * 60 * 1000;
+
+  return Date.now() >= holdUntil;
+};
+
+const maskAccountNumber = (accountNumber: string) =>
+  `••••${accountNumber.slice(-4)}`;
+
+const notifyPayoutAccountChanged = async (
+  userId: string,
+  store: { id: string; name: string },
+  bankName: string,
+  accountNumber: string
+) => {
+  const [user, admins] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId } }),
+    prisma.user.findMany({
+      where: { role: Role.ADMIN },
+      select: { id: true },
+    }),
+  ]);
+
+  if (!user) return;
+
+  sendEmail(
+    user.email,
+    "Your payout account was changed",
+    payoutAccountChangedTemplate(
+      user.name,
+      store.name,
+      bankName,
+      maskAccountNumber(accountNumber)
+    )
+  ).catch((error) => {
+    console.error("Payout account change email failed:", error);
+  });
+
+  for (const admin of admins) {
+    createNotificationService(
+      admin.id,
+      "Payout account changed",
+      `${user.name} changed the payout account for "${store.name}" to ${bankName} (${maskAccountNumber(accountNumber)}).`,
+      undefined,
+      { type: "ADMIN_PAYOUT_ACCOUNT_CHANGED", id: store.id }
+    ).catch((error) => {
+      console.error("Notification failed:", error);
+    });
+  }
+};
 
 const getOwnedStoreBySlug = async (
   userId: string,
@@ -146,16 +215,36 @@ export const setupPayoutAccountService = async (
     existingSubaccountCode: store.paystackSubaccountCode,
   });
 
-  return prisma.store.update({
-    where: { id: store.id },
-    data: {
-      payoutBankName: bank.name,
-      payoutBankCode: bankCode,
-      payoutAccountNumber: accountNumber,
-      payoutAccountName: resolved.account_name,
-      paystackSubaccountCode: subaccount.subaccount_code,
-    },
-  });
+  const [updated] = await prisma.$transaction([
+    prisma.store.update({
+      where: { id: store.id },
+      data: {
+        payoutBankName: bank.name,
+        payoutBankCode: bankCode,
+        payoutAccountNumber: accountNumber,
+        payoutAccountName: resolved.account_name,
+        paystackSubaccountCode: subaccount.subaccount_code,
+        payoutAccountUpdatedAt: new Date(),
+      },
+    }),
+    prisma.payoutAccountChange.create({
+      data: {
+        storeId: store.id,
+        previousBankName: store.payoutBankName,
+        previousAccountNumber: store.payoutAccountNumber,
+        newBankName: bank.name,
+        newAccountNumber: accountNumber,
+      },
+    }),
+  ]);
+
+  notifyPayoutAccountChanged(userId, store, bank.name, accountNumber).catch(
+    (error) => {
+      console.error("Failed to notify of payout account change:", error);
+    }
+  );
+
+  return updated;
 };
 
 export const getPublicStoreService = async (
@@ -322,7 +411,13 @@ export const getSellerStoreService = async (
     );
   }
 
-  return store;
+  return {
+    ...store,
+    isOnHold:
+      !!store.paystackSubaccountCode &&
+      !isPayoutAccountEligibleForSplit(store),
+    holdHours: PAYOUT_ACCOUNT_HOLD_HOURS,
+  };
 };
 
 export const listStoresService = async (

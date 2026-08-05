@@ -1,6 +1,10 @@
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { getStoreAvailableBalance } from "../../utils/sellerRevenue";
+import {
+  isPayoutAccountEligibleForSplit,
+  PAYOUT_ACCOUNT_HOLD_HOURS,
+} from "../store/store.service";
 
 export const getStorePayoutInfoService = async (storeId: string) => {
   const store = await prisma.store.findUnique({
@@ -12,6 +16,7 @@ export const getStorePayoutInfoService = async (storeId: string) => {
       payoutAccountNumber: true,
       payoutAccountName: true,
       paystackSubaccountCode: true,
+      payoutAccountUpdatedAt: true,
     },
   });
 
@@ -19,9 +24,24 @@ export const getStorePayoutInfoService = async (storeId: string) => {
     throw new AppError("Store not found.", 404);
   }
 
-  const balance = await getStoreAvailableBalance(storeId);
+  const [balance, recentChanges] = await Promise.all([
+    getStoreAvailableBalance(storeId),
+    prisma.payoutAccountChange.findMany({
+      where: { storeId },
+      orderBy: { changedAt: "desc" },
+      take: 5,
+    }),
+  ]);
 
-  return { store, ...balance };
+  return {
+    store,
+    ...balance,
+    isOnHold:
+      !!store.paystackSubaccountCode &&
+      !isPayoutAccountEligibleForSplit(store),
+    holdHours: PAYOUT_ACCOUNT_HOLD_HOURS,
+    recentChanges,
+  };
 };
 
 export const createPayoutService = async (

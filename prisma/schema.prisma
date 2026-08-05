@@ -770,6 +770,15 @@ model Store {
   payoutAccountName     String?
   paystackSubaccountCode String?
 
+  // Set every time payout bank details change. Checkout won't route this
+  // store's split to a *newly* changed subaccount until PAYOUT_ACCOUNT_HOLD_HOURS
+  // has passed since this timestamp - revenue accrues in the manual Payout
+  // ledger during the hold instead, giving admin/the seller a window to
+  // catch and reverse a fraudulent change before real money moves.
+  payoutAccountUpdatedAt DateTime?
+
+  payoutAccountChanges PayoutAccountChange[]
+
   products Product[]
 
   reviews Review[]
@@ -800,6 +809,25 @@ model Payout {
   createdBy String
 
   createdAt DateTime @default(now())
+}
+
+// Audit trail for payout bank-account changes - admin's window into a
+// fraud vector that used to be completely silent (a seller, or an
+// attacker who compromised one, could redirect payouts with nobody
+// noticing until money was gone).
+model PayoutAccountChange {
+  id String @id @default(cuid())
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  previousBankName      String?
+  previousAccountNumber String?
+
+  newBankName      String
+  newAccountNumber String
+
+  changedAt DateTime @default(now())
 }
 
 model StoreView {
