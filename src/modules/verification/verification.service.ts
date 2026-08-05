@@ -1,5 +1,6 @@
 import prisma from "../../prisma/prisma";
 import { verificationTemplate } from "../../templates/verification.template";
+import { welcomeTemplate } from "../../templates/welcome.template";
 import { AppError }
 from "../../utils/appError";
 import { sendEmail } from "../auth/email.services";
@@ -50,6 +51,12 @@ async (
         null,
     },
   });
+
+  sendEmail(
+    user.email,
+    "Welcome to Nestly",
+    welcomeTemplate(user.name, process.env.FRONTEND_URL as string)
+  ).catch(console.error);
 
   return {
     message:

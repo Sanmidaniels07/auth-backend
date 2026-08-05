@@ -64,7 +64,8 @@ const notifyPayoutAccountChanged = async (
       user.name,
       store.name,
       bankName,
-      maskAccountNumber(accountNumber)
+      maskAccountNumber(accountNumber),
+      `${process.env.FRONTEND_URL}/settings/marketplace?tab=store`
     )
   ).catch((error) => {
     console.error("Payout account change email failed:", error);

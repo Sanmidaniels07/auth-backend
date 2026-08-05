@@ -6,6 +6,7 @@ import { generateResetToken, generateVerificationToken } from "../../utils/token
 import { generateAccessToken, generateRefreshToken, generateTwoFactorToken } from "../../utils/jwt";
 import { sendEmail } from "./email.services";
 import { verificationTemplate } from "../../templates/verification.template";
+import { resetTemplate } from "../../templates/reset.template";
 
 interface SignupData {
   name: string;
@@ -187,8 +188,18 @@ export const forgotPasswordService = async (email: string) => {
     },
   });
 
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
+
+  sendEmail(
+    user.email,
+    "Reset your password",
+    resetTemplate(user.name, resetUrl)
+  ).catch(console.error);
+
+  // The token used to be handed back in the response for convenience, but
+  // now that it's actually emailed, returning it here too would defeat the
+  // point of sending it somewhere only the account owner can read.
   return {
-    resetToken: token,
     expiresAt: expiry,
   };
 };
