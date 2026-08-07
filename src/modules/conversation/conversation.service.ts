@@ -1,4 +1,4 @@
-import { NotificationType } from "@prisma/client";
+import { MediaType, NotificationType } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
@@ -6,11 +6,23 @@ import { getIO } from "../../socket";
 import { createNotificationService } from "../notification/notification.service";
 import { isBlockedEitherWay } from "../block/block.service";
 
+interface MediaInput {
+  url: string;
+  type: MediaType;
+}
+
 const PARTICIPANT_USER_SELECT = {
   id: true,
   name: true,
   username: true,
   avatar: true,
+};
+
+const MESSAGE_INCLUDE = {
+  sender: { select: PARTICIPANT_USER_SELECT },
+  media: {
+    orderBy: { order: "asc" as const },
+  },
 };
 
 const assertParticipant = async (
@@ -102,6 +114,9 @@ export const getConversationsService = async (
         messages: {
           orderBy: { createdAt: "desc" },
           take: 1,
+          include: {
+            media: { orderBy: { order: "asc" as const } },
+          },
         },
       },
     }),
@@ -157,9 +172,7 @@ export const getMessagesService = async (
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
-      include: {
-        sender: { select: PARTICIPANT_USER_SELECT },
-      },
+      include: MESSAGE_INCLUDE,
     }),
     prisma.message.count({ where: { conversationId } }),
   ]);
@@ -176,7 +189,8 @@ export const getMessagesService = async (
 export const sendMessageService = async (
   userId: string,
   conversationId: string,
-  content: string
+  content: string | undefined,
+  media?: MediaInput[]
 ) => {
   await assertParticipant(userId, conversationId);
 
@@ -196,10 +210,21 @@ export const sendMessageService = async (
 
   const [message] = await prisma.$transaction([
     prisma.message.create({
-      data: { conversationId, senderId: userId, content },
-      include: {
-        sender: { select: PARTICIPANT_USER_SELECT },
+      data: {
+        conversationId,
+        senderId: userId,
+        content,
+        media: media
+          ? {
+              create: media.map((item, index) => ({
+                url: item.url,
+                type: item.type,
+                order: index,
+              })),
+            }
+          : undefined,
       },
+      include: MESSAGE_INCLUDE,
     }),
     prisma.conversation.update({
       where: { id: conversationId },
@@ -219,11 +244,17 @@ export const sendMessageService = async (
     );
   }
 
+  const notificationBody = message.content
+    ? `${message.sender.name} sent you a message`
+    : `${message.sender.name} sent you ${
+        message.media[0]?.type === MediaType.VIDEO ? "a video" : "a photo"
+      }`;
+
   for (const participant of otherParticipants) {
     createNotificationService(
       participant.userId,
       "New Message",
-      `${message.sender.name} sent you a message`,
+      notificationBody,
       NotificationType.MESSAGE,
       { type: "CONVERSATION", id: conversationId }
     ).catch((error) => {

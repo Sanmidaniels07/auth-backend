@@ -451,11 +451,28 @@ model Message {
   senderId String
   sender   User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
-  content String
+  // Optional now that a message can be media-only (a picture/video with no
+  // caption) - see MessageMedia below, mirrors Post/PostMedia.
+  content String?
+
+  media MessageMedia[]
 
   readAt DateTime?
 
   createdAt DateTime @default(now())
+}
+
+model MessageMedia {
+  id String @id @default(cuid())
+
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  url String
+
+  type MediaType
+
+  order Int @default(0)
 }
 
 model Follow {

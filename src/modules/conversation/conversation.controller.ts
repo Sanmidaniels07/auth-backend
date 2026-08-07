@@ -73,7 +73,8 @@ export const sendMessage = asyncHandler(
     const message = await sendMessageService(
       req.user.id,
       req.params.id,
-      req.body.content
+      req.body.content,
+      req.body.media
     );
 
     res.status(201).json(
