@@ -271,7 +271,7 @@ export const markConversationReadService = async (
 ) => {
   await assertParticipant(userId, conversationId);
 
-  await prisma.message.updateMany({
+  const { count } = await prisma.message.updateMany({
     where: {
       conversationId,
       senderId: { not: userId },
@@ -279,4 +279,24 @@ export const markConversationReadService = async (
     },
     data: { readAt: new Date() },
   });
+
+  // Let whoever sent those messages know they've been seen, live - without
+  // this their thread only picks up the read state on its next refetch.
+  if (count > 0) {
+    const otherParticipants = await prisma.conversationParticipant.findMany({
+      where: { conversationId, NOT: { userId } },
+    });
+
+    try {
+      const io = getIO();
+      for (const participant of otherParticipants) {
+        io.to(participant.userId).emit("message:read", {
+          conversationId,
+          readerId: userId,
+        });
+      }
+    } catch (error) {
+      console.error("Realtime read receipt failed:", error);
+    }
+  }
 };
