@@ -54,6 +54,9 @@ const app = express();
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   "http://localhost:3000",
+  "https://nestlyapp.site",
+   "https://www.nestlyapp.site",
+  
   getBackendUrl(),
 ].filter(Boolean);
 
