@@ -57,7 +57,7 @@ const allowedOrigins = [
   "http://localhost:3001",
   "https://nestlyapp.site",
    "https://www.nestlyapp.site",
-  
+    "https://api.nestlyapp.site", 
   getBackendUrl(),
 ].filter(Boolean);
 
