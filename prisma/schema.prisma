@@ -29,6 +29,9 @@ enum ProductCondition {
   NEW
   USED
   REFURBISHED
+  FRESHLY_MADE  
+  MADE_TO_ORDER    
+  PRE_ORDER 
 }
 
 enum ProductStatus {
@@ -869,7 +872,7 @@ model ShippingOption {
 
   fee Float
 
-  etaDays Int?
+  eta String?
 
   createdAt DateTime @default(now())
 }

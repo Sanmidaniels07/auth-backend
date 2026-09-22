@@ -72,7 +72,7 @@ export const createShippingOptionSchema = z.object({
   body: z.object({
     name: z.string().trim().min(1),
     fee: z.number().min(0),
-    etaDays: z.number().int().min(0).optional(),
+    eta: z.string().trim().min(1).max(50).optional(),
   }),
 });
 
@@ -84,7 +84,7 @@ export const updateShippingOptionSchema = z.object({
   body: z.object({
     name: z.string().trim().min(1).optional(),
     fee: z.number().min(0).optional(),
-    etaDays: z.number().int().min(0).optional(),
+    eta: z.string().trim().min(1).max(50).optional(),
   }),
 });
 

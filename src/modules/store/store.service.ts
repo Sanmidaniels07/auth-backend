@@ -17,11 +17,7 @@ import {
   UpdateStoreInput,
 } from "./store.validation";
 
-// A newly changed payout account isn't eligible for automatic checkout
-// splits until this many hours have passed - see buildPendingOrder in
-// checkout.service.ts, which falls back to the manual Payout ledger for
-// stores still inside this window. Gives admin/the seller a chance to
-// catch and reverse a fraudulent change before real money moves.
+
 export const PAYOUT_ACCOUNT_HOLD_HOURS = 48;
 
 export const isPayoutAccountEligibleForSplit = (store: {
@@ -509,7 +505,7 @@ export const getStoreProductsService = async (
 interface ShippingOptionInput {
   name: string;
   fee: number;
-  etaDays?: number;
+  eta?: string;
 }
 
 export const createShippingOptionService = async (
