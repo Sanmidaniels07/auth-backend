@@ -1,9 +1,5 @@
 import crypto from "crypto";
-import {
-  OrderStatus,
-  ProductStatus,
-  NotificationType,
-} from "@prisma/client";
+import { OrderStatus, ProductStatus, NotificationType } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
@@ -33,14 +29,16 @@ const buildPendingOrder = async (
   userId: string,
   addressId: string,
   shippingSelections: ShippingSelection[],
-  couponCode?: string
+  couponCode?: string,
 ) => {
   const [user, address, cart] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
     prisma.address.findUnique({ where: { id: addressId } }),
     prisma.cart.findUnique({
       where: { userId },
-      include: { items: { include: { product: { include: { category: true } } } } },
+      include: {
+        items: { include: { product: { include: { category: true } } } },
+      },
     }),
   ]);
 
@@ -60,28 +58,25 @@ const buildPendingOrder = async (
     if (item.product.status !== ProductStatus.PUBLISHED) {
       throw new AppError(
         `"${item.product.title}" is no longer available.`,
-        400
+        400,
       );
     }
 
     if (item.quantity > item.product.stock) {
-      throw new AppError(
-        `Not enough stock for "${item.product.title}".`,
-        400
-      );
+      throw new AppError(`Not enough stock for "${item.product.title}".`, 400);
     }
   }
 
   const subtotal = cart.items.reduce(
     (sum, item) => sum + item.product.price * item.quantity,
-    0
+    0,
   );
 
   // A cart can span multiple stores, and each store may have its own
   // shipping tiers - so shipping is selected and priced per store, not
   // once for the whole order.
   const storeIds = Array.from(
-    new Set(cart.items.map((item) => item.product.storeId))
+    new Set(cart.items.map((item) => item.product.storeId)),
   );
 
   const stores = await prisma.store.findMany({
@@ -93,7 +88,7 @@ const buildPendingOrder = async (
     storeId: string;
     optionName: string;
     fee: number;
-    etaDays: number | null;
+    eta: string | null;
   }[] = [];
 
   let deliveryFee = 0;
@@ -103,33 +98,25 @@ const buildPendingOrder = async (
       continue;
     }
 
-    const selection = shippingSelections.find(
-      (s) => s.storeId === store.id
-    );
+    const selection = shippingSelections.find((s) => s.storeId === store.id);
 
     if (!selection) {
-      throw new AppError(
-        `Select a shipping option for "${store.name}".`,
-        400
-      );
+      throw new AppError(`Select a shipping option for "${store.name}".`, 400);
     }
 
     const option = store.shippingOptions.find(
-      (o) => o.id === selection.shippingOptionId
+      (o) => o.id === selection.shippingOptionId,
     );
 
     if (!option) {
-      throw new AppError(
-        `Invalid shipping option for "${store.name}".`,
-        400
-      );
+      throw new AppError(`Invalid shipping option for "${store.name}".`, 400);
     }
 
     shippingRows.push({
       storeId: store.id,
       optionName: option.name,
       fee: option.fee,
-      etaDays: option.etaDays,
+      eta: option.eta,
     });
 
     deliveryFee += option.fee;
@@ -155,7 +142,7 @@ const buildPendingOrder = async (
 
     netKoboByStore.set(
       store.id,
-      (netKoboByStore.get(store.id) ?? 0) + Math.round(net * NAIRA_TO_KOBO)
+      (netKoboByStore.get(store.id) ?? 0) + Math.round(net * NAIRA_TO_KOBO),
     );
   }
 
@@ -169,7 +156,7 @@ const buildPendingOrder = async (
             ([storeId, shareKobo]) => ({
               subaccount: storeById.get(storeId)!.paystackSubaccountCode!,
               share: shareKobo,
-            })
+            }),
           ),
         }
       : undefined;
@@ -184,18 +171,15 @@ const buildPendingOrder = async (
     const validated = await validateCouponForOrder(
       couponCode,
       userId,
-      subtotal
+      subtotal,
     );
     discountAmount = validated.discountAmount;
     appliedCouponCode = validated.coupon.code;
   }
 
-  const total =
-    subtotal - discountAmount + deliveryFee + tax;
+  const total = subtotal - discountAmount + deliveryFee + tax;
 
-  const reference = `NESTLY_${crypto
-    .randomUUID()
-    .replace(/-/g, "")}`;
+  const reference = `NESTLY_${crypto.randomUUID().replace(/-/g, "")}`;
 
   const order = await prisma.order.create({
     data: {
@@ -225,10 +209,7 @@ const buildPendingOrder = async (
           })(),
         })),
       },
-      shipping:
-        shippingRows.length > 0
-          ? { create: shippingRows }
-          : undefined,
+      shipping: shippingRows.length > 0 ? { create: shippingRows } : undefined,
     },
     include: { items: true, shipping: true },
   });
@@ -240,7 +221,7 @@ const notifyLowStock = (
   sellerUserId: string,
   productId: string,
   productTitle: string,
-  stock: number
+  stock: number,
 ) => {
   createNotificationService(
     sellerUserId,
@@ -249,7 +230,7 @@ const notifyLowStock = (
       stock === 1 ? "" : "s"
     } in stock.`,
     NotificationType.ORDER,
-    { type: "PRODUCT", id: productId }
+    { type: "PRODUCT", id: productId },
   ).catch((error) => {
     console.error("Notification failed:", error);
   });
@@ -292,7 +273,7 @@ const finalizeOrderPayment = async (order: {
             seller.userId,
             updatedProduct.id,
             updatedProduct.title,
-            updatedProduct.stock
+            updatedProduct.stock,
           );
         }
       }
@@ -321,16 +302,11 @@ const finalizeOrderPayment = async (order: {
     });
 
     if (coupon) {
-      await redeemCouponService(
-        coupon.id,
-        order.userId,
-        order.id
-      ).catch((error) => {
-        console.error(
-          "Coupon redemption recording failed:",
-          error
-        );
-      });
+      await redeemCouponService(coupon.id, order.userId, order.id).catch(
+        (error) => {
+          console.error("Coupon redemption recording failed:", error);
+        },
+      );
     }
   }
 
@@ -341,15 +317,14 @@ export const initiateCheckoutService = async (
   userId: string,
   addressId: string,
   shippingSelections: ShippingSelection[] = [],
-  couponCode?: string
+  couponCode?: string,
 ) => {
-  const { user, order, reference, total, split } =
-    await buildPendingOrder(
-      userId,
-      addressId,
-      shippingSelections,
-      couponCode
-    );
+  const { user, order, reference, total, split } = await buildPendingOrder(
+    userId,
+    addressId,
+    shippingSelections,
+    couponCode,
+  );
 
   const paystackData = await initializePaystackTransaction({
     email: user.email,
@@ -374,7 +349,7 @@ export const checkoutWithSavedCardService = async (
   addressId: string,
   savedCardId: string,
   shippingSelections: ShippingSelection[] = [],
-  couponCode?: string
+  couponCode?: string,
 ) => {
   const savedCard = await prisma.savedCard.findUnique({
     where: { id: savedCardId },
@@ -384,13 +359,12 @@ export const checkoutWithSavedCardService = async (
     throw new AppError("Saved card not found.", 404);
   }
 
-  const { user, order, reference, total, split } =
-    await buildPendingOrder(
-      userId,
-      addressId,
-      shippingSelections,
-      couponCode
-    );
+  const { user, order, reference, total, split } = await buildPendingOrder(
+    userId,
+    addressId,
+    shippingSelections,
+    couponCode,
+  );
 
   const chargeResult = await chargeAuthorization({
     email: user.email,
@@ -403,26 +377,21 @@ export const checkoutWithSavedCardService = async (
   if (chargeResult.status !== "success") {
     throw new AppError(
       "Charge was not successful. Please try a different payment method.",
-      400
+      400,
     );
   }
 
   return finalizeOrderPayment(order);
 };
 
-export const confirmPaymentByReferenceService = async (
-  reference: string
-) => {
+export const confirmPaymentByReferenceService = async (reference: string) => {
   const order = await prisma.order.findUnique({
     where: { paymentReference: reference },
     include: { items: true },
   });
 
   if (!order) {
-    throw new AppError(
-      "Order not found for this payment reference.",
-      404
-    );
+    throw new AppError("Order not found for this payment reference.", 404);
   }
 
   // Idempotent: a webhook and a manual verify call can both land on the same order.
@@ -430,18 +399,13 @@ export const confirmPaymentByReferenceService = async (
     return order;
   }
 
-  const paystackData = await verifyPaystackTransaction(
-    reference
-  );
+  const paystackData = await verifyPaystackTransaction(reference);
 
   if (paystackData.status !== "success") {
     throw new AppError("Payment was not successful.", 400);
   }
 
-  if (
-    Math.round(order.total * NAIRA_TO_KOBO) !==
-    paystackData.amount
-  ) {
+  if (Math.round(order.total * NAIRA_TO_KOBO) !== paystackData.amount) {
     throw new AppError("Payment amount mismatch.", 400);
   }
 
@@ -465,12 +429,11 @@ export const confirmPaymentByReferenceService = async (
   const updatedOrder = await finalizeOrderPayment(order);
 
   if (paystackData.authorization?.reusable) {
-    saveCardFromAuthorization(
-      order.userId,
-      paystackData.authorization
-    ).catch((error) => {
-      console.error("Saving card failed:", error);
-    });
+    saveCardFromAuthorization(order.userId, paystackData.authorization).catch(
+      (error) => {
+        console.error("Saving card failed:", error);
+      },
+    );
   }
 
   return updatedOrder;
@@ -478,7 +441,7 @@ export const confirmPaymentByReferenceService = async (
 
 export const verifyCheckoutService = async (
   userId: string,
-  reference: string
+  reference: string,
 ) => {
   const order = await prisma.order.findUnique({
     where: { paymentReference: reference },

@@ -1126,7 +1126,7 @@ model OrderShipping {
 
   fee Float
 
-  etaDays Int?
+  eta String?
 
   createdAt DateTime @default(now())
 
