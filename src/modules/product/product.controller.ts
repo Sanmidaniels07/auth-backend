@@ -265,4 +265,4 @@ export const deleteProduct = asyncHandler(
       apiResponse(null, "Product archived successfully")
     );
   }
-);
+)
