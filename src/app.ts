@@ -15,6 +15,7 @@ import storeRoutes from "./modules/store/store.routes";
 import categoryRoutes from "./modules/category/category.routes";
 import productRoutes from "./modules/product/product.routes";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes";
+import userDashboardRoutes from "./modules/user-dashboard/user-dashboard.routes";
 import wishlistRoutes from "./modules/wishlist/wishlist.routes";
 import cartRoutes from "./modules/cart/cart.routes";
 import addressRoutes from "./modules/address/address.routes";
@@ -143,6 +144,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
 
 app.use("/api/seller/dashboard", dashboardRoutes);
+app.use("/api/dashboard", userDashboardRoutes);
 
 app.use("/api/wishlist", wishlistRoutes);
 
