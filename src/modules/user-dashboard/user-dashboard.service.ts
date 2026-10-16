@@ -56,6 +56,7 @@ export const getUserDashboardService = async (
     recentFollowers,
     orderStats,
     activeOrders,
+    awaitingConfirmation,
     wishlistCount,
     cart,
     communitiesJoined,
@@ -97,6 +98,9 @@ export const getUserDashboardService = async (
       _sum: { total: true },
     }),
     prisma.order.count({ where: { userId, status: { in: ACTIVE_ORDER_STATUSES } } }),
+    prisma.orderItem.count({
+      where: { order: { userId }, status: "DELIVERED", deliveryConfirmedAt: null },
+    }),
     prisma.wishlist.count({ where: { userId } }),
     prisma.cart.findUnique({
       where: { userId },
@@ -181,6 +185,8 @@ export const getUserDashboardService = async (
     shopping: {
       totalOrders: orderStats._count,
       activeOrders,
+      // Delivered items the buyer still needs to confirm (or report).
+      awaitingConfirmation,
       totalSpent: orderStats._sum.total ?? 0,
       wishlistCount,
       cartItems: cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,

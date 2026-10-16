@@ -15,6 +15,7 @@ import {
   getSellerOrderByIdService,
   updateOrderItemStatusService,
   updateOrderTrackingNumberService,
+  confirmDeliveryService,
 } from "./order.service";
 
 export const getCustomerOrders = asyncHandler(
@@ -126,7 +127,8 @@ export const updateOrderItemStatus = asyncHandler(
     const order = await updateOrderItemStatusService(
       req.user.id,
       req.params.orderItemId,
-      req.body.status
+      req.body.status,
+      req.body.deliveryCode
     );
 
     res.status(200).json(
@@ -134,6 +136,22 @@ export const updateOrderItemStatus = asyncHandler(
         order,
         "Order item status updated successfully"
       )
+    );
+  }
+);
+
+export const confirmDelivery = asyncHandler(
+  async (
+    req: Request<OrderItemIdParams>,
+    res: Response
+  ) => {
+    const item = await confirmDeliveryService(
+      req.user.id,
+      req.params.orderItemId
+    );
+
+    res.status(200).json(
+      apiResponse(item, "Delivery confirmed successfully")
     );
   }
 );

@@ -4,6 +4,7 @@ dotenv.config();
 import http from "http";
 import app from "./app";
 import { initSocket } from "./socket";
+import { startAutoConfirmDeliveriesJob } from "./jobs/auto-confirm-deliveries.job";
 
 const PORT = process.env.PORT || 5000;
 
@@ -16,4 +17,5 @@ initSocket(server);
 // Start server
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  startAutoConfirmDeliveriesJob();
 });

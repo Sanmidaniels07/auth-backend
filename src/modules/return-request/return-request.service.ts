@@ -1,8 +1,15 @@
-import { OrderItemStatus, ReturnRequestStatus } from "@prisma/client";
+import {
+  OrderEventActor,
+  OrderEventType,
+  OrderItemStatus,
+  ReturnRequestStatus,
+} from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { getSellerStore } from "../seller/seller.utils";
+import { RETURN_WINDOW_DAYS, recordOrderEvent, returnWindowEndsAt } from "../order/order-delivery";
+import { notifyProblemReported, notifyReturnStatusChanged } from "../order/order-notifications";
 
 const ALLOWED_TRANSITIONS: Record<
   ReturnRequestStatus,
@@ -38,6 +45,15 @@ export const createReturnRequestService = async (
     );
   }
 
+  // The window opens when delivery is confirmed. Delivered-but-unconfirmed
+  // items can always be reported - that is how a buyer disputes delivery.
+  if (item.deliveryConfirmedAt && new Date() > returnWindowEndsAt(item.deliveryConfirmedAt)) {
+    throw new AppError(
+      `The return window for this item closed ${RETURN_WINDOW_DAYS} days after delivery.`,
+      400
+    );
+  }
+
   const existing = await prisma.returnRequest.findFirst({
     where: {
       orderItemId,
@@ -57,14 +73,30 @@ export const createReturnRequestService = async (
     );
   }
 
-  return prisma.returnRequest.create({
-    data: {
+  const returnRequest = await prisma.$transaction(async (tx) => {
+    const created = await tx.returnRequest.create({
+      data: {
+        orderId: item.orderId,
+        orderItemId,
+        userId,
+        reason,
+      },
+    });
+
+    await recordOrderEvent(tx, {
       orderId: item.orderId,
       orderItemId,
-      userId,
-      reason,
-    },
+      type: OrderEventType.PROBLEM_REPORTED,
+      actor: OrderEventActor.BUYER,
+      note: reason.slice(0, 200),
+    });
+
+    return created;
   });
+
+  notifyProblemReported(orderItemId, reason);
+
+  return returnRequest;
 };
 
 export const getCustomerReturnRequestsService = async (
@@ -183,8 +215,12 @@ export const updateReturnRequestStatusService = async (
     );
   }
 
-  return prisma.returnRequest.update({
+  const updated = await prisma.returnRequest.update({
     where: { id: returnRequestId },
     data: { status },
   });
+
+  notifyReturnStatusChanged(returnRequest.orderItemId as string, status);
+
+  return updated;
 };

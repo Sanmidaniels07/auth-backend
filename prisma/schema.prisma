@@ -29,9 +29,9 @@ enum ProductCondition {
   NEW
   USED
   REFURBISHED
-  FRESHLY_MADE  
-  MADE_TO_ORDER    
-  PRE_ORDER 
+  FRESHLY_MADE
+  MADE_TO_ORDER
+  PRE_ORDER
 }
 
 enum ProductStatus {
@@ -56,6 +56,32 @@ enum OrderItemStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+}
+
+// How a delivered item's receipt was confirmed: the seller entered the
+// buyer's delivery code at handover, the buyer confirmed in-app, or it
+// auto-confirmed after the buyer didn't respond.
+enum DeliveryConfirmation {
+  CODE
+  BUYER
+  AUTO
+}
+
+enum OrderEventType {
+  PLACED
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CONFIRMED
+  CANCELLED
+  PROBLEM_REPORTED
+}
+
+enum OrderEventActor {
+  BUYER
+  SELLER
+  SYSTEM
 }
 
 enum MediaType {
@@ -187,12 +213,12 @@ model User {
 
   storeFollows StoreFollow[]
 
-  reports          Report[]
-  returnRequests   ReturnRequest[]
+  reports           Report[]
+  returnRequests    ReturnRequest[]
   couponRedemptions CouponRedemption[]
 
   conversationParticipations ConversationParticipant[]
-  sentMessages                Message[]
+  sentMessages               Message[]
 
   stories        Story[]
   storyViews     StoryView[]
@@ -774,7 +800,7 @@ model Store {
 
   isSuspended Boolean @default(false)
 
-  returnPolicy String?
+  returnPolicy   String?
   shippingPolicy String?
   warrantyPolicy String?
 
@@ -784,10 +810,10 @@ model Store {
   // Paystack dynamic split at checkout. Until then (or if subaccount
   // creation fails), revenue accrues in the manual Payout ledger instead -
   // see Payout model.
-  payoutBankName        String?
-  payoutBankCode        String?
-  payoutAccountNumber   String?
-  payoutAccountName     String?
+  payoutBankName         String?
+  payoutBankCode         String?
+  payoutAccountNumber    String?
+  payoutAccountName      String?
   paystackSubaccountCode String?
 
   // Set every time payout bank details change. Checkout won't route this
@@ -1109,6 +1135,8 @@ model Order {
 
   couponRedemption CouponRedemption?
 
+  events OrderEvent[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -1128,9 +1156,38 @@ model OrderShipping {
 
   eta String?
 
+  // 6-digit code only the buyer can see. The seller enters it at handover
+  // to mark this store's items delivered (and confirmed) in one step. Never
+  // include it in seller-facing queries. Null on orders placed before
+  // delivery codes existed.
+  deliveryCode String?
+  // Wrong code entries - locked after a few so it can't be guessed; the
+  // seller then falls back to marking delivered for the buyer to confirm.
+  deliveryCodeAttempts Int @default(0)
+
   createdAt DateTime @default(now())
 
   @@unique([orderId, storeId])
+}
+
+// Append-only history of what happened to an order and when - powers the
+// buyer's timeline with real dates.
+model OrderEvent {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  orderItemId String?
+  orderItem   OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  type  OrderEventType
+  actor OrderEventActor
+  note  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
 }
 
 model OrderItem {
@@ -1160,6 +1217,15 @@ model OrderItem {
   autoPaidViaSplit Boolean @default(false)
 
   status OrderItemStatus @default(PENDING)
+
+  shippedAt   DateTime?
+  deliveredAt DateTime?
+  // Set once receipt is confirmed (see DeliveryConfirmation). Starts the
+  // return window. Delivered-but-unconfirmed items auto-confirm after a few days.
+  deliveryConfirmedAt DateTime?
+  deliveryConfirmedBy DeliveryConfirmation?
+
+  events OrderEvent[]
 
   returnRequests ReturnRequest[]
 }

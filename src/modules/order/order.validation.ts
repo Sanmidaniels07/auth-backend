@@ -23,6 +23,20 @@ export const updateOrderItemStatusSchema = z.object({
   }),
   body: z.object({
     status: z.nativeEnum(OrderItemStatus),
+    // Only used when status is DELIVERED: the buyer's handover code. With
+    // it the item is delivered and confirmed at once; without it the buyer
+    // is asked to confirm receipt.
+    deliveryCode: z
+      .string()
+      .trim()
+      .regex(/^\d{6}$/, "Delivery code must be 6 digits.")
+      .optional(),
+  }),
+});
+
+export const confirmDeliverySchema = z.object({
+  params: z.object({
+    orderItemId: z.string(),
   }),
 });
 

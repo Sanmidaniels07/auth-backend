@@ -7,6 +7,7 @@ import {
   listSellerOrdersSchema,
   updateOrderItemStatusSchema,
   updateTrackingNumberSchema,
+  confirmDeliverySchema,
 } from "./order.validation";
 import {
   getCustomerOrders,
@@ -16,6 +17,7 @@ import {
   getSellerOrderById,
   updateOrderItemStatus,
   updateOrderTrackingNumber,
+  confirmDelivery,
 } from "./order.controller";
 
 const router = Router();
@@ -47,5 +49,12 @@ router.get("/", validate(listOrdersSchema), getCustomerOrders);
 router.get("/:id", getCustomerOrderById);
 
 router.patch("/:id/cancel", cancelOrder);
+
+// Buyer confirms they received an item the seller marked delivered.
+router.post(
+  "/items/:orderItemId/confirm-delivery",
+  validate(confirmDeliverySchema),
+  confirmDelivery
+);
 
 export default router;

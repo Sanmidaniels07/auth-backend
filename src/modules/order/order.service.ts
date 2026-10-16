@@ -1,8 +1,26 @@
-import { OrderStatus, OrderItemStatus } from "@prisma/client";
+import {
+  DeliveryConfirmation,
+  OrderEventActor,
+  OrderEventType,
+  OrderItemStatus,
+  OrderStatus,
+  ReturnRequestStatus,
+} from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { getSellerStore } from "../seller/seller.utils";
+import {
+  MAX_DELIVERY_CODE_ATTEMPTS,
+  autoConfirmCutoff,
+  recordOrderEvent,
+  returnWindowEndsAt,
+} from "./order-delivery";
+import {
+  notifyDeliveryConfirmed,
+  notifyItemStatusChanged,
+  notifyOrderCancelledByBuyer,
+} from "./order-notifications";
 
 const ITEM_STATUS_RANK: Record<OrderItemStatus, number> = {
   PENDING: 0,
@@ -49,43 +67,46 @@ const ORDER_STEPS: OrderStatus[] = [
   OrderStatus.DELIVERED,
 ];
 
-// Derived from current status only - there's no per-transition history table,
-// so only the "created" and "current" steps have real timestamps.
+// Dates come from the order's event history. An order-level step is
+// reached when its last item gets there (least-progressed rule above), so
+// its date is the latest matching event. Orders from before events were
+// recorded fall back to createdAt/updatedAt.
 const buildOrderTimeline = (order: {
   status: OrderStatus;
   createdAt: Date;
   updatedAt: Date;
+  events: { type: OrderEventType; createdAt: Date }[];
 }) => {
+  const lastEventAt = (type: OrderEventType) => {
+    const matching = order.events.filter((event) => event.type === type);
+    return matching.length ? matching[matching.length - 1].createdAt : null;
+  };
+
   if (order.status === OrderStatus.CANCELLED) {
     return [
-      {
-        step: OrderStatus.PENDING,
-        completed: true,
-        current: false,
-        at: order.createdAt,
-      },
+      { step: OrderStatus.PENDING, completed: true, current: false, at: order.createdAt },
       {
         step: OrderStatus.CANCELLED,
         completed: true,
         current: true,
-        at: order.updatedAt,
+        at: lastEventAt(OrderEventType.CANCELLED) ?? order.updatedAt,
       },
     ];
   }
 
   const currentIndex = ORDER_STEPS.indexOf(order.status);
 
-  return ORDER_STEPS.map((step, index) => ({
-    step,
-    completed: index <= currentIndex,
-    current: index === currentIndex,
-    at:
-      index === 0
-        ? order.createdAt
-        : index === currentIndex
-        ? order.updatedAt
-        : null,
-  }));
+  return ORDER_STEPS.map((step, index) => {
+    const completed = index <= currentIndex;
+    let at: Date | null = null;
+
+    if (index === 0) at = order.createdAt;
+    else if (completed) {
+      at = lastEventAt(step as OrderEventType) ?? (index === currentIndex ? order.updatedAt : null);
+    }
+
+    return { step, completed, current: index === currentIndex, at };
+  });
 };
 
 const CUSTOMER_ORDER_INCLUDE = {
@@ -107,7 +128,28 @@ const CUSTOMER_ORDER_INCLUDE = {
     },
   },
   address: true,
+  // Includes the buyer's own delivery codes - this include is only ever
+  // used for the order's owner.
   shipping: true,
+  events: {
+    orderBy: { createdAt: "asc" as const },
+    select: { id: true, orderItemId: true, type: true, actor: true, note: true, createdAt: true },
+  },
+};
+
+// Per-item delivery state the buyer's order page needs.
+const withDeliveryState = <T extends { status: OrderItemStatus; deliveredAt: Date | null; deliveryConfirmedAt: Date | null }>(
+  item: T
+) => {
+  const windowEnds = item.deliveryConfirmedAt ? returnWindowEndsAt(item.deliveryConfirmedAt) : null;
+
+  return {
+    ...item,
+    awaitingConfirmation: item.status === OrderItemStatus.DELIVERED && !item.deliveryConfirmedAt,
+    returnWindowEndsAt: windowEnds,
+    // Unconfirmed deliveries can always be reported (that's the dispute path).
+    returnWindowOpen: item.status === OrderItemStatus.DELIVERED && (!windowEnds || windowEnds > new Date()),
+  };
 };
 
 export const getCustomerOrdersService = async (
@@ -154,7 +196,11 @@ export const getCustomerOrderByIdService = async (
     throw new AppError("Order not found.", 404);
   }
 
-  return { ...order, timeline: buildOrderTimeline(order) };
+  return {
+    ...order,
+    items: order.items.map(withDeliveryState),
+    timeline: buildOrderTimeline(order),
+  };
 };
 
 export const cancelOrderService = async (
@@ -194,7 +240,7 @@ export const cancelOrderService = async (
     );
   }
 
-  return prisma.$transaction(async (tx) => {
+  const cancelled = await prisma.$transaction(async (tx) => {
     await tx.orderItem.updateMany({
       where: { orderId },
       data: { status: OrderItemStatus.CANCELLED },
@@ -211,12 +257,23 @@ export const cancelOrderService = async (
       }
     }
 
+    await recordOrderEvent(tx, {
+      orderId,
+      type: OrderEventType.CANCELLED,
+      actor: OrderEventActor.BUYER,
+    });
+
     return tx.order.update({
       where: { id: orderId },
       data: { status: OrderStatus.CANCELLED },
       include: { items: true },
     });
   });
+
+  // Only sellers of a paid order have anything to stop working on.
+  if (order.status !== OrderStatus.PENDING) notifyOrderCancelledByBuyer(orderId);
+
+  return cancelled;
 };
 
 export const getSellerOrdersService = async (
@@ -315,7 +372,8 @@ export const getSellerOrderByIdService = async (
 export const updateOrderItemStatusService = async (
   userId: string,
   orderItemId: string,
-  status: OrderItemStatus
+  status: OrderItemStatus,
+  deliveryCode?: string
 ) => {
   const store = await getSellerStore(userId);
 
@@ -346,6 +404,13 @@ export const updateOrderItemStatusService = async (
     throw new AppError("This item has been cancelled.", 400);
   }
 
+  if (status === OrderItemStatus.CANCELLED && item.status === OrderItemStatus.DELIVERED) {
+    throw new AppError(
+      "Delivered items can't be cancelled - the buyer can request a return instead.",
+      400
+    );
+  }
+
   if (
     status !== OrderItemStatus.CANCELLED &&
     ITEM_STATUS_RANK[status] <= ITEM_STATUS_RANK[item.status]
@@ -356,11 +421,83 @@ export const updateOrderItemStatusService = async (
     );
   }
 
-  return prisma.$transaction(async (tx) => {
+  // Delivery code check: a correct code proves handover, so the item is
+  // delivered and confirmed in one step. No code = delivered, awaiting the
+  // buyer's confirmation (or auto-confirm).
+  let confirmedWithCode = false;
+
+  if (status === OrderItemStatus.DELIVERED && deliveryCode) {
+    const shipment = await prisma.orderShipping.findUnique({
+      where: { orderId_storeId: { orderId: item.orderId, storeId: store.id } },
+    });
+
+    if (!shipment?.deliveryCode) {
+      throw new AppError(
+        "This order has no delivery code. Mark it delivered without one and the buyer will be asked to confirm.",
+        400
+      );
+    }
+
+    if (shipment.deliveryCodeAttempts >= MAX_DELIVERY_CODE_ATTEMPTS) {
+      throw new AppError(
+        "Too many wrong codes - the delivery code is locked. Mark it delivered without a code and the buyer will be asked to confirm.",
+        400
+      );
+    }
+
+    if (shipment.deliveryCode !== deliveryCode) {
+      const updated = await prisma.orderShipping.update({
+        where: { id: shipment.id },
+        data: { deliveryCodeAttempts: { increment: 1 } },
+      });
+      const left = MAX_DELIVERY_CODE_ATTEMPTS - updated.deliveryCodeAttempts;
+
+      throw new AppError(
+        left > 0
+          ? `That code doesn't match. ${left} attempt${left === 1 ? "" : "s"} left.`
+          : "That code doesn't match and the delivery code is now locked. Mark it delivered without a code and the buyer will be asked to confirm.",
+        400
+      );
+    }
+
+    confirmedWithCode = true;
+  }
+
+  const now = new Date();
+
+  const order = await prisma.$transaction(async (tx) => {
     await tx.orderItem.update({
       where: { id: orderItemId },
-      data: { status },
+      data: {
+        status,
+        ...(status === OrderItemStatus.SHIPPED && { shippedAt: now }),
+        ...(status === OrderItemStatus.DELIVERED && {
+          deliveredAt: now,
+          ...(confirmedWithCode && {
+            deliveryConfirmedAt: now,
+            deliveryConfirmedBy: DeliveryConfirmation.CODE,
+          }),
+        }),
+      },
     });
+
+    await recordOrderEvent(tx, {
+      orderId: item.orderId,
+      orderItemId,
+      type: status as OrderEventType,
+      actor: OrderEventActor.SELLER,
+      note: confirmedWithCode ? "Confirmed with delivery code" : undefined,
+    });
+
+    if (confirmedWithCode) {
+      await recordOrderEvent(tx, {
+        orderId: item.orderId,
+        orderItemId,
+        type: OrderEventType.CONFIRMED,
+        actor: OrderEventActor.SELLER,
+        note: "Delivery code",
+      });
+    }
 
     const allItems = await tx.orderItem.findMany({
       where: { orderId: item.orderId },
@@ -373,6 +510,99 @@ export const updateOrderItemStatusService = async (
       include: { items: true },
     });
   });
+
+  notifyItemStatusChanged(orderItemId, status, confirmedWithCode);
+
+  return order;
+};
+
+export const confirmDeliveryService = async (
+  userId: string,
+  orderItemId: string
+) => {
+  const item = await prisma.orderItem.findUnique({
+    where: { id: orderItemId },
+    include: { order: { select: { userId: true } } },
+  });
+
+  if (!item || item.order.userId !== userId) {
+    throw new AppError("Order item not found.", 404);
+  }
+
+  if (item.status !== OrderItemStatus.DELIVERED) {
+    throw new AppError(
+      "You can only confirm items the seller has marked as delivered.",
+      400
+    );
+  }
+
+  if (item.deliveryConfirmedAt) {
+    throw new AppError("Delivery is already confirmed.", 400);
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const confirmed = await tx.orderItem.update({
+      where: { id: orderItemId },
+      data: {
+        deliveryConfirmedAt: new Date(),
+        deliveryConfirmedBy: DeliveryConfirmation.BUYER,
+      },
+    });
+
+    await recordOrderEvent(tx, {
+      orderId: item.orderId,
+      orderItemId,
+      type: OrderEventType.CONFIRMED,
+      actor: OrderEventActor.BUYER,
+    });
+
+    return confirmed;
+  });
+
+  notifyDeliveryConfirmed(orderItemId, "BUYER");
+
+  return withDeliveryState(updated);
+};
+
+// Confirms items the seller marked delivered that the buyer hasn't
+// responded to within AUTO_CONFIRM_DAYS - unless the buyer has an open
+// return request on it, which means they're disputing it.
+export const autoConfirmDeliveriesService = async () => {
+  const due = await prisma.orderItem.findMany({
+    where: {
+      status: OrderItemStatus.DELIVERED,
+      deliveryConfirmedAt: null,
+      deliveredAt: { lte: autoConfirmCutoff() },
+      returnRequests: {
+        none: {
+          status: { in: [ReturnRequestStatus.REQUESTED, ReturnRequestStatus.APPROVED] },
+        },
+      },
+    },
+    select: { id: true, orderId: true },
+    take: 200,
+  });
+
+  for (const item of due) {
+    // Guarded update so a buyer confirming at the same moment wins cleanly.
+    const { count } = await prisma.orderItem.updateMany({
+      where: { id: item.id, deliveryConfirmedAt: null },
+      data: { deliveryConfirmedAt: new Date(), deliveryConfirmedBy: DeliveryConfirmation.AUTO },
+    });
+    if (count === 0) continue;
+
+    await recordOrderEvent(prisma, {
+      orderId: item.orderId,
+      orderItemId: item.id,
+      type: OrderEventType.CONFIRMED,
+      actor: OrderEventActor.SYSTEM,
+      note: "Auto-confirmed",
+    });
+
+    notifyDeliveryConfirmed(item.id, "AUTO");
+  }
+
+  return due.length;
 };
 
 export const updateOrderTrackingNumberService = async (

@@ -1,5 +1,11 @@
 import crypto from "crypto";
-import { OrderStatus, ProductStatus, NotificationType } from "@prisma/client";
+import {
+  OrderStatus,
+  ProductStatus,
+  NotificationType,
+  OrderEventActor,
+  OrderEventType,
+} from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
@@ -16,6 +22,8 @@ import {
 import { createNotificationService } from "../notification/notification.service";
 import { saveCardFromAuthorization } from "../payment-method/payment-method.service";
 import { isPayoutAccountEligibleForSplit } from "../store/store.service";
+import { generateDeliveryCode, recordOrderEvent } from "../order/order-delivery";
+import { notifyOrderPaid } from "../order/order-notifications";
 
 const NAIRA_TO_KOBO = 100;
 const LOW_STOCK_THRESHOLD = 5;
@@ -89,6 +97,7 @@ const buildPendingOrder = async (
     optionName: string;
     fee: number;
     eta: string | null;
+    deliveryCode: string;
   }[] = [];
 
   let deliveryFee = 0;
@@ -117,6 +126,9 @@ const buildPendingOrder = async (
       optionName: option.name,
       fee: option.fee,
       eta: option.eta,
+      // One code per seller in the order - the buyer hands it over when
+      // that seller's items arrive.
+      deliveryCode: generateDeliveryCode(),
     });
 
     deliveryFee += option.fee;
@@ -289,12 +301,22 @@ const finalizeOrderPayment = async (order: {
       });
     }
 
+    await recordOrderEvent(tx, {
+      orderId: order.id,
+      type: OrderEventType.PAID,
+      actor: OrderEventActor.SYSTEM,
+    });
+
     return tx.order.update({
       where: { id: order.id },
       data: { status: OrderStatus.PAID },
       include: { items: true },
     });
   });
+
+  // Runs once per order (callers claim the order first), so the buyer and
+  // sellers are told exactly once.
+  notifyOrderPaid(order.id);
 
   if (order.couponCode) {
     const coupon = await prisma.coupon.findUnique({
