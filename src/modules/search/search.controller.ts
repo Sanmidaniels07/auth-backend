@@ -8,7 +8,7 @@ import {
 } from "./search.service";
 
 interface TypeParams {
-  type: "users" | "posts" | "communities" | "hashtags";
+  type: "users" | "stores" | "posts" | "communities" | "hashtags";
 }
 
 export const quickSearch = asyncHandler(

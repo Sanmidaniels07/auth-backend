@@ -2,7 +2,7 @@
  * @swagger
  * tags:
  *   name: Search
- *   description: Global search across users, posts, communities, and hashtags
+ *   description: Global search across users, stores, posts, communities, and hashtags
  */
 
 /**
@@ -10,7 +10,7 @@
  * /api/search:
  *   get:
  *     summary: Quick search across all categories
- *     description: Public endpoint (optional auth for block-aware filtering). Returns up to 5 results per category - users, posts, communities, hashtags.
+ *     description: Public endpoint (optional auth for block-aware filtering). Returns up to 5 results per category - users, stores (matched by store name, suspended stores excluded), posts, communities, hashtags.
  *     tags:
  *       - Search
  *     security: []
@@ -42,7 +42,7 @@
  *         required: true
  *         schema:
  *           type: string
- *           enum: [users, posts, communities, hashtags]
+ *           enum: [users, stores, posts, communities, hashtags]
  *       - in: query
  *         name: q
  *         required: true

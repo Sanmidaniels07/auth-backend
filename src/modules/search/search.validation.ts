@@ -8,7 +8,7 @@ export const quickSearchSchema = z.object({
 
 export const searchByTypeSchema = z.object({
   params: z.object({
-    type: z.enum(["users", "posts", "communities", "hashtags"]),
+    type: z.enum(["users", "stores", "posts", "communities", "hashtags"]),
   }),
   query: z.object({
     q: z.string().trim().min(1),

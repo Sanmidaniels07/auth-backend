@@ -9,6 +9,27 @@ const USER_SELECT = {
   bio: true,
 };
 
+// Public storefront fields only - Store also holds payout bank details,
+// which must never leak through search.
+const STORE_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  logo: true,
+  city: true,
+  state: true,
+  isVerified: true,
+  rating: true,
+};
+
+const storeSearchWhere = (q: string, blockedIds: string[]) => ({
+  isSuspended: false,
+  name: { contains: q, mode: "insensitive" as const },
+  seller: blockedIds.length
+    ? { userId: { notIn: blockedIds } }
+    : undefined,
+});
+
 export const quickSearchService = async (
   q: string,
   viewerId?: string
@@ -17,7 +38,7 @@ export const quickSearchService = async (
     ? await getBlockedUserIds(viewerId)
     : [];
 
-  const [users, posts, communities, hashtags] =
+  const [users, stores, posts, communities, hashtags] =
     await Promise.all([
       prisma.user.findMany({
         where: {
@@ -37,6 +58,12 @@ export const quickSearchService = async (
         },
         select: USER_SELECT,
         take: 5,
+      }),
+      prisma.store.findMany({
+        where: storeSearchWhere(q, blockedIds),
+        select: STORE_SELECT,
+        take: 5,
+        orderBy: { totalSales: "desc" },
       }),
       prisma.post.findMany({
         where: {
@@ -87,10 +114,10 @@ export const quickSearchService = async (
       }),
     ]);
 
-  return { users, posts, communities, hashtags };
+  return { users, stores, posts, communities, hashtags };
 };
 
-type SearchType = "users" | "posts" | "communities" | "hashtags";
+type SearchType = "users" | "stores" | "posts" | "communities" | "hashtags";
 
 export const searchByTypeService = async (
   type: SearchType,
@@ -122,6 +149,29 @@ export const searchByTypeService = async (
         take: limit,
       }),
       prisma.user.count({ where }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  if (type === "stores") {
+    const where = storeSearchWhere(q, blockedIds);
+
+    const [items, total] = await Promise.all([
+      prisma.store.findMany({
+        where,
+        select: STORE_SELECT,
+        skip,
+        take: limit,
+        orderBy: { totalSales: "desc" },
+      }),
+      prisma.store.count({ where }),
     ]);
 
     return {
