@@ -331,7 +331,7 @@ export const initiateCheckoutService = async (
     amountKobo: Math.round(total * NAIRA_TO_KOBO),
     reference,
     callbackUrl: process.env.FRONTEND_URL
-      ? `${process.env.FRONTEND_URL}/checkout/callback`
+      ? `${process.env.FRONTEND_URL}/marketplace/orders`
       : undefined,
     split,
   });
