@@ -2,7 +2,9 @@ import crypto from "crypto";
 import { OrderEventActor, OrderEventType, Prisma, PrismaClient } from "@prisma/client";
 
 // Delivered-but-unconfirmed items confirm themselves after this long.
-export const AUTO_CONFIRM_DAYS = 5;
+// Staging can shorten it (e.g. AUTO_CONFIRM_DAYS=0.01 = ~15 minutes) so
+// testers can see auto-confirm happen.
+export const AUTO_CONFIRM_DAYS = Number(process.env.AUTO_CONFIRM_DAYS) > 0 ? Number(process.env.AUTO_CONFIRM_DAYS) : 5;
 // Returns can be requested this long after delivery is confirmed.
 export const RETURN_WINDOW_DAYS = 7;
 // Wrong delivery-code entries allowed before the code locks.

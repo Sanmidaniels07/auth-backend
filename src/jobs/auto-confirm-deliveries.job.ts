@@ -1,6 +1,9 @@
+import { isStaging } from "../config/environment";
 import { autoConfirmDeliveriesService } from "../modules/order/order.service";
 
-const HOUR_MS = 60 * 60 * 1000;
+// Hourly in production; every 5 minutes on staging so a shortened
+// AUTO_CONFIRM_DAYS is visible to testers without a long wait.
+const INTERVAL_MS = (isStaging ? 5 : 60) * 60 * 1000;
 // Let the server finish booting (DB pool, socket) before the first run.
 const FIRST_RUN_DELAY_MS = 60 * 1000;
 
@@ -26,5 +29,5 @@ const run = async () => {
 // catches up on the next wake.
 export const startAutoConfirmDeliveriesJob = () => {
   setTimeout(run, FIRST_RUN_DELAY_MS).unref();
-  setInterval(run, HOUR_MS).unref();
+  setInterval(run, INTERVAL_MS).unref();
 };

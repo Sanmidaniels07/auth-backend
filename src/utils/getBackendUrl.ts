@@ -13,7 +13,12 @@ const RENDER_URL = "https://auth-backend-trpd.onrender.com";
 export const getSwaggerServers = (): { url: string; description: string }[] => {
   const servers: { url: string; description: string }[] = [];
 
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.APP_ENV === "staging") {
+    servers.push({
+      url: process.env.PUBLIC_API_URL || process.env.RENDER_EXTERNAL_URL || "",
+      description: "Staging",
+    });
+  } else if (process.env.NODE_ENV === "production") {
     servers.push({ url: CUSTOM_DOMAIN, description: "Production (custom domain)" });
 
     

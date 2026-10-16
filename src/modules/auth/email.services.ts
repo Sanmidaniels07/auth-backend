@@ -1,5 +1,7 @@
 import { Resend } from "resend";
 
+import { isStaging } from "../../config/environment";
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -18,7 +20,8 @@ export const sendEmail = async (
   const { data, error } = await resend.emails.send({
     from: process.env.EMAIL_FROM as string,
     to,
-    subject,
+    // Testers' inboxes get mail from both environments - make staging's obvious.
+    subject: isStaging ? `[Staging] ${subject}` : subject,
     html,
   });
 

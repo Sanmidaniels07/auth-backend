@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate deploy"
+    "prisma:migrate": "prisma migrate deploy",
+    "seed": "ts-node-dev --transpile-only prisma/seed.ts"
   },
   "keywords": [],
   "author": "",

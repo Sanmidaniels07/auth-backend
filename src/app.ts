@@ -49,16 +49,25 @@ import { AppError } from "./utils/appError";
 import { getBackendUrl } from "./utils/getBackendUrl";
 
 import { swaggerSpec } from "./config/swagger";
+import { envList, isStaging } from "./config/environment";
 
 const app = express();
 
+const PRODUCTION_ORIGINS = [
+  "https://nestlyapp.site",
+  "https://www.nestlyapp.site",
+  "https://api.nestlyapp.site",
+];
+
+// Each environment only accepts its own frontend: staging never accepts
+// the production site (and vice versa via FRONTEND_URL). CORS_ORIGINS adds
+// any extra origins for an environment without a code change.
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   "http://localhost:3000",
   "http://localhost:3001",
-  "https://nestlyapp.site",
-   "https://www.nestlyapp.site",
-    "https://api.nestlyapp.site", 
+  ...(isStaging ? [] : PRODUCTION_ORIGINS),
+  ...envList(process.env.CORS_ORIGINS),
   getBackendUrl(),
 ].filter(Boolean);
 
