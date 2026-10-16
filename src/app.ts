@@ -49,7 +49,7 @@ import { AppError } from "./utils/appError";
 import { getBackendUrl } from "./utils/getBackendUrl";
 
 import { swaggerSpec } from "./config/swagger";
-import { envList, isStaging } from "./config/environment";
+import { envList, isStaging, normalizeOrigin } from "./config/environment";
 
 const app = express();
 
@@ -69,12 +69,18 @@ const allowedOrigins = [
   ...(isStaging ? [] : PRODUCTION_ORIGINS),
   ...envList(process.env.CORS_ORIGINS),
   getBackendUrl(),
-].filter(Boolean);
+]
+  .filter((origin): origin is string => Boolean(origin))
+  .map(normalizeOrigin);
+
+// Not secret - lets you confirm in the host's logs which frontends this
+// deployment accepts.
+console.log(`CORS allowed origins: ${allowedOrigins.join(", ")}`);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) {
         callback(null, true);
       } else {
         callback(new AppError("Not allowed by CORS", 403));

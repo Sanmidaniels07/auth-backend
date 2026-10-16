@@ -10,3 +10,9 @@ export const envList = (value: string | undefined) =>
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+
+// Browser origins are compared character-for-character, so a value pasted
+// into a hosting dashboard with a trailing newline, quotes or slash would
+// silently never match. Normalise before comparing.
+export const normalizeOrigin = (value: string) =>
+  value.trim().replace(/^["']|["']$/g, "").trim().replace(/\/+$/, "").toLowerCase();
