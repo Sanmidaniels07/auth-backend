@@ -1,4 +1,4 @@
-import { NotificationType, OrderEventType, OrderItemStatus } from "@prisma/client";
+import { NotificationType, OrderEventType, OrderItemStatus, ShippingOptionType } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { sendEmail } from "../auth/email.services";
@@ -103,7 +103,7 @@ export const notifyOrderPaid = (orderId: string) =>
           total: order.total,
           codes: order.shipping
             .filter((s) => s.deliveryCode)
-            .map((s) => ({ storeName: s.store.name, code: s.deliveryCode as string })),
+            .map((s) => ({ storeName: s.store.name, code: s.deliveryCode as string, pickupAddress: s.pickupAddress })),
           orderUrl: buyerOrderUrl(order.id),
         }),
       },
@@ -122,11 +122,15 @@ export const notifyOrderPaid = (orderId: string) =>
         const seller = store.seller.user;
         const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
         const count = items.reduce((sum, item) => sum + item.quantity, 0);
+        const shipment = order.shipping.find((s) => s.storeId === store.id);
+        const isPickup = shipment?.type === ShippingOptionType.PICKUP;
 
         return deliver({
           to: seller,
           title: "New order",
-          message: `Order ${number}: ${count} item${count === 1 ? "" : "s"} from ${store.name}. Prepare it for delivery.`,
+          message: `Order ${number}: ${count} item${count === 1 ? "" : "s"} from ${store.name}. ${
+            isPickup ? "The buyer will pick it up - get it ready." : "Prepare it for delivery."
+          }`,
           target: { type: "SELLER_ORDER", id: order.id },
           email: {
             subject: `New order ${number} for ${store.name}`,
@@ -136,7 +140,8 @@ export const notifyOrderPaid = (orderId: string) =>
               orderNumber: number,
               lines: items.map(lineOf),
               subtotal,
-              shippingOption: order.shipping.find((s) => s.storeId === store.id)?.optionName ?? null,
+              shippingOption: shipment?.optionName ?? null,
+              isPickup,
               ordersUrl: sellerOrdersUrl(),
             }),
           },
@@ -182,6 +187,11 @@ export const notifyItemStatusChanged = (orderItemId: string, status: OrderItemSt
     });
     const lines = batch.map(lineOf);
     const buyer = item.order.user;
+    const shipment = await prisma.orderShipping.findUnique({
+      where: { orderId_storeId: { orderId: item.order.id, storeId: item.product.storeId } },
+      select: { type: true, pickupAddress: true },
+    });
+    const pickupAddress = shipment?.type === ShippingOptionType.PICKUP ? shipment.pickupAddress ?? "the seller's store" : null;
     const number = orderNumber(item.order.id);
     const storeName = item.product.store.name;
     const target = { type: "ORDER" as const, id: item.order.id };
@@ -192,13 +202,19 @@ export const notifyItemStatusChanged = (orderItemId: string, status: OrderItemSt
       return;
     }
 
+    // For pickup, "shipped" means the order is ready to collect.
     if (status === OrderItemStatus.SHIPPED) {
       await deliver({
         to: buyer,
-        title: "Order shipped",
-        message: `${storeName} has sent out your order ${number}. Keep your delivery code handy.`,
+        title: pickupAddress ? "Ready for pickup" : "Order shipped",
+        message: pickupAddress
+          ? `Your order ${number} from ${storeName} is ready. Pick it up at ${pickupAddress} and bring your code.`
+          : `${storeName} has sent out your order ${number}. Keep your delivery code handy.`,
         target,
-        email: { subject: `Order ${number} is on its way`, html: orderShippedEmail({ name: buyer.name, orderNumber: number, storeName, lines, orderUrl }) },
+        email: {
+          subject: pickupAddress ? `Order ${number} is ready for pickup` : `Order ${number} is on its way`,
+          html: orderShippedEmail({ name: buyer.name, orderNumber: number, storeName, lines, orderUrl, pickupAddress }),
+        },
       });
       return;
     }
@@ -206,7 +222,7 @@ export const notifyItemStatusChanged = (orderItemId: string, status: OrderItemSt
     if (status === OrderItemStatus.DELIVERED) {
       await deliver({
         to: buyer,
-        title: confirmedWithCode ? "Order delivered" : "Did your order arrive?",
+        title: confirmedWithCode ? (pickupAddress ? "Order picked up" : "Order delivered") : "Did your order arrive?",
         message: confirmedWithCode
           ? `Your order ${number} from ${storeName} was delivered and confirmed with your code.`
           : `${storeName} marked order ${number} as delivered. Confirm you received it or report a problem.`,

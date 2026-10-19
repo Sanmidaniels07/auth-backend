@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ShippingOptionType } from "@prisma/client";
 
 const storeFields = {
   name: z.string().trim().min(2),
@@ -76,10 +77,13 @@ const zoneFields = {
   eta: z.string().trim().min(1).max(50).optional(),
   areas: z.array(z.string().trim().min(1).max(80)).max(MAX_ZONE_AREAS).optional(),
   state: z.string().trim().min(2).max(60).optional(),
+  // PICKUP options are always free and cover no areas (enforced in the service).
+  type: z.nativeEnum(ShippingOptionType).optional(),
+  pickupAddress: z.string().trim().min(3).max(300).optional(),
 };
 
-const hasNameOrAreas = (zone: { name?: string; areas?: string[] }) =>
-  !!zone.name || !!zone.areas?.length;
+const hasNameOrAreas = (zone: { name?: string; areas?: string[]; type?: ShippingOptionType }) =>
+  zone.type === ShippingOptionType.PICKUP || !!zone.name || !!zone.areas?.length;
 const NAME_OR_AREAS = { message: "Give the zone a name or pick at least one area.", path: ["name"] };
 
 const zoneBody = z.object(zoneFields).refine(hasNameOrAreas, NAME_OR_AREAS);
@@ -110,6 +114,8 @@ export const updateShippingOptionSchema = z.object({
     fee: zoneFields.fee.optional(),
     // null clears the delivery time.
     eta: z.string().trim().min(1).max(50).nullable().optional(),
+    // null falls back to the store's address.
+    pickupAddress: z.string().trim().min(3).max(300).nullable().optional(),
     isArchived: z.boolean().optional(),
   }),
 });

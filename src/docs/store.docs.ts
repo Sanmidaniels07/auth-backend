@@ -239,6 +239,10 @@
  *       A zone with no areas applies to any buyer (e.g. "Pickup" or a flat nationwide rate).
  *       Areas are trimmed and de-duplicated; `state` is stored under its official name when recognised.
  *       Suggested areas and zones come from GET /api/locations/states/{state}. A store can have up to 100 zones.
+ *
+ *       **Pickup:** send `type: PICKUP` to let buyers collect from the seller. Pickup is always free (`fee` is forced to 0)
+ *       and covers no areas; the name defaults to "Pick up from seller" and `pickupAddress` defaults to the store's address.
+ *       Orders snapshot the pickup address, and the buyer is told "Ready for pickup" when the seller marks the item shipped.
  *     tags:
  *       - Store
  *     security:
@@ -274,6 +278,14 @@
  *                   type: string
  *               state:
  *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [DELIVERY, PICKUP]
+ *                 default: DELIVERY
+ *               pickupAddress:
+ *                 type: string
+ *                 maxLength: 300
+ *                 description: Pickup only - where buyers collect
  *           example:
  *             fee: 2500
  *             eta: "Same day"
@@ -377,6 +389,13 @@
  *                   type: string
  *               state:
  *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [DELIVERY, PICKUP]
+ *               pickupAddress:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Pickup only; null falls back to the store's address
  *               isArchived:
  *                 type: boolean
  *           example:

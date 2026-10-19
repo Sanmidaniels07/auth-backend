@@ -5,6 +5,7 @@ import {
   NotificationType,
   OrderEventActor,
   OrderEventType,
+  ShippingOptionType,
 } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
@@ -21,7 +22,7 @@ import {
 } from "../coupon/coupon.service";
 import { createNotificationService } from "../notification/notification.service";
 import { saveCardFromAuthorization } from "../payment-method/payment-method.service";
-import { isPayoutAccountEligibleForSplit } from "../store/store.service";
+import { isPayoutAccountEligibleForSplit, storePickupAddress } from "../store/store.service";
 import { generateDeliveryCode, recordOrderEvent } from "../order/order-delivery";
 import { notifyOrderPaid } from "../order/order-notifications";
 
@@ -97,6 +98,8 @@ const buildPendingOrder = async (
     optionName: string;
     fee: number;
     eta: string | null;
+    type: ShippingOptionType;
+    pickupAddress: string | null;
     deliveryCode: string;
   }[] = [];
 
@@ -126,6 +129,13 @@ const buildPendingOrder = async (
       optionName: option.name,
       fee: option.fee,
       eta: option.eta,
+      type: option.type,
+      // Snapshot the collection point so later edits to the store don't
+      // change where an existing order is picked up.
+      pickupAddress:
+        option.type === ShippingOptionType.PICKUP
+          ? option.pickupAddress ?? storePickupAddress(store)
+          : null,
       // One code per seller in the order - the buyer hands it over when
       // that seller's items arrive.
       deliveryCode: generateDeliveryCode(),

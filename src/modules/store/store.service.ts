@@ -1,5 +1,6 @@
 import { ProductStatus, Role } from "@prisma/client";
 
+import { ShippingOptionType } from "@prisma/client";
 import prisma from "../../prisma/prisma";
 import { findState } from "../../data/nigeria-locations";
 import { AppError } from "../../utils/appError";
@@ -517,7 +518,11 @@ interface ShippingOptionInput {
   eta?: string;
   areas?: string[];
   state?: string;
+  type?: ShippingOptionType;
+  pickupAddress?: string;
 }
+
+const PICKUP_DEFAULT_NAME = "Pick up from seller";
 
 const MAX_ZONES_PER_STORE = 100;
 
@@ -536,11 +541,25 @@ const cleanAreas = (areas: string[] = []) => {
 
 // Shapes a zone for saving: the name defaults to its areas joined, and the
 // state is stored under its canonical name when it's a known state.
+// Pickup is always free and covers no areas - the buyer comes to the seller.
 const toZoneData = (data: ShippingOptionInput) => {
+  if (data.type === ShippingOptionType.PICKUP) {
+    return {
+      type: ShippingOptionType.PICKUP,
+      name: data.name?.trim() || PICKUP_DEFAULT_NAME,
+      fee: 0,
+      eta: data.eta,
+      areas: [],
+      state: data.state ? findState(data.state)?.name ?? data.state.trim() : undefined,
+      pickupAddress: data.pickupAddress?.trim() || undefined,
+    };
+  }
+
   const areas = cleanAreas(data.areas);
   const name = data.name?.trim() || areas.join(" / ");
 
   return {
+    type: ShippingOptionType.DELIVERY,
     name,
     fee: data.fee,
     eta: data.eta,
@@ -559,6 +578,13 @@ const assertZoneCapacity = async (storeId: string, adding: number) => {
     );
   }
 };
+
+// The store's address as one line, used where a pickup option has none.
+export const storePickupAddress = (store: {
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+}) => [store.address, store.city, store.state].filter(Boolean).join(", ") || null;
 
 export const createShippingOptionService = async (
   userId: string,
@@ -588,8 +614,9 @@ export const bulkCreateShippingOptionsService = async (
   });
 };
 
-interface ShippingOptionUpdate extends Partial<Omit<ShippingOptionInput, "eta">> {
+interface ShippingOptionUpdate extends Partial<Omit<ShippingOptionInput, "eta" | "pickupAddress">> {
   eta?: string | null;
+  pickupAddress?: string | null;
   isArchived?: boolean;
 }
 
@@ -609,22 +636,27 @@ export const updateShippingOptionService = async (
     throw new AppError("Shipping option not found.", 404);
   }
 
-  const areas = data.areas !== undefined ? cleanAreas(data.areas) : undefined;
+  const isPickup = (data.type ?? option.type) === ShippingOptionType.PICKUP;
+  const switchingToPickup = isPickup && option.type !== ShippingOptionType.PICKUP;
+  const areas = isPickup ? [] : data.areas !== undefined ? cleanAreas(data.areas) : undefined;
   const nextAreas = areas ?? option.areas;
-  const name = data.name?.trim() || (areas ? areas.join(" / ") : undefined);
+  const name = data.name?.trim() || (areas?.length ? areas.join(" / ") : undefined);
 
-  if (!(name ?? option.name) && nextAreas.length === 0) {
+  if (!isPickup && !(name ?? option.name) && nextAreas.length === 0) {
     throw new AppError("Give the zone a name or pick at least one area.", 400);
   }
 
   return prisma.shippingOption.update({
     where: { id: optionId },
     data: {
-      name,
-      fee: data.fee,
+      type: data.type,
+      name: name ?? (switchingToPickup ? PICKUP_DEFAULT_NAME : undefined),
+      // Pickup is always free, whatever was sent.
+      fee: isPickup ? 0 : data.fee,
       eta: data.eta,
       areas,
       state: data.state ? findState(data.state)?.name ?? data.state.trim() : undefined,
+      pickupAddress: isPickup ? (data.pickupAddress === null ? null : data.pickupAddress?.trim()) : null,
       isArchived: data.isArchived,
     },
   });
