@@ -89,7 +89,7 @@ const buildPendingOrder = async (
 
   const stores = await prisma.store.findMany({
     where: { id: { in: storeIds } },
-    include: { shippingOptions: true },
+    include: { shippingOptions: { where: { isArchived: false } } },
   });
 
   const shippingRows: {

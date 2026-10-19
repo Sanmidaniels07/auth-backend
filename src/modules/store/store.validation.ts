@@ -65,14 +65,38 @@ export const storeSlugSchema = z.object({
   }),
 });
 
+// A delivery zone: a price for a group of areas. Either a name or at least
+// one area is required (the name defaults to the areas joined).
+export const MAX_ZONE_AREAS = 40;
+export const MAX_ZONES_PER_REQUEST = 50;
+
+const zoneFields = {
+  name: z.string().trim().min(1).max(200).optional(),
+  fee: z.number().min(0).max(10_000_000),
+  eta: z.string().trim().min(1).max(50).optional(),
+  areas: z.array(z.string().trim().min(1).max(80)).max(MAX_ZONE_AREAS).optional(),
+  state: z.string().trim().min(2).max(60).optional(),
+};
+
+const hasNameOrAreas = (zone: { name?: string; areas?: string[] }) =>
+  !!zone.name || !!zone.areas?.length;
+const NAME_OR_AREAS = { message: "Give the zone a name or pick at least one area.", path: ["name"] };
+
+const zoneBody = z.object(zoneFields).refine(hasNameOrAreas, NAME_OR_AREAS);
+
 export const createShippingOptionSchema = z.object({
   params: z.object({
     slug: z.string(),
   }),
+  body: zoneBody,
+});
+
+export const bulkCreateShippingOptionsSchema = z.object({
+  params: z.object({
+    slug: z.string(),
+  }),
   body: z.object({
-    name: z.string().trim().min(1),
-    fee: z.number().min(0),
-    eta: z.string().trim().min(1).max(50).optional(),
+    options: z.array(zoneBody).min(1).max(MAX_ZONES_PER_REQUEST),
   }),
 });
 
@@ -82,9 +106,11 @@ export const updateShippingOptionSchema = z.object({
     optionId: z.string(),
   }),
   body: z.object({
-    name: z.string().trim().min(1).optional(),
-    fee: z.number().min(0).optional(),
-    eta: z.string().trim().min(1).max(50).optional(),
+    ...zoneFields,
+    fee: zoneFields.fee.optional(),
+    // null clears the delivery time.
+    eta: z.string().trim().min(1).max(50).nullable().optional(),
+    isArchived: z.boolean().optional(),
   }),
 });
 

@@ -888,6 +888,10 @@ model StoreView {
   viewedAt DateTime @default(now())
 }
 
+// A delivery zone: the price to deliver to a group of areas (e.g.
+// "Amuwo Odofin / Festac / Ago" for N2,500). A zone with no areas applies to
+// any buyer (e.g. "Pickup" or a flat nationwide rate). Orders keep their own
+// snapshot (OrderShipping), so editing, archiving or deleting is safe.
 model ShippingOption {
   id String @id @default(cuid())
 
@@ -900,7 +904,15 @@ model ShippingOption {
 
   eta String?
 
+  // Areas this zone covers (neighbourhoods / LGAs) and the state they're in.
+  areas String[] @default([])
+  state String?
+
+  // Archived zones are hidden from buyers but kept for the seller to restore.
+  isArchived Boolean @default(false)
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model Category {
