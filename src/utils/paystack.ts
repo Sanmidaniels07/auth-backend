@@ -32,12 +32,15 @@ const paystackFetch = async (
 // A per-transaction split, built fresh for each checkout from whichever
 // stores in the cart have a Paystack subaccount. `share` is a flat kobo
 // amount (not a percentage) - each subaccount gets exactly its net-of-commission
-// revenue for this order, and whatever's left (commission + shipping + tax +
-// stores without a subaccount) settles to the main account automatically.
+// revenue plus its own delivery fee for this order, and whatever's left
+// (commission + tax + stores without a subaccount) settles to the main
+// account automatically. "all-proportional" splits Paystack's fee between
+// everyone in proportion to what they receive, so the platform never pays
+// the whole fee out of a small commission.
 export interface PaystackSplitConfig {
   type: "flat";
   currency: "NGN";
-  bearer_type: "account";
+  bearer_type: "all-proportional";
   subaccounts: { subaccount: string; share: number }[];
 }
 
