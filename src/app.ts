@@ -16,6 +16,7 @@ import categoryRoutes from "./modules/category/category.routes";
 import productRoutes from "./modules/product/product.routes";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes";
 import userDashboardRoutes from "./modules/user-dashboard/user-dashboard.routes";
+import locationRoutes from "./modules/location/location.routes";
 import wishlistRoutes from "./modules/wishlist/wishlist.routes";
 import cartRoutes from "./modules/cart/cart.routes";
 import addressRoutes from "./modules/address/address.routes";
@@ -49,7 +50,7 @@ import { AppError } from "./utils/appError";
 import { getBackendUrl } from "./utils/getBackendUrl";
 
 import { swaggerSpec } from "./config/swagger";
-import { envList, isStaging } from "./config/environment";
+import { envList, isStaging, normalizeOrigin } from "./config/environment";
 
 const app = express();
 
@@ -69,12 +70,18 @@ const allowedOrigins = [
   ...(isStaging ? [] : PRODUCTION_ORIGINS),
   ...envList(process.env.CORS_ORIGINS),
   getBackendUrl(),
-].filter(Boolean);
+]
+  .filter((origin): origin is string => Boolean(origin))
+  .map(normalizeOrigin);
+
+// Not secret - lets you confirm in the host's logs which frontends this
+// deployment accepts.
+console.log(`CORS allowed origins: ${allowedOrigins.join(", ")}`);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) {
         callback(null, true);
       } else {
         callback(new AppError("Not allowed by CORS", 403));
@@ -154,6 +161,7 @@ app.use("/api/products", productRoutes);
 
 app.use("/api/seller/dashboard", dashboardRoutes);
 app.use("/api/dashboard", userDashboardRoutes);
+app.use("/api/locations", locationRoutes);
 
 app.use("/api/wishlist", wishlistRoutes);
 

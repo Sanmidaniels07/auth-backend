@@ -17,6 +17,7 @@ import {
   unfollowStoreService,
   getStoreFollowStatusService,
   createShippingOptionService,
+  bulkCreateShippingOptionsService,
   updateShippingOptionService,
   deleteShippingOptionService,
   setStoreVerifiedService,
@@ -207,6 +208,23 @@ export const createShippingOption = asyncHandler(
       apiResponse(
         option,
         "Shipping option created successfully"
+      )
+    );
+  }
+);
+
+export const bulkCreateShippingOptions = asyncHandler(
+  async (req: Request<SlugParams>, res: Response) => {
+    const options = await bulkCreateShippingOptionsService(
+      req.user.id,
+      req.params.slug,
+      req.body.options
+    );
+
+    res.status(201).json(
+      apiResponse(
+        options,
+        "Shipping options created successfully"
       )
     );
   }

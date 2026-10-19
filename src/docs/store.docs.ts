@@ -231,8 +231,18 @@
  * @swagger
  * /api/stores/{slug}/shipping-options:
  *   post:
- *     summary: Add a shipping option to a store
- *     description: Requires authentication and ownership of the store.
+ *     summary: Add a delivery zone to a store
+ *     description: |
+ *       Requires authentication, an approved seller account and ownership of the store.
+ *       A zone is a price for a group of areas (e.g. "Amuwo Odofin / Festac / Ago" for 2,500).
+ *       Give either a `name` or at least one area; the name defaults to the areas joined with " / ".
+ *       A zone with no areas applies to any buyer (e.g. "Pickup" or a flat nationwide rate).
+ *       Areas are trimmed and de-duplicated; `state` is stored under its official name when recognised.
+ *       Suggested areas and zones come from GET /api/locations/states/{state}. A store can have up to 100 zones.
+ *
+ *       **Pickup:** send `type: PICKUP` to let buyers collect from the seller. Pickup is always free (`fee` is forced to 0)
+ *       and covers no areas; the name defaults to "Pick up from seller" and `pickupAddress` defaults to the store's address.
+ *       Orders snapshot the pickup address, and the buyer is told "Ready for pickup" when the seller marks the item shipped.
  *     tags:
  *       - Store
  *     security:
@@ -250,19 +260,88 @@
  *           schema:
  *             type: object
  *             required:
- *               - name
  *               - fee
  *             properties:
  *               name:
  *                 type: string
- *                 example: Express
+ *                 maxLength: 200
  *               fee:
  *                 type: number
- *               etaDays:
- *                 type: integer
+ *                 minimum: 0
+ *               eta:
+ *                 type: string
+ *                 maxLength: 50
+ *               areas:
+ *                 type: array
+ *                 maxItems: 40
+ *                 items:
+ *                   type: string
+ *               state:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [DELIVERY, PICKUP]
+ *                 default: DELIVERY
+ *               pickupAddress:
+ *                 type: string
+ *                 maxLength: 300
+ *                 description: Pickup only - where buyers collect
+ *           example:
+ *             fee: 2500
+ *             eta: "Same day"
+ *             state: "Lagos"
+ *             areas: ["Amuwo Odofin", "Festac", "Ago", "Okota", "Mile 2"]
  *     responses:
  *       201:
  *         description: Shipping option created successfully
+ *       400:
+ *         description: Validation failed (no name or areas, negative fee) or the store already has 100 zones
+ *       403:
+ *         description: Not the owner of this store
+ *       404:
+ *         description: Store not found
+ */
+
+/**
+ * @swagger
+ * /api/stores/{slug}/shipping-options/bulk:
+ *   post:
+ *     summary: Add several delivery zones at once
+ *     description: Same rules as adding one zone, for up to 50 zones in a request - used when a seller prices their state's suggested zones in one go. Either all zones are created or none.
+ *     tags:
+ *       - Store
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - options
+ *             properties:
+ *               options:
+ *                 type: array
+ *                 minItems: 1
+ *                 maxItems: 50
+ *                 items:
+ *                   type: object
+ *           example:
+ *             options:
+ *               - { fee: 2500, state: "Lagos", areas: ["Amuwo Odofin", "Festac", "Ago", "Okota", "Mile 2"] }
+ *               - { fee: 3500, state: "Lagos", areas: ["Satellite Town", "Suru-Alaba", "Mazamaza"] }
+ *     responses:
+ *       201:
+ *         description: Shipping options created successfully - returns the created zones
+ *       400:
+ *         description: Validation failed or the store would exceed 100 zones
  *       403:
  *         description: Not the owner of this store
  *       404:
@@ -273,8 +352,8 @@
  * @swagger
  * /api/stores/{slug}/shipping-options/{optionId}:
  *   patch:
- *     summary: Update a shipping option
- *     description: Requires authentication and ownership of the store.
+ *     summary: Edit, archive or restore a delivery zone
+ *     description: Requires authentication and ownership of the store. Send only the fields to change. `isArchived` true hides the zone from buyers (it stays in the seller's list and can be restored with false). `eta` null clears the delivery time. Changing `areas` without a `name` regenerates the name from the areas. Past orders keep their own copy of the zone, so edits never change them.
  *     tags:
  *       - Store
  *     security:
@@ -301,8 +380,27 @@
  *                 type: string
  *               fee:
  *                 type: number
- *               etaDays:
- *                 type: integer
+ *               eta:
+ *                 type: string
+ *                 nullable: true
+ *               areas:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               state:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [DELIVERY, PICKUP]
+ *               pickupAddress:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Pickup only; null falls back to the store's address
+ *               isArchived:
+ *                 type: boolean
+ *           example:
+ *             fee: 3000
+ *             isArchived: false
  *     responses:
  *       200:
  *         description: Shipping option updated successfully
@@ -311,8 +409,8 @@
  *       404:
  *         description: Shipping option or store not found
  *   delete:
- *     summary: Delete a shipping option
- *     description: Requires authentication and ownership of the store.
+ *     summary: Delete a delivery zone
+ *     description: Requires authentication and ownership of the store. Permanent - use PATCH with isArchived true to hide a zone but keep it. Past orders are unaffected (they keep their own copy).
  *     tags:
  *       - Store
  *     security:

@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "ShippingOption" ADD COLUMN     "areas" TEXT[] DEFAULT ARRAY[]::TEXT[],
+ADD COLUMN     "isArchived" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "state" TEXT,
+ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+

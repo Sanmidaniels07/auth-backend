@@ -38,12 +38,13 @@ const itemsTable = (lines: EmailOrderLine[], total?: number) => `
   </table>
 `;
 
-const codeBlock = (storeName: string, code: string) => `
+const codeBlock = (storeName: string, code: string, pickupAddress?: string | null) => `
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:12px; border-radius:14px; background-color:#F6F3FF; border:1px solid #DDD6FE;">
     <tr>
       <td style="padding:14px 16px; font-size:13px; color:#475569;">
-        Delivery code for <strong style="color:#13131A;">${escapeHtml(storeName)}</strong>
+        ${pickupAddress ? "Pickup" : "Delivery"} code for <strong style="color:#13131A;">${escapeHtml(storeName)}</strong>
         <div style="margin-top:6px; font-family:Consolas, Menlo, monospace; font-size:24px; font-weight:700; letter-spacing:6px; color:#6D28D9;">${code}</div>
+        ${pickupAddress ? `<div style="margin-top:8px;">Pick up at: <strong style="color:#13131A;">${escapeHtml(pickupAddress)}</strong></div>` : ""}
       </td>
     </tr>
   </table>
@@ -54,7 +55,7 @@ export const orderConfirmedEmail = (opts: {
   orderNumber: string;
   lines: EmailOrderLine[];
   total: number;
-  codes: { storeName: string; code: string }[];
+  codes: { storeName: string; code: string; pickupAddress?: string | null }[];
   orderUrl: string;
 }) =>
   renderEmailLayout({
@@ -66,8 +67,8 @@ export const orderConfirmedEmail = (opts: {
       ${itemsTable(opts.lines, opts.total)}
       ${
         opts.codes.length
-          ? `<p style="margin:24px 0 0 0; font-size:14px;">When your items arrive, give the delivery person the code for that seller. <strong>Only share it once you have your items</strong> - it confirms you received them.</p>
-             ${opts.codes.map((c) => codeBlock(c.storeName, c.code)).join("")}`
+          ? `<p style="margin:24px 0 0 0; font-size:14px;">When you get your items - delivered or picked up - give the seller the code for that seller. <strong>Only share it once you have your items</strong> - it confirms you received them.</p>
+             ${opts.codes.map((c) => codeBlock(c.storeName, c.code, c.pickupAddress)).join("")}`
           : ""
       }
       ${emailButton("View your order", opts.orderUrl)}
@@ -81,6 +82,7 @@ export const newOrderEmail = (opts: {
   lines: EmailOrderLine[];
   subtotal: number;
   shippingOption: string | null;
+  isPickup?: boolean;
   ordersUrl: string;
 }) =>
   renderEmailLayout({
@@ -90,14 +92,39 @@ export const newOrderEmail = (opts: {
     bodyHtml: `
       <p style="margin:0;">Hi ${escapeHtml(opts.sellerName)}, a buyer just paid for order <strong>${opts.orderNumber}</strong> from <strong>${escapeHtml(opts.storeName)}</strong>.</p>
       ${itemsTable(opts.lines, opts.subtotal)}
-      ${opts.shippingOption ? `<p style="margin:16px 0 0 0; font-size:13px; color:#64748B;">Delivery option chosen: ${escapeHtml(opts.shippingOption)}</p>` : ""}
-      ${emailNotice("At handover, ask the buyer for their 6-digit delivery code and enter it when you mark the order delivered. That confirms delivery instantly.")}
+      ${
+        opts.isPickup
+          ? `<p style="margin:16px 0 0 0; font-size:13px; color:#64748B;"><strong style="color:#13131A;">The buyer will pick this up from you.</strong> Mark it "Shipped" when it's ready - they'll be told it's ready for pickup.</p>`
+          : opts.shippingOption
+            ? `<p style="margin:16px 0 0 0; font-size:13px; color:#64748B;">Delivery option chosen: ${escapeHtml(opts.shippingOption)}</p>`
+            : ""
+      }
+      ${emailNotice(`At handover, ask the buyer for their 6-digit code and enter it when you mark the order delivered${opts.isPickup ? " (picked up)" : ""}. That confirms it instantly.`)}
       ${emailButton("Manage this order", opts.ordersUrl)}
     `,
   });
 
-export const orderShippedEmail = (opts: { name: string; orderNumber: string; storeName: string; lines: EmailOrderLine[]; orderUrl: string }) =>
-  renderEmailLayout({
+export const orderShippedEmail = (opts: {
+  name: string;
+  orderNumber: string;
+  storeName: string;
+  lines: EmailOrderLine[];
+  orderUrl: string;
+  pickupAddress?: string | null;
+}) =>
+  opts.pickupAddress
+    ? renderEmailLayout({
+        preheader: `Order ${opts.orderNumber} is ready for pickup`,
+        eyebrow: "Ready for pickup",
+        heading: "Your order is ready to collect",
+        bodyHtml: `
+      <p style="margin:0;">Hi ${escapeHtml(opts.name)}, <strong>${escapeHtml(opts.storeName)}</strong> has your items from order <strong>${opts.orderNumber}</strong> ready.</p>
+      ${itemsTable(opts.lines)}
+      ${emailNotice(`Pick up at: <strong>${escapeHtml(opts.pickupAddress)}</strong>. Bring your 6-digit code from your order page and give it to the seller once you have your items.`)}
+      ${emailButton("View order and code", opts.orderUrl)}
+    `,
+      })
+    : renderEmailLayout({
     preheader: `Order ${opts.orderNumber} is on its way`,
     eyebrow: "On its way",
     heading: "Your order has shipped",

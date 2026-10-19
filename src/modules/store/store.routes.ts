@@ -12,6 +12,7 @@ import {
   storeReviewsSchema,
   storeSlugSchema,
   createShippingOptionSchema,
+  bulkCreateShippingOptionsSchema,
   updateShippingOptionSchema,
   deleteShippingOptionSchema,
   adminVerifyStoreSchema,
@@ -29,6 +30,7 @@ import {
   unfollowStore,
   getStoreFollowStatus,
   createShippingOption,
+  bulkCreateShippingOptions,
   updateShippingOption,
   deleteShippingOption,
   setStoreVerified,
@@ -94,6 +96,14 @@ router.post(
   authMiddleware,
   validate(createShippingOptionSchema),
   createShippingOption
+);
+
+// Several zones in one request, e.g. pricing a state's suggested zones.
+router.post(
+  "/:slug/shipping-options/bulk",
+  authMiddleware,
+  validate(bulkCreateShippingOptionsSchema),
+  bulkCreateShippingOptions
 );
 
 router.patch(

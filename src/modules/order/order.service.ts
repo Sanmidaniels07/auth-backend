@@ -301,6 +301,12 @@ export const getSellerOrdersService = async (
       orderBy: { createdAt: "desc" },
       include: {
         user: { select: { id: true, name: true, email: true } },
+        // How this seller's items reach the buyer. Never includes the
+        // buyer's delivery code.
+        shipping: {
+          where: { storeId: store.id },
+          select: { type: true, optionName: true, fee: true, eta: true, pickupAddress: true },
+        },
         items: {
           where: { product: { storeId: store.id } },
           include: {
@@ -344,6 +350,13 @@ export const getSellerOrderByIdService = async (
     include: {
       user: { select: { id: true, name: true, email: true } },
       address: true,
+      // How this seller's items reach the buyer. Never includes the
+      // buyer's delivery code.
+      shipping: {
+        where: { storeId: store.id },
+        select: { type: true, optionName: true, fee: true, eta: true, pickupAddress: true },
+      },
+
       items: {
         where: { product: { storeId: store.id } },
         include: {

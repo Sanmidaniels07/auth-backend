@@ -58,6 +58,13 @@ enum OrderItemStatus {
   CANCELLED
 }
 
+// DELIVERY: the seller delivers to the buyer's area for a fee.
+// PICKUP: the buyer collects from the seller - always free.
+enum ShippingOptionType {
+  DELIVERY
+  PICKUP
+}
+
 // How a delivered item's receipt was confirmed: the seller entered the
 // buyer's delivery code at handover, the buyer confirmed in-app, or it
 // auto-confirmed after the buyer didn't respond.
@@ -888,6 +895,10 @@ model StoreView {
   viewedAt DateTime @default(now())
 }
 
+// A delivery zone: the price to deliver to a group of areas (e.g.
+// "Amuwo Odofin / Festac / Ago" for N2,500). A zone with no areas applies to
+// any buyer (e.g. "Pickup" or a flat nationwide rate). Orders keep their own
+// snapshot (OrderShipping), so editing, archiving or deleting is safe.
 model ShippingOption {
   id String @id @default(cuid())
 
@@ -900,7 +911,21 @@ model ShippingOption {
 
   eta String?
 
+  type ShippingOptionType @default(DELIVERY)
+
+  // Areas this zone covers (neighbourhoods / LGAs) and the state they're in.
+  // Always empty for pickup.
+  areas String[] @default([])
+  state String?
+
+  // Pickup only: where buyers collect. Falls back to the store's address.
+  pickupAddress String?
+
+  // Archived zones are hidden from buyers but kept for the seller to restore.
+  isArchived Boolean @default(false)
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model Category {
@@ -1155,6 +1180,11 @@ model OrderShipping {
   fee Float
 
   eta String?
+
+  // Snapshot of how this store's items reach the buyer, and for pickup,
+  // where to collect them.
+  type          ShippingOptionType @default(DELIVERY)
+  pickupAddress String?
 
   // 6-digit code only the buyer can see. The seller enters it at handover
   // to mark this store's items delivered (and confirmed) in one step. Never
