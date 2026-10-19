@@ -101,6 +101,7 @@ const buildPendingOrder = async (
     type: ShippingOptionType;
     pickupAddress: string | null;
     deliveryCode: string;
+    paidViaSplit: boolean;
   }[] = [];
 
   let deliveryFee = 0;
@@ -139,13 +140,17 @@ const buildPendingOrder = async (
       // One code per seller in the order - the buyer hands it over when
       // that seller's items arrive.
       deliveryCode: generateDeliveryCode(),
+      // The seller does the delivery, so the fee is theirs - it rides along
+      // in their split share below when they're eligible for one.
+      paidViaSplit: isPayoutAccountEligibleForSplit(store),
     });
 
     deliveryFee += option.fee;
   }
 
   // Stores with a Paystack subaccount get their net-of-commission share
-  // routed straight to them via a dynamic split, built fresh for this
+  // (plus their delivery fee, which carries no commission) routed straight
+  // to them via a dynamic split, built fresh for this
   // order - unless that subaccount's bank details changed too recently
   // (see isPayoutAccountEligibleForSplit), in which case they fall back to
   // the manual Payout ledger for now, same as a store with no subaccount
@@ -168,12 +173,21 @@ const buildPendingOrder = async (
     );
   }
 
+  for (const row of shippingRows) {
+    if (!row.paidViaSplit || row.fee <= 0) continue;
+
+    netKoboByStore.set(
+      row.storeId,
+      (netKoboByStore.get(row.storeId) ?? 0) + Math.round(row.fee * NAIRA_TO_KOBO),
+    );
+  }
+
   const split: PaystackSplitConfig | undefined =
     netKoboByStore.size > 0
       ? {
           type: "flat",
           currency: "NGN",
-          bearer_type: "account",
+          bearer_type: "all-proportional",
           subaccounts: Array.from(netKoboByStore.entries()).map(
             ([storeId, shareKobo]) => ({
               subaccount: storeById.get(storeId)!.paystackSubaccountCode!,

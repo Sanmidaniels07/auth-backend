@@ -1195,6 +1195,12 @@ model OrderShipping {
   // seller then falls back to marking delivered for the buyer to confirm.
   deliveryCodeAttempts Int @default(0)
 
+  // True when this fee went straight to the seller's subaccount in the
+  // Paystack split. False means the platform received it and still owes it
+  // to the seller via the manual Payout ledger (see sellerRevenue.ts) -
+  // including every order placed before delivery fees were split.
+  paidViaSplit Boolean @default(false)
+
   createdAt DateTime @default(now())
 
   @@unique([orderId, storeId])
