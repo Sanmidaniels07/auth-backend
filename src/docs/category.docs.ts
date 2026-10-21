@@ -54,7 +54,7 @@
  * /api/categories/featured:
  *   get:
  *     summary: Get featured categories
- *     description: Returns categories marked as featured (`isFeatured = true`). Public endpoint.
+ *     description: Returns categories marked as featured (`isFeatured = true`), each with `productCount` (published products). Public endpoint.
  *     tags:
  *       - Category
  *     security: []
