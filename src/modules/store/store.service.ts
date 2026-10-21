@@ -1,4 +1,4 @@
-import { ProductStatus, Role } from "@prisma/client";
+import { Prisma, ProductStatus, Role } from "@prisma/client";
 
 import { ShippingOptionType } from "@prisma/client";
 import prisma from "../../prisma/prisma";
@@ -427,15 +427,57 @@ export const getSellerStoreService = async (
   };
 };
 
+// Public store listing fields only - payout bank details and the Paystack
+// subaccount code must never leave the server on this unauthenticated route.
+const PUBLIC_STORE_LIST_SELECT = {
+  id: true,
+  sellerId: true,
+  name: true,
+  slug: true,
+  description: true,
+  logo: true,
+  banner: true,
+  city: true,
+  state: true,
+  country: true,
+  rating: true,
+  isVerified: true,
+  createdAt: true,
+  _count: {
+    select: {
+      products: { where: { status: ProductStatus.PUBLISHED } },
+      followers: true,
+    },
+  },
+  // A few products so listings can preview what the store sells.
+  products: {
+    where: { status: ProductStatus.PUBLISHED },
+    orderBy: { createdAt: "desc" as const },
+    take: 3,
+    select: {
+      id: true,
+      title: true,
+      price: true,
+      images: { where: { isPrimary: true }, take: 1, select: { url: true } },
+    },
+  },
+} satisfies Prisma.StoreSelect;
+
 export const listStoresService = async (
   page: number,
   limit: number,
   search?: string,
-  city?: string
+  city?: string,
+  sort: "newest" | "trending" = "newest"
 ) => {
   const skip = (page - 1) * limit;
 
-  const where: any = { isSuspended: false };
+  const where: Prisma.StoreWhereInput = { isSuspended: false };
+
+  // Trending only makes sense for stores buyers can actually shop from.
+  if (sort === "trending") {
+    where.products = { some: { status: ProductStatus.PUBLISHED } };
+  }
 
   if (search) {
     where.name = {
@@ -451,15 +493,37 @@ export const listStoresService = async (
     };
   }
 
-  const [stores, total] = await Promise.all([
+  const orderBy: Prisma.StoreOrderByWithRelationInput[] =
+    sort === "trending"
+      ? [
+          { storeViews: { _count: "desc" } },
+          { followers: { _count: "desc" } },
+          { createdAt: "desc" },
+        ]
+      : [{ createdAt: "desc" }];
+
+  const [rows, total] = await Promise.all([
     prisma.store.findMany({
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: "desc" },
+      orderBy,
+      select: PUBLIC_STORE_LIST_SELECT,
     }),
     prisma.store.count({ where }),
   ]);
+
+  const stores = rows.map(({ _count, products, ...store }) => ({
+    ...store,
+    productCount: _count.products,
+    followersCount: _count.followers,
+    previewProducts: products.map((product) => ({
+      id: product.id,
+      title: product.title,
+      price: product.price,
+      image: product.images[0]?.url ?? null,
+    })),
+  }));
 
   return {
     stores,

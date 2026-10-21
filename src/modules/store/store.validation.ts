@@ -37,6 +37,8 @@ export const listStoresSchema = z.object({
     limit: z.string().optional(),
     search: z.string().optional(),
     city: z.string().optional(),
+    // "trending" ranks stores with live products by views, then followers.
+    sort: z.enum(["newest", "trending"]).optional(),
   }),
 });
 

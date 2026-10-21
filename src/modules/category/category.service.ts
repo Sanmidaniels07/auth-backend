@@ -1,3 +1,4 @@
+import { ProductStatus } from "@prisma/client";
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { generateUniqueSlug } from "../../utils/slugify";
@@ -109,11 +110,24 @@ export const deleteCategoryService = async (
 export const getFeaturedCategoriesService = async (
   limit: number
 ) => {
-  return prisma.category.findMany({
+  const categories = await prisma.category.findMany({
     where: { isFeatured: true },
     take: limit,
-    orderBy: { createdAt: "desc" },
+    // Categories buyers can actually shop first, so the marketplace never
+    // leads with empty ones when many are featured.
+    orderBy: [{ products: { _count: "desc" } }, { name: "asc" }],
+    include: {
+      _count: {
+        select: { products: { where: { status: ProductStatus.PUBLISHED } } },
+      },
+    },
   });
+
+  // Live (published) product count, so the marketplace can show it per card.
+  return categories.map(({ _count, ...category }) => ({
+    ...category,
+    productCount: _count.products,
+  }));
 };
 
 export const getPopularCategoriesService = async (

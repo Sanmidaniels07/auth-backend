@@ -142,12 +142,14 @@ export const listStores = asyncHandler(
     const limit = Number(req.query.limit) || 10;
     const search = req.query.search as string;
     const city = req.query.city as string;
+    const sort = req.query.sort === "trending" ? "trending" : "newest";
 
     const result = await listStoresService(
       page,
       limit,
       search,
-      city
+      city,
+      sort
     );
 
     res.status(200).json(

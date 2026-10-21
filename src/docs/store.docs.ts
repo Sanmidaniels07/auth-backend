@@ -64,7 +64,7 @@
  *         description: Seller profile not found
  *   get:
  *     summary: List stores
- *     description: Returns a paginated, public list of stores. Supports search and city filters. Suspended stores (owner banned/suspended by an admin) are excluded.
+ *     description: Returns a paginated, public list of stores. Supports search and city filters. Suspended stores (owner banned/suspended by an admin) are excluded. Only public store fields are returned (never payout bank details or the Paystack subaccount code), plus `productCount` (published products), `followersCount` and up to 3 `previewProducts`.
  *     tags:
  *       - Store
  *     security: []
@@ -85,6 +85,12 @@
  *         name: city
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: sort
+ *         description: "`newest` (default) or `trending` - stores with at least one published product, ranked by store views, then followers."
+ *         schema:
+ *           type: string
+ *           enum: [newest, trending]
  *     responses:
  *       200:
  *         description: Stores fetched successfully
