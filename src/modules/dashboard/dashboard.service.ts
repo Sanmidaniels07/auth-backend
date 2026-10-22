@@ -76,7 +76,7 @@ export const getRecentOrdersService = async (
     orderBy: { createdAt: "desc" },
     take: limit,
     include: {
-      user: { select: { id: true, name: true, email: true } },
+      user: { select: { id: true, name: true } }, // no email: sellers only see name, address and phone (Privacy Policy)
       items: {
         where: { product: { storeId: store.id } },
         include: {
@@ -311,7 +311,7 @@ export const getAnalyticsService = async (userId: string) => {
 };
 
 interface CustomerSummary {
-  user: { id: string; name: string; email: string };
+  user: { id: string; name: string };
   totalOrders: Set<string>;
   totalSpent: number;
   lastOrderAt: Date;
@@ -337,7 +337,7 @@ export const getSellerCustomersService = async (
           userId: true,
           createdAt: true,
           user: {
-            select: { id: true, name: true, email: true },
+            select: { id: true, name: true }, // no email (Privacy Policy)
           },
         },
       },

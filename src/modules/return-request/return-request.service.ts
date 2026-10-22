@@ -158,7 +158,7 @@ export const getSellerReturnRequestsService = async (
       orderBy: { createdAt: "desc" },
       include: {
         user: {
-          select: { id: true, name: true, email: true },
+          select: { id: true, name: true }, // no email (Privacy Policy)
         },
         orderItem: {
           include: {
