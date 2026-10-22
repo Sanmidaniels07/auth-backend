@@ -9,6 +9,7 @@ import {
   listUsersAdminSchema,
   listSellersAdminSchema,
   updateSellerStatusSchema,
+  setSellerVerifiedSchema,
 } from "./admin.validation";
 import {
   updateUserRole,
@@ -16,6 +17,7 @@ import {
   listUsersAdmin,
   listSellersAdmin,
   updateSellerStatus,
+  setSellerVerified,
 } from "./admin.controller";
 
 const router = Router();
@@ -50,6 +52,12 @@ router.patch(
   "/sellers/:id/status",
   validate(updateSellerStatusSchema),
   updateSellerStatus
+);
+
+router.patch(
+  "/sellers/:id/verify",
+  validate(setSellerVerifiedSchema),
+  setSellerVerified
 );
 
 export default router;

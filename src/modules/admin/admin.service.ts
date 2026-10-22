@@ -168,6 +168,11 @@ const ADMIN_SELLER_SELECT = {
       username: true,
     },
   },
+  // Shown next to the CAC number so the admin can compare it with the
+  // name the CAC public search returns.
+  store: {
+    select: { id: true, name: true, slug: true },
+  },
 };
 
 export const listSellersAdminService = async (
@@ -198,6 +203,56 @@ export const listSellersAdminService = async (
     limit,
     totalPages: Math.ceil(total / limit),
   };
+};
+
+/**
+ * Marks a seller's business as CAC-verified (or removes it) after an admin
+ * has checked the number by hand on the CAC public search. The store's
+ * public "verified" badge follows the same flag. Only sellers who supplied
+ * a CAC number can be verified.
+ */
+export const setSellerVerifiedService = async (
+  sellerId: string,
+  isVerified: boolean
+) => {
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { id: sellerId },
+    select: { id: true, userId: true, cacNumber: true, isVerified: true, store: { select: { id: true } } },
+  });
+
+  if (!seller) {
+    throw new AppError("Seller profile not found.", 404);
+  }
+
+  if (isVerified && !seller.cacNumber?.trim()) {
+    throw new AppError("This seller hasn't provided a CAC number to verify.", 400);
+  }
+
+  const [updated] = await prisma.$transaction([
+    prisma.sellerProfile.update({
+      where: { id: sellerId },
+      data: { isVerified },
+      select: ADMIN_SELLER_SELECT,
+    }),
+    ...(seller.store
+      ? [prisma.store.update({ where: { id: seller.store.id }, data: { isVerified } })]
+      : []),
+  ]);
+
+  // Only tell the seller when something actually changed.
+  if (isVerified !== seller.isVerified) {
+    await createNotificationService(
+      seller.userId,
+      isVerified ? "Business verified" : "Business verification removed",
+      isVerified
+        ? "Your business registration has been verified ✓ - buyers now see a verified badge on your store."
+        : "Your business verification was removed. Contact support if you think this is a mistake.",
+      undefined,
+      { type: "SELLER_APPLICATION", id: seller.id }
+    );
+  }
+
+  return updated;
 };
 
 export const updateSellerStatusService = async (

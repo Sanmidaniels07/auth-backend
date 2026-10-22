@@ -39,6 +39,16 @@ export const listUsersAdminSchema = z.object({
   }),
 });
 
+// Manual CAC check (admin looked the number up on the CAC public search).
+export const setSellerVerifiedSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+  body: z.object({
+    isVerified: z.boolean(),
+  }),
+});
+
 export const updateSellerStatusSchema = z.object({
   params: z.object({
     id: z.string(),

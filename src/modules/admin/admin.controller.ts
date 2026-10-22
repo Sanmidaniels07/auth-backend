@@ -10,7 +10,24 @@ import {
   listUsersAdminService,
   listSellersAdminService,
   updateSellerStatusService,
+  setSellerVerifiedService,
 } from "./admin.service";
+
+export const setSellerVerified = asyncHandler(
+  async (req: Request<IdParams>, res: Response) => {
+    const seller = await setSellerVerifiedService(
+      req.params.id,
+      req.body.isVerified
+    );
+
+    res.status(200).json(
+      apiResponse(
+        seller,
+        req.body.isVerified ? "Seller business verified" : "Seller business verification removed"
+      )
+    );
+  }
+);
 
 export const updateUserRole = asyncHandler(
   async (req: Request<IdParams>, res: Response) => {
