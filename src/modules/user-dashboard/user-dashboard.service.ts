@@ -3,6 +3,7 @@ import { OrderStatus } from "@prisma/client";
 import prisma from "../../prisma/prisma";
 import { getBlockedUserIds } from "../block/block.service";
 import { REVENUE_STATUSES } from "../../utils/sellerRevenue";
+import { DAY_MS, nextBirthday, nigeriaToday } from "../../utils/birthday";
 
 const ACTIVE_ORDER_STATUSES: OrderStatus[] = [
   OrderStatus.PAID,
@@ -11,7 +12,6 @@ const ACTIVE_ORDER_STATUSES: OrderStatus[] = [
 ];
 
 const BIRTHDAY_WINDOW_DAYS = 30;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 // All day maths is in UTC so bucket keys (ISO dates) line up with the
 // range start - mixing local midnight with UTC keys drops "today".
@@ -22,13 +22,6 @@ const startOfDay = (date: Date) => {
 };
 
 const dateKey = (date: Date) => date.toISOString().slice(0, 10);
-
-// Next time this date-of-birth comes round, from today (today counts).
-const nextBirthday = (dob: Date, today: Date) => {
-  const next = new Date(Date.UTC(today.getUTCFullYear(), dob.getUTCMonth(), dob.getUTCDate()));
-  if (next < today) next.setUTCFullYear(today.getUTCFullYear() + 1);
-  return next;
-};
 
 // One call that powers the whole personal dashboard: social reach, an
 // activity trend, shopping, communities/events, inbox counts, upcoming
@@ -153,16 +146,19 @@ export const getUserDashboardService = async (
   recentViews.forEach((v) => { const b = buckets.get(dateKey(v.viewedAt)); if (b) b.views++; });
   recentFollowers.forEach((f) => { const b = buckets.get(dateKey(f.createdAt)); if (b) b.followers++; });
 
+  // Birthdays are calendar dates, so count days from Nigeria's "today"
+  // (UTC lags by an hour after midnight and would say "tomorrow").
+  const birthdayToday = nigeriaToday(now);
   const upcomingBirthdays = followedWithBirthdays
     .map((person) => {
-      const date = nextBirthday(person.dateOfBirth as Date, today);
+      const date = nextBirthday(person.dateOfBirth as Date, birthdayToday);
       return {
         id: person.id,
         name: person.name,
         username: person.username,
         avatar: person.avatar,
         date: date.toISOString(),
-        daysAway: Math.round((date.getTime() - today.getTime()) / DAY_MS),
+        daysAway: Math.round((date.getTime() - birthdayToday.getTime()) / DAY_MS),
       };
     })
     .filter((person) => person.daysAway <= BIRTHDAY_WINDOW_DAYS)

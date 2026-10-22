@@ -60,7 +60,7 @@
  * /api/users/{identifier}:
  *   get:
  *     summary: Get a public user profile
- *     description: Public endpoint (personalized if authenticated). `identifier` can be either a user id or a username. Returns location/website/socialLinks plus followersCount/followingCount/postsCount/profileViews. Logs a profile view (excluding self-views); the viewer is recorded if authenticated, otherwise logged anonymously.
+ *     description: Public endpoint (personalized if authenticated). `identifier` can be either a user id or a username. Returns location/website/socialLinks plus followersCount/followingCount/postsCount/profileViews. Never returns dateOfBirth (owners read it from GET /api/profile). Logs a profile view (excluding self-views); the viewer is recorded if authenticated, otherwise logged anonymously.
  *     tags:
  *       - User
  *     security: []

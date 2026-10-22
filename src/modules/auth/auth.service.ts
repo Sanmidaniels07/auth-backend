@@ -12,6 +12,8 @@ interface SignupData {
   name: string;
   email: string;
   password: string;
+  /** Already validated and normalised to UTC midnight by signupSchema. */
+  dateOfBirth?: Date;
 }
 
 interface LoginData {
@@ -60,7 +62,7 @@ export const issueUserSession = async (
   };
 };
 export const signupService = async (data: SignupData) => {
-  const { name, email, password } = data;
+  const { name, email, password, dateOfBirth } = data;
 
   if (!name || !email || !password) {
     throw new Error("All fields are required");
@@ -85,6 +87,7 @@ export const signupService = async (data: SignupData) => {
       name,
       email,
       password: hashedPassword,
+      dateOfBirth,
 
       verificationToken,
       verificationTokenExpiry: expiry,

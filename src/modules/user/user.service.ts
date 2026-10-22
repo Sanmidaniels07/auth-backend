@@ -103,7 +103,9 @@ export const getUserProfileService = async (
       occupation: true,
       company: true,
       education: true,
-      dateOfBirth: true,
+      // dateOfBirth deliberately omitted: this route is public (optional
+      // auth) and the full date reveals a person's age. Owners read it from
+      // GET /api/profile; followers only get the day via the dashboard.
       skills: true,
       interests: true,
       languages: true,

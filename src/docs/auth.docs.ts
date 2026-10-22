@@ -32,6 +32,11 @@
  *               password:
  *                 type: string
  *                 example: Password123
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *                 example: "1998-05-14"
+ *                 description: Optional. Calendar date (YYYY-MM-DD); the user must be 13-100 years old. Used for birthday reminders to followers; the full date (year) is never shown publicly.
  *     responses:
  *       201:
  *         description: User created successfully
