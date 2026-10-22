@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { optionalDateOfBirthField } from "../../utils/birthday";
+import { displayNameField } from "../../utils/displayName";
 
 const socialLinksSchema = z.object({
   twitter: z.string().trim().optional(),
@@ -13,7 +14,7 @@ const socialLinksSchema = z.object({
 
 export const updateProfileSchema = z.object({
   body: z.object({
-    name: z.string().trim().min(2).optional(),
+    name: displayNameField.optional(),
     username: z
       .string()
       .trim()

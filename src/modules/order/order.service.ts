@@ -300,7 +300,7 @@ export const getSellerOrdersService = async (
       take: limit,
       orderBy: { createdAt: "desc" },
       include: {
-        user: { select: { id: true, name: true, email: true } },
+        user: { select: { id: true, name: true } }, // no email (Privacy Policy)
         // How this seller's items reach the buyer. Never includes the
         // buyer's delivery code.
         shipping: {
@@ -348,7 +348,7 @@ export const getSellerOrderByIdService = async (
       items: { some: { product: { storeId: store.id } } },
     },
     include: {
-      user: { select: { id: true, name: true, email: true } },
+      user: { select: { id: true, name: true } }, // no email (Privacy Policy)
       address: true,
       // How this seller's items reach the buyer. Never includes the
       // buyer's delivery code.

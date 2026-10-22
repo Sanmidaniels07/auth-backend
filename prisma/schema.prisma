@@ -646,7 +646,15 @@ model Post {
 
   hashtags PostHashtag[]
 
+  // Optional product the author tagged ("shop this post"). Only the
+  // author's own published products can be tagged; if the product is
+  // deleted the tag just disappears.
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
+
+  @@index([productId])
 }
 
 model PostMedia {
@@ -997,6 +1005,8 @@ model Product {
   reviews Review[]
 
   orderItems OrderItem[]
+
+  taggedInPosts Post[]
 
   createdAt DateTime @default(now())
 

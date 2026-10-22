@@ -12,6 +12,8 @@ export const createPostSchema = z.object({
       title: z.string().trim().min(1).optional(),
       content: z.string().trim().min(1).optional(),
       media: z.array(mediaItemSchema).max(10).optional(),
+      // Tag one of your own published products ("shop this post").
+      productId: z.string().trim().min(1).optional(),
     })
     .refine(
       (data) => !!data.content || (data.media && data.media.length > 0),
@@ -31,5 +33,7 @@ export const updatePostSchema = z.object({
     title: z.string().min(1).optional(),
     content: z.string().min(1).optional(),
     media: z.array(mediaItemSchema).max(10).optional(),
+    // null removes the product tag; omit to leave it unchanged.
+    productId: z.string().trim().min(1).nullable().optional(),
   }),
 });
