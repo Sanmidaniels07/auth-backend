@@ -1,4 +1,4 @@
-import { MediaType } from "@prisma/client";
+import { MediaType, ProductStatus } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
@@ -11,11 +11,12 @@ interface MediaInput {
 }
 
 const POST_INCLUDE = {
+  // Public fields only - GET /posts works without logging in, so never
+  // include the author's email here.
   author: {
     select: {
       id: true,
       name: true,
-      email: true,
       username: true,
       avatar: true,
     },
@@ -26,28 +27,74 @@ const POST_INCLUDE = {
   hashtags: {
     include: { hashtag: true },
   },
+  product: {
+    select: {
+      id: true,
+      title: true,
+      price: true,
+      status: true,
+      images: { where: { isPrimary: true }, take: 1, select: { url: true } },
+      store: { select: { name: true, slug: true, isSuspended: true } },
+    },
+  },
   _count: {
     select: { likes: true },
   },
 };
 
+type TaggedProduct = {
+  id: string;
+  title: string;
+  price: number;
+  status: ProductStatus;
+  images: { url: string }[];
+  store: { name: string; slug: string; isSuspended: boolean };
+} | null;
+
 const withPostExtras = <
   T extends {
     _count: { likes: number };
     hashtags: { hashtag: { tag: string } }[];
+    product: TaggedProduct;
   }
 >(
   post: T,
   likedByMe: boolean
 ) => {
-  const { _count, hashtags, ...rest } = post;
+  const { _count, hashtags, product, ...rest } = post;
 
   return {
     ...rest,
     likeCount: _count.likes,
     likedByMe,
     hashtags: hashtags.map((ph) => ph.hashtag.tag),
+    // A tag only shows while the product can actually be bought.
+    product:
+      product && product.status === ProductStatus.PUBLISHED && !product.store.isSuspended
+        ? {
+            id: product.id,
+            title: product.title,
+            price: product.price,
+            image: product.images[0]?.url ?? null,
+            store: { name: product.store.name, slug: product.store.slug },
+          }
+        : null,
   };
+};
+
+/** Authors can only tag their own published products. */
+const assertTaggableProduct = async (userId: string, productId: string) => {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { status: true, store: { select: { isSuspended: true, seller: { select: { userId: true } } } } },
+  });
+
+  if (!product || product.store.seller.userId !== userId) {
+    throw new AppError("You can only tag products from your own store.", 400);
+  }
+  if (product.status !== ProductStatus.PUBLISHED || product.store.isSuspended) {
+    throw new AppError("Only published products can be tagged in a post.", 400);
+  }
 };
 
 export const createPostService = async (
@@ -56,13 +103,19 @@ export const createPostService = async (
     title?: string;
     content?: string;
     media?: MediaInput[];
+    productId?: string;
   },
 ) => {
+  if (data.productId) {
+    await assertTaggableProduct(userId, data.productId);
+  }
+
   const post = await prisma.post.create({
     data: {
       title: data.title,
       content: data.content,
       authorId: userId,
+      productId: data.productId,
       media: data.media
         ? {
             create: data.media.map((media, index) => ({
@@ -212,6 +265,8 @@ export const updatePostService = async (
     title?: string;
     content?: string;
     media?: MediaInput[];
+    /** A product id to tag, null to remove the tag, undefined to leave it. */
+    productId?: string | null;
   },
 ) => {
   const post = await prisma.post.findFirst({
@@ -240,6 +295,10 @@ export const updatePostService = async (
       "A post needs text content, at least one image or video, or both.",
       400
     );
+  }
+
+  if (data.productId) {
+    await assertTaggableProduct(userId, data.productId);
   }
 
   const { media, ...fields } = data;

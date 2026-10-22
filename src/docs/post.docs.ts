@@ -37,16 +37,19 @@
  *                     type:
  *                       type: string
  *                       enum: [IMAGE, VIDEO]
+ *               productId:
+ *                 type: string
+ *                 description: Optional. Tag one of your own PUBLISHED products ("shop this post").
  *     responses:
  *       201:
  *         description: Post created
  *       400:
- *         description: Post has neither content nor media
+ *         description: Post has neither content nor media, or productId isn't one of your published products
  *       401:
  *         description: Unauthorized - no or invalid token
  *   get:
  *     summary: Get all posts
- *     description: Public endpoint (personalized if authenticated - includes `likedByMe` per post). Paginated. Each post includes `likeCount` and `hashtags`.
+ *     description: Public endpoint (personalized if authenticated - includes `likedByMe` per post). Paginated. Each post includes `likeCount`, `hashtags`, the author's public fields (id, name, username, avatar - never email) and `product` (the tagged product `{id, title, price, image, store:{name, slug}}`, or null when untagged or the product is no longer on sale).
  *     tags:
  *       - Posts
  *     parameters:
@@ -130,6 +133,10 @@
  *                     type:
  *                       type: string
  *                       enum: [IMAGE, VIDEO]
+ *               productId:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Tag one of your own published products; null removes the tag; omit to keep it.
  *     responses:
  *       200:
  *         description: Post updated successfully
