@@ -71,7 +71,9 @@
  *                 type: string
  *               dateOfBirth:
  *                 type: string
- *                 format: date-time
+ *                 format: date
+ *                 example: "1998-05-14"
+ *                 description: Calendar date (YYYY-MM-DD); must be 13-100 years old. Blank means unchanged.
  *               skills:
  *                 type: array
  *                 maxItems: 20

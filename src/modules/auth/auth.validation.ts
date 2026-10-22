@@ -1,10 +1,14 @@
 import { z } from "zod";
 
+import { optionalDateOfBirthField } from "../../utils/birthday";
+
 export const signupSchema = z.object({
   body: z.object({
     name: z.string().min(2),
     email: z.string().email(),
     password: z.string().min(6),
+    // Optional - powers birthday reminders for the people who follow you.
+    dateOfBirth: optionalDateOfBirthField,
   }),
 });
 

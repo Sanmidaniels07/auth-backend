@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { optionalDateOfBirthField } from "../../utils/birthday";
+
 const socialLinksSchema = z.object({
   twitter: z.string().trim().optional(),
   instagram: z.string().trim().optional(),
@@ -31,7 +33,7 @@ export const updateProfileSchema = z.object({
     occupation: z.string().trim().max(100).optional(),
     company: z.string().trim().max(100).optional(),
     education: z.string().trim().max(150).optional(),
-    dateOfBirth: z.coerce.date().optional(),
+    dateOfBirth: optionalDateOfBirthField,
     skills: z.array(z.string().trim().min(1)).max(20).optional(),
     interests: z.array(z.string().trim().min(1)).max(20).optional(),
     languages: z.array(z.string().trim().min(1)).max(20).optional(),
