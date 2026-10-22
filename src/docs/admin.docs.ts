@@ -232,4 +232,45 @@
  *         description: Seller profile not found
  */
 
+/**
+ * @swagger
+ * /api/admin/sellers/{id}/verify:
+ *   patch:
+ *     summary: Mark a seller's business as CAC-verified (manual check)
+ *     description: Requires authentication and ADMIN role. Used after an admin has looked the seller's CAC number up on the CAC public search (search.cac.gov.ng) and confirmed the business exists, is active and matches the store. Sets SellerProfile.isVerified and the store's public isVerified badge together, and notifies the seller when the value changes. Verifying requires the seller to have supplied a CAC number. Changing the CAC number later (PATCH /api/seller, or reapplying) automatically removes the verification.
+ *     tags:
+ *       - Administration
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: SellerProfile id
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - isVerified
+ *             properties:
+ *               isVerified:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Verification updated
+ *       400:
+ *         description: Seller has no CAC number to verify
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Forbidden - admin role required
+ *       404:
+ *         description: Seller profile not found
+ */
+
 export {};

@@ -115,6 +115,10 @@ export const becomeSellerService = async (
         cacNumber,
       },
     });
+
+    if (cacNumberChanged(existingSeller.cacNumber, cacNumber)) {
+      await clearBusinessVerification(seller.id);
+    }
   }
 
   notifyAdminsOfNewSellerApplication(userId, seller.id).catch((error) => {
@@ -165,10 +169,31 @@ export const updateSellerService = async (
     );
   }
 
-  return prisma.sellerProfile.update({
+  const updated = await prisma.sellerProfile.update({
     where: {
       userId,
     },
     data,
   });
+
+  if (data.cacNumber !== undefined && cacNumberChanged(seller.cacNumber, data.cacNumber)) {
+    await clearBusinessVerification(seller.id);
+    return { ...updated, isVerified: false };
+  }
+
+  return updated;
+};
+
+const normaliseCac = (value?: string | null) => (value ?? "").replace(/\s+/g, "").toUpperCase();
+
+const cacNumberChanged = (previous?: string | null, next?: string | null) =>
+  normaliseCac(previous) !== normaliseCac(next);
+
+// A verification only vouches for the number an admin actually checked, so
+// a new CAC number drops it (and the store's public badge) until re-checked.
+const clearBusinessVerification = async (sellerProfileId: string) => {
+  await prisma.$transaction([
+    prisma.sellerProfile.update({ where: { id: sellerProfileId }, data: { isVerified: false } }),
+    prisma.store.updateMany({ where: { sellerId: sellerProfileId }, data: { isVerified: false } }),
+  ]);
 };
