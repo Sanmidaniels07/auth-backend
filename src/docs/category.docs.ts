@@ -116,7 +116,7 @@
  * /api/categories/{id}:
  *   patch:
  *     summary: Update a category
- *     description: Requires authentication and the ADMIN role.
+ *     description: Requires authentication and the ADMIN role. Changing `commissionRate` notifies every seller with a non-archived product in the category (in-app notification + email). The new rate applies to orders placed afterwards; existing orders keep the rate snapshotted at checkout.
  *     tags:
  *       - Category
  *     security:

@@ -1,6 +1,9 @@
-import { ProductStatus } from "@prisma/client";
+import { NotificationType, ProductStatus } from "@prisma/client";
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
+import { createNotificationService } from "../notification/notification.service";
+import { sendEmail } from "../auth/email.services";
+import { commissionChangeTemplate } from "../../templates/commission-change.template";
 import { generateUniqueSlug } from "../../utils/slugify";
 import {
   CreateCategoryInput,
@@ -74,10 +77,69 @@ export const updateCategoryService = async (
     );
   }
 
-  return prisma.category.update({
+  const updated = await prisma.category.update({
     where: { id: categoryId },
     data: { ...data, slug },
   });
+
+  // Sellers must hear about fee changes - fire-and-forget so the admin's
+  // save isn't held up by emails.
+  if (data.commissionRate !== undefined && data.commissionRate !== category.commissionRate) {
+    notifySellersOfCommissionChange(updated.id, updated.name, category.commissionRate, data.commissionRate).catch(
+      (error) => console.error("Commission change notifications failed:", error)
+    );
+  }
+
+  return updated;
+};
+
+/**
+ * Tells every seller with a (non-archived) product in the category that its
+ * commission changed - in-app and by email. Rates are snapshotted onto each
+ * order item at checkout, so this only affects orders placed from now on.
+ */
+export const notifySellersOfCommissionChange = async (
+  categoryId: string,
+  categoryName: string,
+  oldRate: number,
+  newRate: number
+) => {
+  const stores = await prisma.store.findMany({
+    where: {
+      isSuspended: false,
+      products: { some: { categoryId, status: { not: ProductStatus.ARCHIVED } } },
+    },
+    select: {
+      name: true,
+      seller: { select: { user: { select: { id: true, name: true, email: true, deletedAt: true } } } },
+    },
+  });
+
+  const productsUrl = `${process.env.FRONTEND_URL ?? ""}/settings/marketplace?tab=products`;
+  let notified = 0;
+
+  for (const store of stores) {
+    const user = store.seller.user;
+    if (user.deletedAt) continue;
+
+    await createNotificationService(
+      user.id,
+      `${categoryName} commission is now ${newRate}%`,
+      `Nestly commission for ${categoryName} changed from ${oldRate}% to ${newRate}%. It applies to new orders; past orders keep their rate.`,
+      NotificationType.SYSTEM,
+      { type: "COMMISSION_CHANGE", id: categoryId }
+    );
+
+    sendEmail(
+      user.email,
+      `${categoryName} commission is now ${newRate}%`,
+      commissionChangeTemplate(user.name.split(" ")[0] || user.name, store.name, categoryName, oldRate, newRate, productsUrl)
+    ).catch((error) => console.error(`Commission change email to ${user.email} failed:`, error));
+
+    notified++;
+  }
+
+  return notified;
 };
 
 export const deleteCategoryService = async (
