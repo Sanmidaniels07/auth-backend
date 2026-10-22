@@ -5,6 +5,19 @@
 // wordmark, the mono uppercase eyebrow labels, the rounded #ECE9F6-bordered
 // cards - just rebuilt with fonts/markup an inbox will actually render.
 
+import { envList, normalizeOrigin } from "../config/environment";
+
+// Images in email must be hosted PNGs (Gmail/Outlook don't render SVG or
+// data: URIs reliably). The mark lives in the frontend's public folder, so
+// each environment's emails load it from that environment's site.
+const frontendOrigin = () =>
+  normalizeOrigin(envList(process.env.FRONTEND_URL)[0] ?? "") || "https://www.nestlyapp.site";
+const logoUrl = () => `${frontendOrigin()}/email/nestly-mark.png`;
+
+// Nestly Support is on WhatsApp for now (same number as the app's support
+// buttons); override with SUPPORT_WHATSAPP, digits only.
+const supportWhatsAppUrl = () => `https://wa.me/${process.env.SUPPORT_WHATSAPP || "2348159671809"}`;
+
 const BRAND = {
   name: "Nestly",
   gradientFrom: "#7C3AED",
@@ -104,10 +117,10 @@ export const renderEmailLayout = ({
               <td style="padding:32px 36px 0 36px;">
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                   <tr>
-                    <td width="36" height="36" align="center" valign="middle" bgcolor="${BRAND.gradientFrom}" style="border-radius:10px; background-color:${BRAND.gradientFrom}; background-image:linear-gradient(135deg, ${BRAND.gradientFrom}, ${BRAND.gradientTo}); font-family:${SANS_STACK}; font-weight:700; font-size:17px; color:#ffffff;">
-                      N
+                    <td width="40" height="40" valign="middle" style="width:40px; height:40px;">
+                      <img src="${logoUrl()}" width="40" height="40" alt="" style="display:block; width:40px; height:40px; border:0; outline:none; text-decoration:none;" />
                     </td>
-                    <td style="padding-left:10px; font-family:${SERIF_STACK}; font-style:italic; font-size:20px; color:${BRAND.ink};">
+                    <td valign="middle" style="padding-left:10px; font-family:${SERIF_STACK}; font-style:italic; font-size:22px; color:${BRAND.ink};">
                       ${BRAND.name}
                     </td>
                   </tr>
@@ -132,7 +145,8 @@ export const renderEmailLayout = ({
             <tr>
               <td style="padding:20px 36px 28px 36px; border-top:1px solid ${BRAND.border};">
                 <p style="margin:0; font-family:${SANS_STACK}; font-size:12px; line-height:1.6; color:${BRAND.mutedInk};">
-                  Sent by ${BRAND.name} — this is an automated message, please don't reply directly to this email.
+                  Sent by ${BRAND.name}. This is an automated message, so replies to this email aren't read.
+                  Need help? <a href="${supportWhatsAppUrl()}" target="_blank" style="color:${BRAND.gradientFrom}; text-decoration:none; font-weight:600;">Chat with Nestly Support on WhatsApp</a>.
                 </p>
               </td>
             </tr>
