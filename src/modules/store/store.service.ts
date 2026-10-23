@@ -299,7 +299,18 @@ export const getPublicStoreService = async (
     });
   }
 
-  const { _count, ...rest } = store;
+  // Payout details are the seller's alone (they get them from /stores/me) -
+  // never send bank details or the Paystack subaccount to the public.
+  const {
+    _count,
+    payoutBankName: _bankName,
+    payoutBankCode: _bankCode,
+    payoutAccountNumber: _accountNumber,
+    payoutAccountName: _accountName,
+    paystackSubaccountCode: _subaccount,
+    payoutAccountUpdatedAt: _payoutUpdatedAt,
+    ...rest
+  } = store;
 
   return {
     ...rest,
