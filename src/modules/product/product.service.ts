@@ -15,6 +15,11 @@ const PRIMARY_IMAGE_INCLUDE = {
   images: { where: { isPrimary: true }, take: 1 },
 };
 
+// Prisma cancels an interactive transaction after 5s by default. Each query
+// to the production database is a long round trip, so saving a product
+// with photos, specs and options needs more room than that.
+const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
+
 const FULL_PRODUCT_INCLUDE = {
   images: true,
   specifications: true,
@@ -90,7 +95,7 @@ export const createProductService = async (
       where: { id: product.id },
       include: FULL_PRODUCT_INCLUDE,
     });
-  });
+  }, TX_OPTIONS);
 };
 
 export const updateProductService = async (
@@ -166,12 +171,13 @@ export const updateProductService = async (
     if (hasOptions > 0) delete fields.stock;
   }
 
-  return prisma.$transaction(async (tx) => {
-    const before = await tx.product.findUniqueOrThrow({
-      where: { id: productId },
-      include: FULL_PRODUCT_INCLUDE,
-    });
+  // Read and compare outside the transaction - it only holds the writes.
+  const before = await prisma.product.findUniqueOrThrow({
+    where: { id: productId },
+    include: FULL_PRODUCT_INCLUDE,
+  });
 
+  await prisma.$transaction(async (tx) => {
     if (images) {
       await tx.productImage.deleteMany({
         where: { productId },
@@ -206,26 +212,34 @@ export const updateProductService = async (
       }
     }
 
-    const after = await tx.product.findUniqueOrThrow({
-      where: { id: productId },
-      include: FULL_PRODUCT_INCLUDE,
-    });
+  }, TX_OPTIONS);
 
-    // Log what changed for admins. Turning the listing into a different
-    // product also marks its existing reviews as for an earlier version.
-    const changes = diffProducts(before, after);
-    if (changes.length === 0) return after;
-
-    const reviewsReset = isDifferentProduct(before, after);
-    await recordProductRevision(tx, { productId, editedById: userId, changes, reviewsReset });
-
-    if (!reviewsReset) return after;
-    return tx.product.update({
-      where: { id: productId },
-      data: { reviewsResetAt: new Date() },
-      include: FULL_PRODUCT_INCLUDE,
-    });
+  const after = await prisma.product.findUniqueOrThrow({
+    where: { id: productId },
+    include: FULL_PRODUCT_INCLUDE,
   });
+
+  // Log what changed for admins. Turning the listing into a different
+  // product also marks its existing reviews as for an earlier version.
+  // The edit is already saved, so a failure here mustn't fail the request.
+  const changes = diffProducts(before, after);
+  if (changes.length === 0) return after;
+
+  const reviewsReset = isDifferentProduct(before, after);
+  try {
+    await recordProductRevision(prisma, { productId, editedById: userId, changes, reviewsReset });
+    if (reviewsReset) {
+      return await prisma.product.update({
+        where: { id: productId },
+        data: { reviewsResetAt: new Date() },
+        include: FULL_PRODUCT_INCLUDE,
+      });
+    }
+  } catch (error) {
+    console.error(`Recording edit history for product ${productId} failed:`, error);
+  }
+
+  return after;
 };
 
 export const archiveProductService = async (
@@ -255,7 +269,7 @@ export const archiveProductService = async (
       where: { id: productId },
       data: { status: ProductStatus.ARCHIVED },
     });
-  });
+  }, TX_OPTIONS);
 };
 
 interface ProductFilters {
@@ -554,7 +568,7 @@ export const bulkUpdateProductStatusService = async (
       where: { id: { in: productIds }, storeId: store.id },
       data: { status },
     });
-  });
+  }, TX_OPTIONS);
 
   return { updatedCount: result.count };
 };
@@ -575,7 +589,7 @@ export const bulkDeleteProductsService = async (
       where: { id: { in: productIds }, storeId: store.id },
       data: { status: ProductStatus.ARCHIVED },
     });
-  });
+  }, TX_OPTIONS);
 
   return { archivedCount: result.count };
 };
