@@ -246,6 +246,16 @@ export const setupPayoutAccountService = async (
   return updated;
 };
 
+// Fields only the store owner (and admins) may see.
+const PRIVATE_STORE_FIELDS = [
+  "payoutBankName",
+  "payoutBankCode",
+  "payoutAccountNumber",
+  "payoutAccountName",
+  "paystackSubaccountCode",
+  "payoutAccountUpdatedAt",
+] as const;
+
 export const getPublicStoreService = async (
   slug: string,
   viewerId?: string
@@ -301,16 +311,8 @@ export const getPublicStoreService = async (
 
   // Payout details are the seller's alone (they get them from /stores/me) -
   // never send bank details or the Paystack subaccount to the public.
-  const {
-    _count,
-    payoutBankName: _bankName,
-    payoutBankCode: _bankCode,
-    payoutAccountNumber: _accountNumber,
-    payoutAccountName: _accountName,
-    paystackSubaccountCode: _subaccount,
-    payoutAccountUpdatedAt: _payoutUpdatedAt,
-    ...rest
-  } = store;
+  const { _count, ...rest } = store;
+  for (const field of PRIVATE_STORE_FIELDS) delete rest[field];
 
   return {
     ...rest,
