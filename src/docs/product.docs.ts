@@ -42,6 +42,11 @@
  *               condition:
  *                 type: string
  *                 enum: [NEW, USED, REFURBISHED]
+ *               deliveryVehicle:
+ *                 type: string
+ *                 enum: [BIKE, CAR, TRUCK]
+ *                 default: BIKE
+ *                 description: The smallest vehicle that can deliver this product. At checkout buyers only see the store's delivery zones with a vehicle at least this big (plus pickup and zones with no vehicle set).
  *               price:
  *                 type: number
  *               originalPrice:
@@ -451,6 +456,11 @@
  *               condition:
  *                 type: string
  *                 enum: [NEW, USED, REFURBISHED]
+ *               deliveryVehicle:
+ *                 type: string
+ *                 enum: [BIKE, CAR, TRUCK]
+ *                 default: BIKE
+ *                 description: The smallest vehicle that can deliver this product. At checkout buyers only see the store's delivery zones with a vehicle at least this big (plus pickup and zones with no vehicle set).
  *               status:
  *                 type: string
  *                 enum: [DRAFT, PUBLISHED, OUT_OF_STOCK, ARCHIVED]

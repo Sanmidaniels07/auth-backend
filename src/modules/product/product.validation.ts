@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ProductCondition, ProductStatus } from "@prisma/client";
+import { DeliveryVehicle, ProductCondition, ProductStatus } from "@prisma/client";
 
 const imageSchema = z.object({
   url: z.string().trim().min(1),
@@ -44,6 +44,8 @@ export const createProductSchema = z.object({
     sku: z.string().trim().min(1),
     brand: z.string().trim().optional(),
     condition: z.nativeEnum(ProductCondition).optional(),
+    // Smallest vehicle that can deliver it (default BIKE).
+    deliveryVehicle: z.nativeEnum(DeliveryVehicle).optional(),
     price: z.number().positive(),
     originalPrice: z.number().positive().optional(),
     stock: z.number().int().min(0),
@@ -66,6 +68,7 @@ export const updateProductSchema = z.object({
     sku: z.string().trim().min(1).optional(),
     brand: z.string().trim().optional(),
     condition: z.nativeEnum(ProductCondition).optional(),
+    deliveryVehicle: z.nativeEnum(DeliveryVehicle).optional(),
     status: z.nativeEnum(ProductStatus).optional(),
     price: z.number().positive().optional(),
     originalPrice: z.number().positive().optional(),

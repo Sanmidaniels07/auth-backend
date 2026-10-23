@@ -6,6 +6,7 @@ import {
   OrderEventActor,
   OrderEventType,
   ShippingOptionType,
+  DeliveryVehicle,
 } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
@@ -27,6 +28,7 @@ import { generateDeliveryCode, recordOrderEvent } from "../order/order-delivery"
 import { notifyOrderPaid } from "../order/order-notifications";
 import { snapshotOf } from "../../utils/orderItemSnapshot";
 import { unitPriceOf, variationLabel } from "../../utils/productOptions";
+import { VEHICLE_LABEL, canCarry, requiredVehicle } from "../../utils/deliveryVehicle";
 
 const NAIRA_TO_KOBO = 100;
 const LOW_STOCK_THRESHOLD = 5;
@@ -138,6 +140,7 @@ const buildPendingOrder = async (
     eta: string | null;
     type: ShippingOptionType;
     pickupAddress: string | null;
+    vehicle: DeliveryVehicle | null;
     deliveryCode: string;
     paidViaSplit: boolean;
   }[] = [];
@@ -147,6 +150,20 @@ const buildPendingOrder = async (
   for (const store of stores) {
     if (store.shippingOptions.length === 0) {
       continue;
+    }
+
+    // Only zones whose vehicle can carry everything bought from this store
+    // (plus pickup) are on offer.
+    const storeProducts = cart.items.filter((item) => item.product.storeId === store.id).map((item) => item.product);
+    const needed = requiredVehicle(storeProducts);
+    const usable = store.shippingOptions.filter((option) => canCarry(option, needed));
+
+    if (usable.length === 0) {
+      const big = storeProducts.find((product) => product.deliveryVehicle === needed);
+      throw new AppError(
+        `"${store.name}" has no delivery zone that can carry "${big?.title ?? "your items"}" (it needs a ${VEHICLE_LABEL[needed]}). Remove it from your cart or ask the seller.`,
+        400,
+      );
     }
 
     const selection = shippingSelections.find((s) => s.storeId === store.id);
@@ -163,6 +180,13 @@ const buildPendingOrder = async (
       throw new AppError(`Invalid shipping option for "${store.name}".`, 400);
     }
 
+    if (!canCarry(option, needed)) {
+      throw new AppError(
+        `"${option.name}" is by ${option.vehicle ? VEHICLE_LABEL[option.vehicle] : "a smaller vehicle"} - your items from "${store.name}" need a ${VEHICLE_LABEL[needed]}. Choose another delivery option.`,
+        400,
+      );
+    }
+
     shippingRows.push({
       storeId: store.id,
       optionName: option.name,
@@ -175,6 +199,7 @@ const buildPendingOrder = async (
         option.type === ShippingOptionType.PICKUP
           ? option.pickupAddress ?? storePickupAddress(store)
           : null,
+      vehicle: option.type === ShippingOptionType.PICKUP ? null : option.vehicle,
       // One code per seller in the order - the buyer hands it over when
       // that seller's items arrive.
       deliveryCode: generateDeliveryCode(),

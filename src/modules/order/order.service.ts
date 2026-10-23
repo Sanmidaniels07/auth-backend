@@ -330,7 +330,7 @@ export const getSellerOrdersService = async (
         // buyer's delivery code.
         shipping: {
           where: { storeId: store.id },
-          select: { type: true, optionName: true, fee: true, eta: true, pickupAddress: true },
+          select: { type: true, optionName: true, fee: true, eta: true, pickupAddress: true, vehicle: true },
         },
         // Only the note the buyer left for this store.
         sellerNotes: { where: { storeId: store.id }, select: { note: true } },
@@ -381,7 +381,7 @@ export const getSellerOrderByIdService = async (
       // buyer's delivery code.
       shipping: {
         where: { storeId: store.id },
-        select: { type: true, optionName: true, fee: true, eta: true, pickupAddress: true },
+        select: { type: true, optionName: true, fee: true, eta: true, pickupAddress: true, vehicle: true },
       },
       // Only the note the buyer left for this store.
       sellerNotes: { where: { storeId: store.id }, select: { note: true } },

@@ -1,6 +1,6 @@
 import { Prisma, ProductStatus, Role } from "@prisma/client";
 
-import { ShippingOptionType } from "@prisma/client";
+import { DeliveryVehicle, ShippingOptionType } from "@prisma/client";
 import prisma from "../../prisma/prisma";
 import { findState } from "../../data/nigeria-locations";
 import { AppError } from "../../utils/appError";
@@ -584,6 +584,7 @@ interface ShippingOptionInput {
   state?: string;
   type?: ShippingOptionType;
   pickupAddress?: string;
+  vehicle?: DeliveryVehicle;
 }
 
 const PICKUP_DEFAULT_NAME = "Pick up from seller";
@@ -616,6 +617,7 @@ const toZoneData = (data: ShippingOptionInput) => {
       areas: [],
       state: data.state ? findState(data.state)?.name ?? data.state.trim() : undefined,
       pickupAddress: data.pickupAddress?.trim() || undefined,
+      vehicle: null,
     };
   }
 
@@ -629,6 +631,7 @@ const toZoneData = (data: ShippingOptionInput) => {
     eta: data.eta,
     areas,
     state: data.state ? findState(data.state)?.name ?? data.state.trim() : undefined,
+    vehicle: data.vehicle ?? null,
   };
 };
 
@@ -678,9 +681,10 @@ export const bulkCreateShippingOptionsService = async (
   });
 };
 
-interface ShippingOptionUpdate extends Partial<Omit<ShippingOptionInput, "eta" | "pickupAddress">> {
+interface ShippingOptionUpdate extends Partial<Omit<ShippingOptionInput, "eta" | "pickupAddress" | "vehicle">> {
   eta?: string | null;
   pickupAddress?: string | null;
+  vehicle?: ShippingOptionInput["vehicle"] | null;
   isArchived?: boolean;
 }
 
@@ -721,6 +725,8 @@ export const updateShippingOptionService = async (
       areas,
       state: data.state ? findState(data.state)?.name ?? data.state.trim() : undefined,
       pickupAddress: isPickup ? (data.pickupAddress === null ? null : data.pickupAddress?.trim()) : null,
+      // Pickup has no vehicle - the buyer collects.
+      vehicle: isPickup ? null : data.vehicle,
       isArchived: data.isArchived,
     },
   });

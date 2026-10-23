@@ -65,6 +65,14 @@ enum ShippingOptionType {
   PICKUP
 }
 
+// What a seller delivers with, smallest to largest. A bigger vehicle can
+// carry anything a smaller one can.
+enum DeliveryVehicle {
+  BIKE
+  CAR
+  TRUCK
+}
+
 // How a delivered item's receipt was confirmed: the seller entered the
 // buyer's delivery code at handover, the buyer confirmed in-app, or it
 // auto-confirmed after the buyer didn't respond.
@@ -932,6 +940,11 @@ model ShippingOption {
   // Pickup only: where buyers collect. Falls back to the store's address.
   pickupAddress String?
 
+  // Delivery only: what this zone's price is for (dispatch bike, car or
+  // truck). Null on zones made before vehicles existed - they're offered
+  // for every product, as before.
+  vehicle DeliveryVehicle?
+
   // Archived zones are hidden from buyers but kept for the seller to restore.
   isArchived Boolean @default(false)
 
@@ -982,6 +995,10 @@ model Product {
   brand String?
 
   condition ProductCondition @default(NEW)
+
+  // The smallest vehicle that can deliver it. Buyers only see delivery
+  // zones whose vehicle is at least this big. Bike fits every zone.
+  deliveryVehicle DeliveryVehicle @default(BIKE)
 
   status ProductStatus @default(DRAFT)
 
@@ -1296,6 +1313,8 @@ model OrderShipping {
   // where to collect them.
   type          ShippingOptionType @default(DELIVERY)
   pickupAddress String?
+  // Snapshot of the zone's vehicle (null = not specified / pickup).
+  vehicle       DeliveryVehicle?
 
   // 6-digit code only the buyer can see. The seller enters it at handover
   // to mark this store's items delivered (and confirmed) in one step. Never

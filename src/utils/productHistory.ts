@@ -18,6 +18,7 @@ interface HistorySource {
   stock: number;
   status: string;
   condition: string;
+  deliveryVehicle?: string;
   brand: string | null;
   sku: string;
   categoryId: string;
@@ -49,6 +50,7 @@ const historyState = (product: HistorySource): Record<string, string | string[] 
     Stock: String(product.stock),
     Status: product.status,
     Condition: product.condition,
+    "Delivered by": product.deliveryVehicle ?? null,
     Brand: product.brand || null,
     SKU: product.sku,
     Category: product.category?.name ?? product.categoryId,

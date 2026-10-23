@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ShippingOptionType } from "@prisma/client";
+import { DeliveryVehicle, ShippingOptionType } from "@prisma/client";
 
 const storeFields = {
   name: z.string().trim().min(2),
@@ -82,6 +82,8 @@ const zoneFields = {
   // PICKUP options are always free and cover no areas (enforced in the service).
   type: z.nativeEnum(ShippingOptionType).optional(),
   pickupAddress: z.string().trim().min(3).max(300).optional(),
+  // Delivery only: dispatch bike, car or truck. Ignored for pickup.
+  vehicle: z.nativeEnum(DeliveryVehicle).optional(),
 };
 
 const hasNameOrAreas = (zone: { name?: string; areas?: string[]; type?: ShippingOptionType }) =>
@@ -118,6 +120,8 @@ export const updateShippingOptionSchema = z.object({
     eta: z.string().trim().min(1).max(50).nullable().optional(),
     // null falls back to the store's address.
     pickupAddress: z.string().trim().min(3).max(300).nullable().optional(),
+    // null clears it (zone offered for every product).
+    vehicle: z.nativeEnum(DeliveryVehicle).nullable().optional(),
     isArchived: z.boolean().optional(),
   }),
 });
