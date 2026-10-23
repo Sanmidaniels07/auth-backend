@@ -10,6 +10,8 @@ import {
   listSellersAdminSchema,
   updateSellerStatusSchema,
   setSellerVerifiedSchema,
+  listProductsAdminSchema,
+  productHistoryAdminSchema,
 } from "./admin.validation";
 import {
   updateUserRole,
@@ -18,6 +20,8 @@ import {
   listSellersAdmin,
   updateSellerStatus,
   setSellerVerified,
+  listProductsAdmin,
+  getProductHistoryAdmin,
 } from "./admin.controller";
 
 const router = Router();
@@ -58,6 +62,18 @@ router.patch(
   "/sellers/:id/verify",
   validate(setSellerVerifiedSchema),
   setSellerVerified
+);
+
+router.get(
+  "/products",
+  validate(listProductsAdminSchema),
+  listProductsAdmin
+);
+
+router.get(
+  "/products/:id/history",
+  validate(productHistoryAdminSchema),
+  getProductHistoryAdmin
 );
 
 export default router;

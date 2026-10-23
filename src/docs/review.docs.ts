@@ -151,7 +151,7 @@
  * /api/products/{id}/reviews:
  *   get:
  *     summary: Get reviews for a product
- *     description: Public endpoint. Paginated, includes the average rating for this product.
+ *     description: Public endpoint. Paginated. If the seller has turned the listing into a different product (new category or a mostly different title), reviews written before that carry `earlierVersion: true` and are left out of `averageRating` / `ratingCount`; `earlierVersionCount` says how many there are. `total` counts all reviews (for pagination).
  *     tags:
  *       - Review
  *     security: []

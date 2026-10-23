@@ -9,6 +9,8 @@ import {
   updateUserStatusService,
   listUsersAdminService,
   listSellersAdminService,
+  listProductsAdminService,
+  getProductHistoryAdminService,
   updateSellerStatusService,
   setSellerVerifiedService,
 } from "./admin.service";
@@ -108,6 +110,33 @@ export const updateSellerStatus = asyncHandler(
 
     res.status(200).json(
       apiResponse(seller, "Seller status updated successfully")
+    );
+  }
+);
+
+export const listProductsAdmin = asyncHandler(
+  async (req: Request, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const search = (req.query.search as string | undefined) || undefined;
+
+    const result = await listProductsAdminService(page, limit, search);
+
+    res.status(200).json(
+      apiResponse(result, "Products fetched successfully")
+    );
+  }
+);
+
+export const getProductHistoryAdmin = asyncHandler(
+  async (req: Request<IdParams>, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+
+    const result = await getProductHistoryAdminService(req.params.id, page, limit);
+
+    res.status(200).json(
+      apiResponse(result, "Product history fetched successfully")
     );
   }
 );

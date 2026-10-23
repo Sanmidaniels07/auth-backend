@@ -273,4 +273,76 @@
  *         description: Seller profile not found
  */
 
+/**
+ * @swagger
+ * /api/admin/products:
+ *   get:
+ *     summary: List products for admins
+ *     description: Requires ADMIN. Products in any status (including drafts and archived), most recently edited first, with `_count.revisions` (saved edits) and `_count.reviews`. `search` matches title, SKU or store name.
+ *     tags:
+ *       - Administration
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Products fetched successfully
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Forbidden - admin role required
+ */
+
+/**
+ * @swagger
+ * /api/admin/products/{id}/history:
+ *   get:
+ *     summary: A product's edit history
+ *     description: |
+ *       Requires ADMIN. Every saved edit to the product, newest first:
+ *       - `changes` - [{ field, from, to }] with readable values (e.g. Price "₦2,000" → "₦2,500"). `Photos` holds lists of image URLs, cover first.
+ *       - `editedBy` - who saved it (the seller).
+ *       - `reviewsReset` - this edit turned the listing into a different product (new category or mostly different title), so earlier reviews are now labelled as for an earlier version.
+ *       Stock changes caused by orders are not logged - only edits.
+ *     tags:
+ *       - Administration
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Product history fetched successfully
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Forbidden - admin role required
+ *       404:
+ *         description: Product not found
+ */
+
 export {};

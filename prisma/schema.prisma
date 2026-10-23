@@ -205,6 +205,8 @@ model User {
 
   reviews Review[]
 
+  productRevisions ProductRevision[]
+
   // Social
   following Follow[] @relation("Follower")
   followers Follow[] @relation("Following")
@@ -1012,6 +1014,14 @@ model Product {
 
   reviews Review[]
 
+  // Set when the seller turns the listing into something different (new
+  // category or a mostly different title). Reviews written before it are
+  // labelled as for an earlier version and left out of the rating.
+  reviewsResetAt DateTime?
+
+  // Admin-only log of the seller's edits.
+  revisions ProductRevision[]
+
   orderItems OrderItem[]
 
   taggedInPosts Post[]
@@ -1042,6 +1052,29 @@ model ProductSpecification {
   name String
 
   value String
+}
+
+// One saved edit to a product: what changed, who did it and when. Shown to
+// admins for disputes and spotting sellers who switch listings around.
+// Stock changes from orders aren't recorded - only edits.
+model ProductRevision {
+  id String @id @default(cuid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  editedById String?
+  editedBy   User?   @relation(fields: [editedById], references: [id], onDelete: SetNull)
+
+  // [{ field, from, to }] - readable values ("₦2,000", "Size: S, M").
+  changes Json
+
+  // This edit marked earlier reviews as for an earlier version.
+  reviewsReset Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([productId, createdAt])
 }
 
 model LegacyProductVariant {

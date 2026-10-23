@@ -420,7 +420,7 @@
  *         description: Product not found
  *   patch:
  *     summary: Update a product
- *     description: Updates a product owned by the authenticated seller. Requires authentication and ownership. Also used to manage inventory (`stock`) and publishing (`status`) - there are no separate endpoints for these. Providing `images` or `specifications` replaces the existing set entirely; `options` + `variations` (sent together) replace the product's options. While a product has options, a plain `stock` value is ignored - stock is the total of its active combinations.
+ *     description: Updates a product owned by the authenticated seller. Requires authentication and ownership. Also used to manage inventory (`stock`) and publishing (`status`) - there are no separate endpoints for these. Providing `images` or `specifications` replaces the existing set entirely; `options` + `variations` (sent together) replace the product's options. While a product has options, a plain `stock` value is ignored - stock is the total of its active combinations. Every save that changes something is logged for admins (see GET /api/admin/products/{id}/history); a new category or a mostly different title also sets `reviewsResetAt`, marking earlier reviews as for an earlier version.
  *     tags:
  *       - Product
  *     security:

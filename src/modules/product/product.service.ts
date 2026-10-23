@@ -5,6 +5,7 @@ import { AppError } from "../../utils/appError";
 import { generateUniqueSlug } from "../../utils/slugify";
 import { getSellerStore } from "../seller/seller.utils";
 import { OPTIONS_INCLUDE, assertValidOptions, saveProductOptions } from "../../utils/productOptions";
+import { diffProducts, isDifferentProduct, recordProductRevision, recordStatusChanges } from "../../utils/productHistory";
 import {
   CreateProductInput,
   UpdateProductInput,
@@ -166,6 +167,11 @@ export const updateProductService = async (
   }
 
   return prisma.$transaction(async (tx) => {
+    const before = await tx.product.findUniqueOrThrow({
+      where: { id: productId },
+      include: FULL_PRODUCT_INCLUDE,
+    });
+
     if (images) {
       await tx.productImage.deleteMany({
         where: { productId },
@@ -200,8 +206,23 @@ export const updateProductService = async (
       }
     }
 
-    return tx.product.findUniqueOrThrow({
+    const after = await tx.product.findUniqueOrThrow({
       where: { id: productId },
+      include: FULL_PRODUCT_INCLUDE,
+    });
+
+    // Log what changed for admins. Turning the listing into a different
+    // product also marks its existing reviews as for an earlier version.
+    const changes = diffProducts(before, after);
+    if (changes.length === 0) return after;
+
+    const reviewsReset = isDifferentProduct(before, after);
+    await recordProductRevision(tx, { productId, editedById: userId, changes, reviewsReset });
+
+    if (!reviewsReset) return after;
+    return tx.product.update({
+      where: { id: productId },
+      data: { reviewsResetAt: new Date() },
       include: FULL_PRODUCT_INCLUDE,
     });
   });
@@ -228,9 +249,12 @@ export const archiveProductService = async (
     );
   }
 
-  return prisma.product.update({
-    where: { id: productId },
-    data: { status: ProductStatus.ARCHIVED },
+  return prisma.$transaction(async (tx) => {
+    await recordStatusChanges(tx, userId, [product], ProductStatus.ARCHIVED);
+    return tx.product.update({
+      where: { id: productId },
+      data: { status: ProductStatus.ARCHIVED },
+    });
   });
 };
 
@@ -520,9 +544,16 @@ export const bulkUpdateProductStatusService = async (
 ) => {
   const store = await getSellerStore(userId);
 
-  const result = await prisma.product.updateMany({
-    where: { id: { in: productIds }, storeId: store.id },
-    data: { status },
+  const result = await prisma.$transaction(async (tx) => {
+    const products = await tx.product.findMany({
+      where: { id: { in: productIds }, storeId: store.id },
+      select: { id: true, status: true },
+    });
+    await recordStatusChanges(tx, userId, products, status);
+    return tx.product.updateMany({
+      where: { id: { in: productIds }, storeId: store.id },
+      data: { status },
+    });
   });
 
   return { updatedCount: result.count };
@@ -534,9 +565,16 @@ export const bulkDeleteProductsService = async (
 ) => {
   const store = await getSellerStore(userId);
 
-  const result = await prisma.product.updateMany({
-    where: { id: { in: productIds }, storeId: store.id },
-    data: { status: ProductStatus.ARCHIVED },
+  const result = await prisma.$transaction(async (tx) => {
+    const products = await tx.product.findMany({
+      where: { id: { in: productIds }, storeId: store.id },
+      select: { id: true, status: true },
+    });
+    await recordStatusChanges(tx, userId, products, ProductStatus.ARCHIVED);
+    return tx.product.updateMany({
+      where: { id: { in: productIds }, storeId: store.id },
+      data: { status: ProductStatus.ARCHIVED },
+    });
   });
 
   return { archivedCount: result.count };
