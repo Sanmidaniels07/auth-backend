@@ -50,9 +50,11 @@ export const getProducts = asyncHandler(
       | ProductCondition
       | undefined;
     const brand = req.query.brand as string;
+    const state = req.query.state as string | undefined;
     const sort = req.query.sort as string;
 
     const result = await getProductsService({
+      state,
       page,
       limit,
       search,

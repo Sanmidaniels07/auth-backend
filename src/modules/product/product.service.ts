@@ -4,6 +4,7 @@ import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { generateUniqueSlug } from "../../utils/slugify";
 import { getSellerStore } from "../seller/seller.utils";
+import { findState, stateSpellings } from "../../data/nigeria-locations";
 import { OPTIONS_INCLUDE, assertValidOptions, saveProductOptions } from "../../utils/productOptions";
 import { diffProducts, isDifferentProduct, recordProductRevision, recordStatusChanges } from "../../utils/productHistory";
 import {
@@ -281,6 +282,7 @@ interface ProductFilters {
   maxPrice?: number;
   condition?: ProductCondition;
   brand?: string;
+  state?: string;
   sort?: string;
 }
 
@@ -296,6 +298,7 @@ export const getProductsService = async (
     maxPrice,
     condition,
     brand,
+    state,
     sort,
   } = filters;
 
@@ -305,6 +308,13 @@ export const getProductsService = async (
     status: ProductStatus.PUBLISHED,
     store: { isSuspended: false },
   };
+
+  if (state) {
+    const canonical = findState(state)?.name ?? state;
+    where.store.OR = stateSpellings(canonical).map((spelling) => ({
+      state: { equals: spelling, mode: "insensitive" },
+    }));
+  }
 
   if (search) {
     where.OR = [

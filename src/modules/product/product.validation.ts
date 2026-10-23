@@ -91,6 +91,8 @@ export const listProductsSchema = z.object({
     maxPrice: z.string().optional(),
     condition: z.nativeEnum(ProductCondition).optional(),
     brand: z.string().optional(),
+    // Store's state, e.g. "Lagos" or "Abuja" (any common spelling).
+    state: z.string().trim().max(60).optional(),
     sort: z
       .enum(["newest", "oldest", "price_asc", "price_desc"])
       .optional(),

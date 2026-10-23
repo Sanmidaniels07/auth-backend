@@ -1088,6 +1088,16 @@ const STATE_ALIASES: Record<string, string> = {
   "cross-river": "Cross River",
 };
 
+// Spellings sellers may have typed for a state before names were
+// normalised ("Lagos", "Lagos State", "Abuja", "FCT"...).
+export const stateSpellings = (canonical: string) => [
+  canonical,
+  `${canonical} State`,
+  ...Object.entries(STATE_ALIASES)
+    .filter(([alias, name]) => name === canonical && alias !== canonical.toLowerCase())
+    .map(([alias]) => alias),
+];
+
 // Matches "Lagos", "lagos state", "Lagos State, Nigeria", "Abuja"... to a
 // state in NIGERIA_LOCATIONS, or null.
 export const findState = (input: string | null | undefined): StateLocations | null => {
