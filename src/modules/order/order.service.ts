@@ -273,6 +273,12 @@ export const cancelOrderService = async (
           where: { id: item.productId },
           data: { stock: { increment: item.quantity } },
         });
+        if (item.variationId) {
+          await tx.productVariation.update({
+            where: { id: item.variationId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
       }
     }
 

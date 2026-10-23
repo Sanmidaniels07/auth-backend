@@ -62,8 +62,14 @@ const truncate = (text: string, max: number) => (text.length > max ? `${text.sli
 
 const titleOf = (item: { productTitle: string | null; product: { title: string } }) => item.productTitle ?? item.product.title;
 
-const lineOf = (item: { quantity: number; totalPrice: number; productTitle: string | null; product: { title: string } }): EmailOrderLine => ({
-  title: titleOf(item),
+const lineOf = (item: {
+  quantity: number;
+  totalPrice: number;
+  productTitle: string | null;
+  variantLabel: string | null;
+  product: { title: string };
+}): EmailOrderLine => ({
+  title: item.variantLabel ? `${titleOf(item)} (${item.variantLabel})` : titleOf(item),
   quantity: item.quantity,
   totalPrice: item.totalPrice,
 });

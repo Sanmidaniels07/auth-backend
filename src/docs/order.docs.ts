@@ -47,7 +47,7 @@
  *       - `events` - the raw history (PAID, SHIPPED, DELIVERED, CONFIRMED, CANCELLED, PROBLEM_REPORTED...), with the actor (BUYER, SELLER, SYSTEM).
  *       - `shipping[].deliveryCode` - the buyer's 6-digit code per seller, to hand over on delivery. Never exposed to sellers.
  *       - per item: `shippedAt`, `deliveredAt`, `deliveryConfirmedAt`, `deliveryConfirmedBy` (CODE, BUYER, AUTO), `awaitingConfirmation` and `returnWindowEndsAt` (7 days after confirmation).
- *       - per item: the listing as it was ordered - `productTitle`, `productImage`, `productDescription`, `productBrand`, `productCondition`, `productSku`, `productHighlights`, `productSpecs` ([{ name, value }]). `product.title`/`product.images` show this copy too; `product.id` still points at the live listing. `listingChanged` is true when the seller has edited the listing since (price changes excluded - the paid price is locked).
+ *       - per item: the listing as it was ordered - `productTitle`, `productImage`, `productDescription`, `productBrand`, `productCondition`, `productSku`, `productHighlights`, `productSpecs` ([{ name, value }]), and for products with options `variantLabel` (e.g. "Size: Large · Flavour: Vanilla") and `variationId`. `product.title`/`product.images` show this copy too; `product.id` still points at the live listing. `listingChanged` is true when the seller has edited the listing since (price changes excluded - the paid price is locked).
  *     tags:
  *       - Order
  *     security:

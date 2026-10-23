@@ -26,6 +26,7 @@ import { isPayoutAccountEligibleForSplit, storePickupAddress } from "../store/st
 import { generateDeliveryCode, recordOrderEvent } from "../order/order-delivery";
 import { notifyOrderPaid } from "../order/order-notifications";
 import { snapshotOf } from "../../utils/orderItemSnapshot";
+import { unitPriceOf, variationLabel } from "../../utils/productOptions";
 
 const NAIRA_TO_KOBO = 100;
 const LOW_STOCK_THRESHOLD = 5;
@@ -55,7 +56,16 @@ const buildPendingOrder = async (
       include: {
         items: {
           include: {
-            product: { include: { category: true, images: true, specifications: true } },
+            product: {
+              include: {
+                category: true,
+                images: true,
+                specifications: true,
+                options: true,
+                variations: { where: { isArchived: false }, select: { id: true } },
+              },
+            },
+            variation: true,
           },
         },
       },
@@ -82,13 +92,30 @@ const buildPendingOrder = async (
       );
     }
 
-    if (item.quantity > item.product.stock) {
+    // Products with options are bought as one of their combinations - a
+    // line added before the seller added options has to be chosen again.
+    if (item.product.variations.length > 0 && !item.variation) {
+      throw new AppError(`Choose an option for "${item.product.title}" in your cart.`, 400);
+    }
+
+    if (item.variation && (!item.variation.isActive || item.variation.isArchived)) {
+      throw new AppError(
+        `"${item.product.title}" (${variationLabel(item.product.options, item.variation)}) is no longer available.`,
+        400,
+      );
+    }
+
+    const stock = item.variation ? item.variation.stock : item.product.stock;
+    if (item.quantity > stock) {
       throw new AppError(`Not enough stock for "${item.product.title}".`, 400);
     }
   }
 
+  // A combination's own price, else the product's.
+  const priceOf = (item: (typeof cart.items)[number]) => unitPriceOf(item.product, item.variation);
+
   const subtotal = cart.items.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+    (sum, item) => sum + priceOf(item) * item.quantity,
     0,
   );
 
@@ -174,7 +201,7 @@ const buildPendingOrder = async (
     if (!store || !isPayoutAccountEligibleForSplit(store)) continue;
 
     const net =
-      item.product.price *
+      priceOf(item) *
       item.quantity *
       (1 - item.product.category.commissionRate / 100);
 
@@ -253,14 +280,16 @@ const buildPendingOrder = async (
         create: cart.items.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
-          unitPrice: item.product.price,
-          totalPrice: item.product.price * item.quantity,
+          unitPrice: priceOf(item),
+          totalPrice: priceOf(item) * item.quantity,
           // Snapshot the category's current commission rate so a later
           // rate change doesn't retroactively affect this order.
           commissionRate: item.product.category.commissionRate,
           // What the buyer is paying for - later edits to the listing
           // don't change it.
           ...snapshotOf(item.product),
+          variationId: item.variation?.id ?? null,
+          variantLabel: item.variation ? variationLabel(item.product.options, item.variation) : null,
           autoPaidViaSplit: (() => {
             const itemStore = storeById.get(item.product.storeId);
             return !!itemStore && isPayoutAccountEligibleForSplit(itemStore);
@@ -299,10 +328,18 @@ const finalizeOrderPayment = async (order: {
   id: string;
   userId: string;
   couponCode: string | null;
-  items: { productId: string; quantity: number }[];
+  items: { productId: string; variationId: string | null; quantity: number }[];
 }) => {
   const updatedOrder = await prisma.$transaction(async (tx) => {
     for (const item of order.items) {
+      // The product's stock is the total of its combinations, so both move.
+      if (item.variationId) {
+        await tx.productVariation.update({
+          where: { id: item.variationId },
+          data: { stock: { decrement: item.quantity } },
+        });
+      }
+
       const updatedProduct = await tx.product.update({
         where: { id: item.productId },
         data: { stock: { decrement: item.quantity } },

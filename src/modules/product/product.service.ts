@@ -4,6 +4,7 @@ import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { generateUniqueSlug } from "../../utils/slugify";
 import { getSellerStore } from "../seller/seller.utils";
+import { OPTIONS_INCLUDE, assertValidOptions, saveProductOptions } from "../../utils/productOptions";
 import {
   CreateProductInput,
   UpdateProductInput,
@@ -16,7 +17,7 @@ const PRIMARY_IMAGE_INCLUDE = {
 const FULL_PRODUCT_INCLUDE = {
   images: true,
   specifications: true,
-  variants: true,
+  ...OPTIONS_INCLUDE,
   category: true,
 };
 
@@ -55,26 +56,39 @@ export const createProductService = async (
   const {
     images,
     specifications,
-    variants,
+    options,
+    variations,
     categoryId,
     ...fields
   } = data;
 
-  return prisma.product.create({
-    data: {
-      ...fields,
-      slug,
-      storeId: store.id,
-      categoryId,
-      images: images ? { create: images } : undefined,
-      specifications: specifications
-        ? { create: specifications }
-        : undefined,
-      variants: variants
-        ? { create: variants }
-        : undefined,
-    },
-    include: FULL_PRODUCT_INCLUDE,
+  if (options && variations) assertValidOptions(options, variations);
+
+  return prisma.$transaction(async (tx) => {
+    const product = await tx.product.create({
+      data: {
+        ...fields,
+        slug,
+        storeId: store.id,
+        categoryId,
+        images: images ? { create: images } : undefined,
+        specifications: specifications
+          ? { create: specifications }
+          : undefined,
+      },
+    });
+
+    if (options && variations && options.length > 0) {
+      const stock = await saveProductOptions(tx, product.id, options, variations);
+      if (stock !== null) {
+        await tx.product.update({ where: { id: product.id }, data: { stock } });
+      }
+    }
+
+    return tx.product.findUniqueOrThrow({
+      where: { id: product.id },
+      include: FULL_PRODUCT_INCLUDE,
+    });
   });
 };
 
@@ -140,8 +154,16 @@ export const updateProductService = async (
     );
   }
 
-  const { images, specifications, variants, ...fields } =
+  const { images, specifications, options, variations, ...fields } =
     data;
+
+  if (options && variations) assertValidOptions(options, variations);
+
+  // A product with options keeps its stock as the total of its combinations.
+  if (!options && fields.stock !== undefined) {
+    const hasOptions = await prisma.productVariation.count({ where: { productId, isArchived: false } });
+    if (hasOptions > 0) delete fields.stock;
+  }
 
   return prisma.$transaction(async (tx) => {
     if (images) {
@@ -156,13 +178,7 @@ export const updateProductService = async (
       });
     }
 
-    if (variants) {
-      await tx.productVariant.deleteMany({
-        where: { productId },
-      });
-    }
-
-    return tx.product.update({
+    await tx.product.update({
       where: { id: productId },
       data: {
         ...fields,
@@ -171,10 +187,21 @@ export const updateProductService = async (
         specifications: specifications
           ? { create: specifications }
           : undefined,
-        variants: variants
-          ? { create: variants }
-          : undefined,
       },
+    });
+
+    // Options are only touched when sent, so editing other details of a
+    // product never changes its options. With options, stock is the total
+    // of the active combinations.
+    if (options && variations) {
+      const stock = await saveProductOptions(tx, productId, options, variations);
+      if (stock !== null) {
+        await tx.product.update({ where: { id: productId }, data: { stock } });
+      }
+    }
+
+    return tx.product.findUniqueOrThrow({
+      where: { id: productId },
       include: FULL_PRODUCT_INCLUDE,
     });
   });
@@ -579,7 +606,8 @@ export const getSellerProductByIdService = async (
 
   const product = await prisma.product.findFirst({
     where: { id: productId, storeId: store.id },
-    include: FULL_PRODUCT_INCLUDE,
+    // legacyVariants: old free-form rows the edit form offers to turn into options.
+    include: { ...FULL_PRODUCT_INCLUDE, legacyVariants: true },
   });
 
   if (!product) {

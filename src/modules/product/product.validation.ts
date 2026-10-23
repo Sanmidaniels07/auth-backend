@@ -11,12 +11,30 @@ const specificationSchema = z.object({
   value: z.string().trim().min(1),
 });
 
-const variantSchema = z.object({
-  name: z.string().trim().min(1),
-  value: z.string().trim().min(1),
-  price: z.number().positive().optional(),
-  stock: z.number().int().min(0).optional(),
+// Up to two options (e.g. Size, Colour) and one variation per combination.
+// Products without options leave both out. Sent together - they replace
+// the product's existing options and variations.
+const optionSchema = z.object({
+  name: z.string().trim().min(1).max(30),
+  values: z.array(z.string().trim().min(1).max(40)).min(1).max(30),
 });
+
+const variationSchema = z.object({
+  option1: z.string().trim().min(1),
+  option2: z.string().trim().optional(),
+  price: z.number().positive().nullable().optional(),
+  stock: z.number().int().min(0),
+  isActive: z.boolean().optional(),
+});
+
+const optionFields = {
+  options: z.array(optionSchema).max(2, "A product can have at most 2 options.").optional(),
+  variations: z.array(variationSchema).max(300).optional(),
+};
+
+const optionsTogether = (body: { options?: unknown; variations?: unknown }) =>
+  (body.options === undefined) === (body.variations === undefined);
+const OPTIONS_TOGETHER = { message: "Send options and variations together." };
 
 export const createProductSchema = z.object({
   body: z.object({
@@ -33,8 +51,8 @@ export const createProductSchema = z.object({
     highlights: z.array(z.string().trim().min(1)).max(10).optional(),
     images: z.array(imageSchema).optional(),
     specifications: z.array(specificationSchema).optional(),
-    variants: z.array(variantSchema).optional(),
-  }),
+    ...optionFields,
+  }).refine(optionsTogether, OPTIONS_TOGETHER),
 });
 
 export const updateProductSchema = z.object({
@@ -56,8 +74,8 @@ export const updateProductSchema = z.object({
     highlights: z.array(z.string().trim().min(1)).max(10).optional(),
     images: z.array(imageSchema).optional(),
     specifications: z.array(specificationSchema).optional(),
-    variants: z.array(variantSchema).optional(),
-  }),
+    ...optionFields,
+  }).refine(optionsTogether, OPTIONS_TOGETHER),
 });
 
 export const listProductsSchema = z.object({
