@@ -83,6 +83,7 @@ export const newOrderEmail = (opts: {
   subtotal: number;
   shippingOption: string | null;
   isPickup?: boolean;
+  buyerNote?: string | null;
   ordersUrl: string;
 }) =>
   renderEmailLayout({
@@ -91,6 +92,18 @@ export const newOrderEmail = (opts: {
     heading: "You've got a new order",
     bodyHtml: `
       <p style="margin:0;">Hi ${escapeHtml(opts.sellerName)}, a buyer just paid for order <strong>${opts.orderNumber}</strong> from <strong>${escapeHtml(opts.storeName)}</strong>.</p>
+      ${
+        opts.buyerNote
+          ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 0 0;">
+              <tr>
+                <td style="padding:14px 16px; background:#F5F3FF; border-left:3px solid #7C3AED; border-radius:10px; font-size:14px; line-height:1.55; color:#13131A;">
+                  <div style="font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#6D28D9; margin-bottom:6px;">Note from the buyer</div>
+                  ${escapeHtml(opts.buyerNote).replace(/\n/g, "<br />")}
+                </td>
+              </tr>
+            </table>`
+          : ""
+      }
       ${itemsTable(opts.lines, opts.subtotal)}
       ${
         opts.isPickup

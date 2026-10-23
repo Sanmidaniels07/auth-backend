@@ -58,6 +58,8 @@ const safely = (label: string, fn: () => Promise<void>) => {
 
 const USER_SELECT = { id: true, name: true, email: true } as const;
 
+const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
+
 const lineOf = (item: { quantity: number; totalPrice: number; product: { title: string } }): EmailOrderLine => ({
   title: item.product.title,
   quantity: item.quantity,
@@ -73,6 +75,7 @@ export const notifyOrderPaid = (orderId: string) =>
       include: {
         user: { select: USER_SELECT },
         shipping: { include: { store: { select: { id: true, name: true } } } },
+        sellerNotes: { select: { storeId: true, note: true } },
         items: {
           include: {
             product: {
@@ -124,13 +127,14 @@ export const notifyOrderPaid = (orderId: string) =>
         const count = items.reduce((sum, item) => sum + item.quantity, 0);
         const shipment = order.shipping.find((s) => s.storeId === store.id);
         const isPickup = shipment?.type === ShippingOptionType.PICKUP;
+        const buyerNote = order.sellerNotes.find((n) => n.storeId === store.id)?.note ?? null;
 
         return deliver({
           to: seller,
-          title: "New order",
+          title: buyerNote ? "New order - with a note" : "New order",
           message: `Order ${number}: ${count} item${count === 1 ? "" : "s"} from ${store.name}. ${
             isPickup ? "The buyer will pick it up - get it ready." : "Prepare it for delivery."
-          }`,
+          }${buyerNote ? ` Buyer's note: "${truncate(buyerNote, 140)}"` : ""}`,
           target: { type: "SELLER_ORDER", id: order.id },
           email: {
             subject: `New order ${number} for ${store.name}`,
@@ -142,6 +146,7 @@ export const notifyOrderPaid = (orderId: string) =>
               subtotal,
               shippingOption: shipment?.optionName ?? null,
               isPickup,
+              buyerNote,
               ordersUrl: sellerOrdersUrl(),
             }),
           },

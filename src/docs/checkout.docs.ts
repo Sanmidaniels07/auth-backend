@@ -40,6 +40,21 @@
  *                       type: string
  *               couponCode:
  *                 type: string
+ *               sellerNotes:
+ *                 type: array
+ *                 description: Optional note per store (extras, sizes, gift message), max 500 characters each. Blank notes and stores not in the cart are ignored. Each seller only ever sees their own store's note, shown on their order and in the "New order" notification and email once payment succeeds.
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - storeId
+ *                     - note
+ *                   properties:
+ *                     storeId:
+ *                       type: string
+ *                     note:
+ *                       type: string
+ *                       maxLength: 500
+ *                       example: Please write "Happy birthday Tolu" on the cake.
  *     responses:
  *       201:
  *         description: Checkout initiated successfully, returns the order plus a Paystack accessCode (for the inline popup) and authorizationUrl (for a redirect-based fallback)
@@ -86,6 +101,21 @@
  *                       type: string
  *               couponCode:
  *                 type: string
+ *               sellerNotes:
+ *                 type: array
+ *                 description: Optional note per store (extras, sizes, gift message), max 500 characters each. Blank notes and stores not in the cart are ignored. Each seller only ever sees their own store's note, shown on their order and in the "New order" notification and email once payment succeeds.
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - storeId
+ *                     - note
+ *                   properties:
+ *                     storeId:
+ *                       type: string
+ *                     note:
+ *                       type: string
+ *                       maxLength: 500
+ *                       example: Please write "Happy birthday Tolu" on the cake.
  *     responses:
  *       200:
  *         description: Payment charged and order finalized successfully

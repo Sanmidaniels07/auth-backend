@@ -131,6 +131,7 @@ const CUSTOMER_ORDER_INCLUDE = {
   // Includes the buyer's own delivery codes - this include is only ever
   // used for the order's owner.
   shipping: true,
+  sellerNotes: { select: { storeId: true, note: true } },
   events: {
     orderBy: { createdAt: "asc" as const },
     select: { id: true, orderItemId: true, type: true, actor: true, note: true, createdAt: true },
@@ -307,6 +308,8 @@ export const getSellerOrdersService = async (
           where: { storeId: store.id },
           select: { type: true, optionName: true, fee: true, eta: true, pickupAddress: true },
         },
+        // Only the note the buyer left for this store.
+        sellerNotes: { where: { storeId: store.id }, select: { note: true } },
         items: {
           where: { product: { storeId: store.id } },
           include: {
@@ -356,6 +359,8 @@ export const getSellerOrderByIdService = async (
         where: { storeId: store.id },
         select: { type: true, optionName: true, fee: true, eta: true, pickupAddress: true },
       },
+      // Only the note the buyer left for this store.
+      sellerNotes: { where: { storeId: store.id }, select: { note: true } },
 
       items: {
         where: { product: { storeId: store.id } },
