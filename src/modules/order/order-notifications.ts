@@ -60,8 +60,10 @@ const USER_SELECT = { id: true, name: true, email: true } as const;
 
 const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
 
-const lineOf = (item: { quantity: number; totalPrice: number; product: { title: string } }): EmailOrderLine => ({
-  title: item.product.title,
+const titleOf = (item: { productTitle: string | null; product: { title: string } }) => item.productTitle ?? item.product.title;
+
+const lineOf = (item: { quantity: number; totalPrice: number; productTitle: string | null; product: { title: string } }): EmailOrderLine => ({
+  title: titleOf(item),
   quantity: item.quantity,
   totalPrice: item.totalPrice,
 });
@@ -280,8 +282,8 @@ export const notifyDeliveryConfirmed = (orderItemId: string, by: "BUYER" | "AUTO
       title: "Delivery confirmed",
       message:
         by === "BUYER"
-          ? `The buyer confirmed they received "${item.product.title}" (order ${number}).`
-          : `"${item.product.title}" (order ${number}) was confirmed delivered automatically.`,
+          ? `The buyer confirmed they received "${titleOf(item)}" (order ${number}).`
+          : `"${titleOf(item)}" (order ${number}) was confirmed delivered automatically.`,
       target: { type: "SELLER_ORDER", id: item.order.id },
     });
 
@@ -289,7 +291,7 @@ export const notifyDeliveryConfirmed = (orderItemId: string, by: "BUYER" | "AUTO
       await deliver({
         to: item.order.user,
         title: "Delivery confirmed",
-        message: `We've confirmed delivery of "${item.product.title}" (order ${number}). You can still request a return for ${RETURN_WINDOW_DAYS} days.`,
+        message: `We've confirmed delivery of "${titleOf(item)}" (order ${number}). You can still request a return for ${RETURN_WINDOW_DAYS} days.`,
         target: { type: "ORDER", id: item.order.id },
       });
     }
@@ -328,11 +330,11 @@ export const notifyProblemReported = (orderItemId: string, reason: string) =>
     await deliver({
       to: seller,
       title: "Buyer reported a problem",
-      message: `A return request was opened for "${item.product.title}" (order ${number}).`,
+      message: `A return request was opened for "${titleOf(item)}" (order ${number}).`,
       target: { type: "SELLER_ORDER", id: item.order.id },
       email: {
         subject: `Problem reported on order ${number}`,
-        html: problemReportedEmail({ sellerName: seller.name, orderNumber: number, itemTitle: item.product.title, reason, returnsUrl: sellerReturnsUrl() }),
+        html: problemReportedEmail({ sellerName: seller.name, orderNumber: number, itemTitle: titleOf(item), reason, returnsUrl: sellerReturnsUrl() }),
       },
     });
   });
@@ -345,7 +347,7 @@ export const notifyReturnStatusChanged = (orderItemId: string, status: string) =
     await deliver({
       to: item.order.user,
       title: `Return ${status.toLowerCase()}`,
-      message: `Your return request for "${item.product.title}" (order ${orderNumber(item.order.id)}) was ${status.toLowerCase()}.`,
+      message: `Your return request for "${titleOf(item)}" (order ${orderNumber(item.order.id)}) was ${status.toLowerCase()}.`,
       target: { type: "ORDER", id: item.order.id },
     });
   });

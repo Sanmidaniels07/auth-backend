@@ -2,6 +2,7 @@ import { OrderStatus } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { getSellerStore } from "../seller/seller.utils";
+import { asOrdered } from "../../utils/orderItemSnapshot";
 import {
   REVENUE_STATUSES,
   getStoreAvailableBalance,
@@ -91,7 +92,7 @@ export const getRecentOrdersService = async (
     status: order.status,
     createdAt: order.createdAt,
     customer: order.user,
-    items: order.items,
+    items: order.items.map(asOrdered),
     sellerSubtotal: order.items.reduce(
       (sum, item) => sum + item.totalPrice,
       0

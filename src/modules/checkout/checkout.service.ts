@@ -25,6 +25,7 @@ import { saveCardFromAuthorization } from "../payment-method/payment-method.serv
 import { isPayoutAccountEligibleForSplit, storePickupAddress } from "../store/store.service";
 import { generateDeliveryCode, recordOrderEvent } from "../order/order-delivery";
 import { notifyOrderPaid } from "../order/order-notifications";
+import { snapshotOf } from "../../utils/orderItemSnapshot";
 
 const NAIRA_TO_KOBO = 100;
 const LOW_STOCK_THRESHOLD = 5;
@@ -52,7 +53,11 @@ const buildPendingOrder = async (
     prisma.cart.findUnique({
       where: { userId },
       include: {
-        items: { include: { product: { include: { category: true } } } },
+        items: {
+          include: {
+            product: { include: { category: true, images: true, specifications: true } },
+          },
+        },
       },
     }),
   ]);
@@ -253,6 +258,9 @@ const buildPendingOrder = async (
           // Snapshot the category's current commission rate so a later
           // rate change doesn't retroactively affect this order.
           commissionRate: item.product.category.commissionRate,
+          // What the buyer is paying for - later edits to the listing
+          // don't change it.
+          ...snapshotOf(item.product),
           autoPaidViaSplit: (() => {
             const itemStore = storeById.get(item.product.storeId);
             return !!itemStore && isPayoutAccountEligibleForSplit(itemStore);

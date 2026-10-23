@@ -1285,6 +1285,20 @@ model OrderItem {
   // platform's main account and still needs a manual Payout record.
   autoPaidViaSplit Boolean @default(false)
 
+  // Copy of the listing as the buyer saw it when ordering. Order pages,
+  // emails and disputes use this, so editing the product later never
+  // changes what was bought. Orders placed before snapshots existed were
+  // filled in from the product as it was on 23 Oct 2026.
+  productTitle       String?
+  productImage       String?
+  productDescription String?
+  productBrand       String?
+  productCondition   ProductCondition?
+  productSku         String?
+  productHighlights  String[]          @default([])
+  // [{ name, value }]
+  productSpecs       Json?
+
   status OrderItemStatus @default(PENDING)
 
   shippedAt           DateTime?
