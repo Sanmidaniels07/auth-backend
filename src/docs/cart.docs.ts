@@ -10,7 +10,7 @@
  * /api/cart:
  *   get:
  *     summary: Get the authenticated user's cart
- *     description: Requires authentication. Returns cart items with product details, subtotal and item count. Returns an empty cart if the user has never added anything.
+ *     description: Requires authentication. Returns cart items with product details (including a store summary - id, name, slug, logo), subtotal and item count. Returns an empty cart if the user has never added anything.
  *     tags:
  *       - Cart
  *     security:

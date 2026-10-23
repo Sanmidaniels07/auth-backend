@@ -849,6 +849,7 @@ model Store {
   shippingOptions ShippingOption[]
 
   orderShipments OrderShipping[]
+  orderNotes     OrderSellerNote[]
 
   payouts Payout[]
 
@@ -1166,6 +1167,8 @@ model Order {
 
   shipping OrderShipping[]
 
+  sellerNotes OrderSellerNote[]
+
   returnRequests ReturnRequest[]
 
   couponRedemption CouponRedemption?
@@ -1200,10 +1203,10 @@ model OrderShipping {
   // to mark this store's items delivered (and confirmed) in one step. Never
   // include it in seller-facing queries. Null on orders placed before
   // delivery codes existed.
-  deliveryCode String?
+  deliveryCode         String?
   // Wrong code entries - locked after a few so it can't be guessed; the
   // seller then falls back to marking delivered for the buyer to confirm.
-  deliveryCodeAttempts Int @default(0)
+  deliveryCodeAttempts Int     @default(0)
 
   // True when this fee went straight to the seller's subaccount in the
   // Paystack split. False means the platform received it and still owes it
@@ -1214,6 +1217,26 @@ model OrderShipping {
   createdAt DateTime @default(now())
 
   @@unique([orderId, storeId])
+}
+
+// Optional note the buyer leaves one seller at checkout (extras, sizes,
+// a message for a gift). One per store per order, so in a multi-seller
+// order each seller only sees what was meant for them.
+model OrderSellerNote {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  note String
+
+  createdAt DateTime @default(now())
+
+  @@unique([orderId, storeId])
+  @@index([storeId])
 }
 
 // Append-only history of what happened to an order and when - powers the
@@ -1264,8 +1287,8 @@ model OrderItem {
 
   status OrderItemStatus @default(PENDING)
 
-  shippedAt   DateTime?
-  deliveredAt DateTime?
+  shippedAt           DateTime?
+  deliveredAt         DateTime?
   // Set once receipt is confirmed (see DeliveryConfirmation). Starts the
   // return window. Delivered-but-unconfirmed items auto-confirm after a few days.
   deliveryConfirmedAt DateTime?

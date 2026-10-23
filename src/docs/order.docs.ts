@@ -98,7 +98,7 @@
  * /api/orders/seller:
  *   get:
  *     summary: Get orders containing the authenticated seller's products
- *     description: Requires an existing store. Only shows paid+ orders (unpaid PENDING orders are excluded), and only the seller's own items within each order - not other sellers' items in the same order. The `status` filter matches the seller's own OrderItem status, not the overall order status.
+ *     description: Requires an existing store. Only shows paid+ orders (unpaid PENDING orders are excluded), and only the seller's own items within each order - not other sellers' items in the same order. Each order includes `sellerNotes` holding only the note the buyer left for this store (empty if none). The `status` filter matches the seller's own OrderItem status, not the overall order status.
  *     tags:
  *       - Order
  *     security:
@@ -131,7 +131,7 @@
  * /api/orders/seller/{id}:
  *   get:
  *     summary: Get one order containing the authenticated seller's products
- *     description: Requires an existing store. Returns only the seller's own items within the order.
+ *     description: Requires an existing store. Returns only the seller's own items within the order, plus `sellerNotes` with only the note the buyer left for this store (empty if none).
  *     tags:
  *       - Order
  *     security:

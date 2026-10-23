@@ -7,6 +7,8 @@ const CART_ITEM_INCLUDE = {
   product: {
     include: {
       images: { where: { isPrimary: true }, take: 1 },
+      // Lets checkout group items by seller by name (notes, delivery).
+      store: { select: { id: true, name: true, slug: true, logo: true } },
     },
   },
 };

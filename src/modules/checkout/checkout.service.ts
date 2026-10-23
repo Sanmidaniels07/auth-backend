@@ -34,11 +34,17 @@ interface ShippingSelection {
   shippingOptionId: string;
 }
 
+export interface SellerNoteInput {
+  storeId: string;
+  note: string;
+}
+
 const buildPendingOrder = async (
   userId: string,
   addressId: string,
   shippingSelections: ShippingSelection[],
   couponCode?: string,
+  sellerNotes: SellerNoteInput[] = [],
 ) => {
   const [user, address, cart] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
@@ -217,6 +223,14 @@ const buildPendingOrder = async (
 
   const reference = `NESTLY_${crypto.randomUUID().replace(/-/g, "")}`;
 
+  // Keep only non-empty notes for stores actually in this cart, one each.
+  const noteByStore = new Map<string, string>();
+  for (const { storeId, note } of sellerNotes) {
+    const text = note.trim();
+    if (text && storeIds.includes(storeId)) noteByStore.set(storeId, text);
+  }
+  const noteRows = Array.from(noteByStore, ([storeId, note]) => ({ storeId, note }));
+
   const order = await prisma.order.create({
     data: {
       userId,
@@ -246,6 +260,7 @@ const buildPendingOrder = async (
         })),
       },
       shipping: shippingRows.length > 0 ? { create: shippingRows } : undefined,
+      sellerNotes: noteRows.length > 0 ? { create: noteRows } : undefined,
     },
     include: { items: true, shipping: true },
   });
@@ -364,12 +379,14 @@ export const initiateCheckoutService = async (
   addressId: string,
   shippingSelections: ShippingSelection[] = [],
   couponCode?: string,
+  sellerNotes: SellerNoteInput[] = [],
 ) => {
   const { user, order, reference, total, split } = await buildPendingOrder(
     userId,
     addressId,
     shippingSelections,
     couponCode,
+    sellerNotes,
   );
 
   const paystackData = await initializePaystackTransaction({
@@ -396,6 +413,7 @@ export const checkoutWithSavedCardService = async (
   savedCardId: string,
   shippingSelections: ShippingSelection[] = [],
   couponCode?: string,
+  sellerNotes: SellerNoteInput[] = [],
 ) => {
   const savedCard = await prisma.savedCard.findUnique({
     where: { id: savedCardId },
@@ -410,6 +428,7 @@ export const checkoutWithSavedCardService = async (
     addressId,
     shippingSelections,
     couponCode,
+    sellerNotes,
   );
 
   const chargeResult = await chargeAuthorization({

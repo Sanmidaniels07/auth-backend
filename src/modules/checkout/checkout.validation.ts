@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+export const SELLER_NOTE_MAX = 500;
+
+// Optional per-store note from the buyer (extras, sizes, gift message).
+const sellerNotesSchema = z
+  .array(
+    z.object({
+      storeId: z.string(),
+      note: z.string().trim().max(SELLER_NOTE_MAX, `Notes can be up to ${SELLER_NOTE_MAX} characters.`),
+    })
+  )
+  .max(50)
+  .optional();
+
 export const initiateCheckoutSchema = z.object({
   body: z.object({
     addressId: z.string(),
@@ -12,6 +25,7 @@ export const initiateCheckoutSchema = z.object({
       )
       .optional(),
     couponCode: z.string().trim().optional(),
+    sellerNotes: sellerNotesSchema,
   }),
 });
 
@@ -34,5 +48,6 @@ export const checkoutWithSavedCardSchema = z.object({
       )
       .optional(),
     couponCode: z.string().trim().optional(),
+    sellerNotes: sellerNotesSchema,
   }),
 });
