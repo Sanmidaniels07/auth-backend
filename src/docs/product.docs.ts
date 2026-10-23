@@ -165,6 +165,11 @@
  *         schema:
  *           type: string
  *       - in: query
+ *         name: state
+ *         description: Store's state, e.g. Lagos or Abuja (any common spelling - "Lagos State", "FCT")
+ *         schema:
+ *           type: string
+ *       - in: query
  *         name: sort
  *         schema:
  *           type: string

@@ -18,4 +18,17 @@
  *         description: Sitemap entries fetched successfully
  */
 
+/**
+ * @swagger
+ * /api/seo/catalogue:
+ *   get:
+ *     summary: Categories with live products, and where they're sold
+ *     description: Public. Every category with `productCount` (live products), `updatedAt` (latest product change, null if none) and `states` - [{ name, productCount, updatedAt }] using standard state names, most products first. Builds the public category pages (e.g. Cakes & Pastries in Lagos) and their sitemap entries. Cached for 15 minutes.
+ *     tags:
+ *       - SEO
+ *     responses:
+ *       200:
+ *         description: Catalogue fetched successfully
+ */
+
 export {};

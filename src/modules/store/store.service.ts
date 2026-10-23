@@ -136,6 +136,7 @@ export const createStoreService = async (
   return prisma.store.create({
     data: {
       ...data,
+      state: data.state ? findState(data.state)?.name ?? data.state.trim() : data.state,
       slug,
       sellerId: seller.id,
     },
@@ -185,6 +186,7 @@ export const updateStoreService = async (
     where: { id: storeId },
     data: {
       ...data,
+      state: data.state ? findState(data.state)?.name ?? data.state.trim() : data.state,
       slug,
     },
   });
