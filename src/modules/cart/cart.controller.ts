@@ -27,7 +27,8 @@ export const addToCart = asyncHandler(
     const item = await addToCartService(
       req.user.id,
       req.body.productId,
-      quantity
+      quantity,
+      req.body.variationId
     );
 
     res.status(201).json(

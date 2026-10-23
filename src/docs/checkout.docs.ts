@@ -13,7 +13,7 @@
  *     description: |
  *       Requires authentication. Validates the cart and the given address, creates a PENDING order (snapshotting current cart prices), and starts a Paystack transaction. Stock is NOT decremented and the cart is NOT cleared here - that only happens once payment is confirmed via verify or webhook.
  *
- *       Since a cart can span multiple stores and each store may have its own shipping tiers, `shippingSelections` must include one entry per store in the cart that has shipping options configured (stores with none configured contribute 0 delivery fee automatically). If `couponCode` is provided it's re-validated and applied server-side - the discount is never trusted from the client.
+ *       Since a cart can span multiple stores and each store may have its own shipping tiers, `shippingSelections` must include one entry per store in the cart that has shipping options configured (stores with none configured contribute 0 delivery fee automatically). Only zones whose `vehicle` can carry every product bought from that store (by each product's `deliveryVehicle`; truck > car > bike), zones with no vehicle and pickup can be chosen - otherwise 400. The chosen vehicle is saved on the order's shipping row. If `couponCode` is provided it's re-validated and applied server-side - the discount is never trusted from the client.
  *     tags:
  *       - Checkout
  *     security:

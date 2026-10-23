@@ -4,11 +4,13 @@ import {
   OrderEventType,
   OrderItemStatus,
   OrderStatus,
+  Prisma,
   ReturnRequestStatus,
 } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
+import { asOrdered, listingChangedSince } from "../../utils/orderItemSnapshot";
 import { getSellerStore } from "../seller/seller.utils";
 import {
   MAX_DELIVERY_CODE_ATTEMPTS,
@@ -116,6 +118,13 @@ const CUSTOMER_ORDER_INCLUDE = {
         select: {
           id: true,
           title: true,
+          // Current listing - only compared with the order's copy (see
+          // asOrderedForBuyer), then dropped from the response.
+          description: true,
+          brand: true,
+          condition: true,
+          highlights: true,
+          specifications: { select: { name: true, value: true } },
           images: {
             where: { isPrimary: true },
             take: 1,
@@ -136,6 +145,15 @@ const CUSTOMER_ORDER_INCLUDE = {
     orderBy: { createdAt: "asc" as const },
     select: { id: true, orderItemId: true, type: true, actor: true, note: true, createdAt: true },
   },
+};
+
+// The item as ordered, plus whether the seller has changed the listing since.
+const asOrderedForBuyer = <T extends Prisma.OrderItemGetPayload<{ include: typeof CUSTOMER_ORDER_INCLUDE.items.include }>>(
+  item: T
+) => {
+  const { description, brand, condition, highlights, specifications, ...product } = item.product;
+  const listingChanged = listingChangedSince(item, { ...item.product, images: item.product.images });
+  return { ...asOrdered({ ...item, product }), listingChanged };
 };
 
 // Per-item delivery state the buyer's order page needs.
@@ -176,7 +194,7 @@ export const getCustomerOrdersService = async (
   ]);
 
   return {
-    orders,
+    orders: orders.map((order) => ({ ...order, items: order.items.map(asOrderedForBuyer) })),
     total,
     page,
     limit,
@@ -199,7 +217,7 @@ export const getCustomerOrderByIdService = async (
 
   return {
     ...order,
-    items: order.items.map(withDeliveryState),
+    items: order.items.map(asOrderedForBuyer).map(withDeliveryState),
     timeline: buildOrderTimeline(order),
   };
 };
@@ -255,6 +273,12 @@ export const cancelOrderService = async (
           where: { id: item.productId },
           data: { stock: { increment: item.quantity } },
         });
+        if (item.variationId) {
+          await tx.productVariation.update({
+            where: { id: item.variationId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
       }
     }
 
@@ -306,7 +330,7 @@ export const getSellerOrdersService = async (
         // buyer's delivery code.
         shipping: {
           where: { storeId: store.id },
-          select: { type: true, optionName: true, fee: true, eta: true, pickupAddress: true },
+          select: { type: true, optionName: true, fee: true, eta: true, pickupAddress: true, vehicle: true },
         },
         // Only the note the buyer left for this store.
         sellerNotes: { where: { storeId: store.id }, select: { note: true } },
@@ -331,7 +355,7 @@ export const getSellerOrdersService = async (
   ]);
 
   return {
-    orders,
+    orders: orders.map((order) => ({ ...order, items: order.items.map(asOrdered) })),
     total,
     page,
     limit,
@@ -357,7 +381,7 @@ export const getSellerOrderByIdService = async (
       // buyer's delivery code.
       shipping: {
         where: { storeId: store.id },
-        select: { type: true, optionName: true, fee: true, eta: true, pickupAddress: true },
+        select: { type: true, optionName: true, fee: true, eta: true, pickupAddress: true, vehicle: true },
       },
       // Only the note the buyer left for this store.
       sellerNotes: { where: { storeId: store.id }, select: { note: true } },
@@ -384,7 +408,7 @@ export const getSellerOrderByIdService = async (
     throw new AppError("Order not found.", 404);
   }
 
-  return order;
+  return { ...order, items: order.items.map(asOrdered) };
 };
 
 export const updateOrderItemStatusService = async (

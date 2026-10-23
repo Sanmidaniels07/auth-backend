@@ -10,7 +10,7 @@
  * /api/products:
  *   post:
  *     summary: Create a product
- *     description: Creates a product under the authenticated seller's store. Requires authentication, an APPROVED seller profile, and an existing store. Accepts nested images, specifications and variants.
+ *     description: Creates a product under the authenticated seller's store. Requires authentication, an APPROVED seller profile, and an existing store. Accepts nested images, specifications, and optional options/variations (e.g. Size x Colour, each combination with its own stock and optional price).
  *     tags:
  *       - Product
  *     security:
@@ -42,6 +42,11 @@
  *               condition:
  *                 type: string
  *                 enum: [NEW, USED, REFURBISHED]
+ *               deliveryVehicle:
+ *                 type: string
+ *                 enum: [BIKE, CAR, TRUCK]
+ *                 default: BIKE
+ *                 description: The smallest vehicle that can deliver this product. At checkout buyers only see the store's delivery zones with a vehicle at least this big (plus pickup and zones with no vehicle set).
  *               price:
  *                 type: number
  *               originalPrice:
@@ -73,19 +78,42 @@
  *                       type: string
  *                     value:
  *                       type: string
- *               variants:
+ *               options:
  *                 type: array
+ *                 maxItems: 2
+ *                 description: Optional choices buyers make, e.g. Size and Colour (at most 2). Send together with variations; [] removes options. Leave both out to keep the product's options as they are.
  *                 items:
  *                   type: object
+ *                   required: [name, values]
  *                   properties:
  *                     name:
  *                       type: string
- *                     value:
+ *                       example: Size
+ *                     values:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: [Small, Medium, Large]
+ *               variations:
+ *                 type: array
+ *                 description: One per combination of option values. option2 only when there are 2 options. price null/omitted uses the product price. isActive false hides a combination from buyers. With options, the product's stock becomes the total of active combinations. Combinations removed here are deleted, or archived if they already have orders.
+ *                 items:
+ *                   type: object
+ *                   required: [option1, stock]
+ *                   properties:
+ *                     option1:
  *                       type: string
+ *                       example: Large
+ *                     option2:
+ *                       type: string
+ *                       example: Vanilla
  *                     price:
  *                       type: number
+ *                       nullable: true
  *                     stock:
  *                       type: integer
+ *                     isActive:
+ *                       type: boolean
  *     responses:
  *       201:
  *         description: Product created successfully
@@ -397,7 +425,7 @@
  *         description: Product not found
  *   patch:
  *     summary: Update a product
- *     description: Updates a product owned by the authenticated seller. Requires authentication and ownership. Also used to manage inventory (`stock`) and publishing (`status`) - there are no separate endpoints for these. Providing `images`, `specifications`, or `variants` replaces the existing set entirely.
+ *     description: Updates a product owned by the authenticated seller. Requires authentication and ownership. Also used to manage inventory (`stock`) and publishing (`status`) - there are no separate endpoints for these. Providing `images` or `specifications` replaces the existing set entirely; `options` + `variations` (sent together) replace the product's options. While a product has options, a plain `stock` value is ignored - stock is the total of its active combinations. Every save that changes something is logged for admins (see GET /api/admin/products/{id}/history); a new category or a mostly different title also sets `reviewsResetAt`, marking earlier reviews as for an earlier version.
  *     tags:
  *       - Product
  *     security:
@@ -428,6 +456,11 @@
  *               condition:
  *                 type: string
  *                 enum: [NEW, USED, REFURBISHED]
+ *               deliveryVehicle:
+ *                 type: string
+ *                 enum: [BIKE, CAR, TRUCK]
+ *                 default: BIKE
+ *                 description: The smallest vehicle that can deliver this product. At checkout buyers only see the store's delivery zones with a vehicle at least this big (plus pickup and zones with no vehicle set).
  *               status:
  *                 type: string
  *                 enum: [DRAFT, PUBLISHED, OUT_OF_STOCK, ARCHIVED]
@@ -452,10 +485,42 @@
  *                 type: array
  *                 items:
  *                   type: object
- *               variants:
+ *               options:
  *                 type: array
+ *                 maxItems: 2
+ *                 description: Optional choices buyers make, e.g. Size and Colour (at most 2). Send together with variations; [] removes options. Leave both out to keep the product's options as they are.
  *                 items:
  *                   type: object
+ *                   required: [name, values]
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                       example: Size
+ *                     values:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: [Small, Medium, Large]
+ *               variations:
+ *                 type: array
+ *                 description: One per combination of option values. option2 only when there are 2 options. price null/omitted uses the product price. isActive false hides a combination from buyers. With options, the product's stock becomes the total of active combinations. Combinations removed here are deleted, or archived if they already have orders.
+ *                 items:
+ *                   type: object
+ *                   required: [option1, stock]
+ *                   properties:
+ *                     option1:
+ *                       type: string
+ *                       example: Large
+ *                     option2:
+ *                       type: string
+ *                       example: Vanilla
+ *                     price:
+ *                       type: number
+ *                       nullable: true
+ *                     stock:
+ *                       type: integer
+ *                     isActive:
+ *                       type: boolean
  *     responses:
  *       200:
  *         description: Product updated successfully

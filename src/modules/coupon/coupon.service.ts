@@ -2,6 +2,7 @@ import { CouponType } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
+import { unitPriceOf } from "../../utils/productOptions";
 
 interface CreateCouponInput {
   code: string;
@@ -89,7 +90,7 @@ export const validateCouponAgainstCartService = async (
 ) => {
   const cart = await prisma.cart.findUnique({
     where: { userId },
-    include: { items: { include: { product: true } } },
+    include: { items: { include: { product: true, variation: true } } },
   });
 
   if (!cart || cart.items.length === 0) {
@@ -97,7 +98,7 @@ export const validateCouponAgainstCartService = async (
   }
 
   const subtotal = cart.items.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+    (sum, item) => sum + unitPriceOf(item.product, item.variation) * item.quantity,
     0
   );
 

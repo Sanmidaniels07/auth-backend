@@ -74,3 +74,22 @@ export const listSellersAdminSchema = z.object({
     status: z.nativeEnum(SellerStatus).optional(),
   }),
 });
+
+export const listProductsAdminSchema = z.object({
+  query: z.object({
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    // Title, SKU or store name.
+    search: z.string().trim().max(100).optional(),
+  }),
+});
+
+export const productHistoryAdminSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+  query: z.object({
+    page: z.string().optional(),
+    limit: z.string().optional(),
+  }),
+});

@@ -65,6 +65,14 @@ enum ShippingOptionType {
   PICKUP
 }
 
+// What a seller delivers with, smallest to largest. A bigger vehicle can
+// carry anything a smaller one can.
+enum DeliveryVehicle {
+  BIKE
+  CAR
+  TRUCK
+}
+
 // How a delivered item's receipt was confirmed: the seller entered the
 // buyer's delivery code at handover, the buyer confirmed in-app, or it
 // auto-confirmed after the buyer didn't respond.
@@ -204,6 +212,8 @@ model User {
   addresses Address[]
 
   reviews Review[]
+
+  productRevisions ProductRevision[]
 
   // Social
   following Follow[] @relation("Follower")
@@ -930,6 +940,11 @@ model ShippingOption {
   // Pickup only: where buyers collect. Falls back to the store's address.
   pickupAddress String?
 
+  // Delivery only: what this zone's price is for (dispatch bike, car or
+  // truck). Null on zones made before vehicles existed - they're offered
+  // for every product, as before.
+  vehicle DeliveryVehicle?
+
   // Archived zones are hidden from buyers but kept for the seller to restore.
   isArchived Boolean @default(false)
 
@@ -981,6 +996,10 @@ model Product {
 
   condition ProductCondition @default(NEW)
 
+  // The smallest vehicle that can deliver it. Buyers only see delivery
+  // zones whose vehicle is at least this big. Bike fits every zone.
+  deliveryVehicle DeliveryVehicle @default(BIKE)
+
   status ProductStatus @default(DRAFT)
 
   isFeatured Boolean @default(false)
@@ -997,13 +1016,28 @@ model Product {
 
   specifications ProductSpecification[]
 
-  variants ProductVariant[]
+  // Old free-form name/value rows from before options existed. Never shown
+  // to buyers; kept so no seller data is lost.
+  legacyVariants LegacyProductVariant[]
+
+  // Up to two options (e.g. Size, Colour) and one variation per
+  // combination. Products without options have neither.
+  options    ProductOption[]
+  variations ProductVariation[]
 
   wishlist Wishlist[]
 
   recentlyViewed RecentlyViewed[]
 
   reviews Review[]
+
+  // Set when the seller turns the listing into something different (new
+  // category or a mostly different title). Reviews written before it are
+  // labelled as for an earlier version and left out of the rating.
+  reviewsResetAt DateTime?
+
+  // Admin-only log of the seller's edits.
+  revisions ProductRevision[]
 
   orderItems OrderItem[]
 
@@ -1037,7 +1071,30 @@ model ProductSpecification {
   value String
 }
 
-model ProductVariant {
+// One saved edit to a product: what changed, who did it and when. Shown to
+// admins for disputes and spotting sellers who switch listings around.
+// Stock changes from orders aren't recorded - only edits.
+model ProductRevision {
+  id String @id @default(cuid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  editedById String?
+  editedBy   User?   @relation(fields: [editedById], references: [id], onDelete: SetNull)
+
+  // [{ field, from, to }] - readable values ("₦2,000", "Size: S, M").
+  changes Json
+
+  // This edit marked earlier reviews as for an earlier version.
+  reviewsReset Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([productId, createdAt])
+}
+
+model LegacyProductVariant {
   id String @id @default(cuid())
 
   productId String
@@ -1050,6 +1107,60 @@ model ProductVariant {
   price Float?
 
   stock Int @default(0)
+
+  @@map("ProductVariant")
+}
+
+// A choice buyers make on a product, e.g. Size: [Small, Medium, Large].
+model ProductOption {
+  id String @id @default(cuid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  name String
+
+  // In the order buyers see them.
+  values String[]
+
+  // 0 or 1 - which option this is (option1/option2 on a variation).
+  position Int
+
+  @@unique([productId, position])
+}
+
+// One sellable combination of a product's options (e.g. Large / Vanilla),
+// with its own stock and optionally its own price. The product's stock is
+// kept as the total of its active variations.
+model ProductVariation {
+  id String @id @default(cuid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  option1 String
+  // "" when the product has a single option.
+  option2 String @default("")
+
+  // Null uses the product's price.
+  price Float?
+
+  stock Int @default(0)
+
+  // Seller switched this combination off (not sold).
+  isActive Boolean @default(true)
+
+  // Removed by the seller but kept because orders point at it. Hidden
+  // from buyers.
+  isArchived Boolean @default(false)
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, option1, option2])
 }
 
 model Wishlist {
@@ -1101,11 +1212,15 @@ model CartItem {
   productId String
   product   Product @relation(fields: [productId], references: [id])
 
+  // Set when the product has options - which combination the buyer chose.
+  variationId String?
+  variation   ProductVariation? @relation(fields: [variationId], references: [id], onDelete: Cascade)
+
   quantity Int @default(1)
 
   createdAt DateTime @default(now())
 
-  @@unique([cartId, productId])
+  @@index([cartId, productId])
 }
 
 model Address {
@@ -1198,6 +1313,8 @@ model OrderShipping {
   // where to collect them.
   type          ShippingOptionType @default(DELIVERY)
   pickupAddress String?
+  // Snapshot of the zone's vehicle (null = not specified / pickup).
+  vehicle       DeliveryVehicle?
 
   // 6-digit code only the buyer can see. The seller enters it at handover
   // to mark this store's items delivered (and confirmed) in one step. Never
@@ -1284,6 +1401,24 @@ model OrderItem {
   // one configured at the time). False means the money is sitting in the
   // platform's main account and still needs a manual Payout record.
   autoPaidViaSplit Boolean @default(false)
+
+  // Copy of the listing as the buyer saw it when ordering. Order pages,
+  // emails and disputes use this, so editing the product later never
+  // changes what was bought. Orders placed before snapshots existed were
+  // filled in from the product as it was on 23 Oct 2026.
+  productTitle       String?
+  productImage       String?
+  productDescription String?
+  productBrand       String?
+  productCondition   ProductCondition?
+  productSku         String?
+  productHighlights  String[]          @default([])
+  // The buyer's choice, e.g. "Size: Large · Flavour: Vanilla".
+  variantLabel       String?
+  variationId        String?
+  variation          ProductVariation? @relation(fields: [variationId], references: [id], onDelete: SetNull)
+  // [{ name, value }]
+  productSpecs       Json?
 
   status OrderItemStatus @default(PENDING)
 

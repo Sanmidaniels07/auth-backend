@@ -10,7 +10,7 @@
  * /api/orders:
  *   get:
  *     summary: Get the authenticated customer's orders
- *     description: Paginated, optionally filtered by order status.
+ *     description: Paginated, optionally filtered by order status. Items show the listing as it was ordered (see GET /api/orders/{id}).
  *     tags:
  *       - Order
  *     security:
@@ -47,6 +47,7 @@
  *       - `events` - the raw history (PAID, SHIPPED, DELIVERED, CONFIRMED, CANCELLED, PROBLEM_REPORTED...), with the actor (BUYER, SELLER, SYSTEM).
  *       - `shipping[].deliveryCode` - the buyer's 6-digit code per seller, to hand over on delivery. Never exposed to sellers.
  *       - per item: `shippedAt`, `deliveredAt`, `deliveryConfirmedAt`, `deliveryConfirmedBy` (CODE, BUYER, AUTO), `awaitingConfirmation` and `returnWindowEndsAt` (7 days after confirmation).
+ *       - per item: the listing as it was ordered - `productTitle`, `productImage`, `productDescription`, `productBrand`, `productCondition`, `productSku`, `productHighlights`, `productSpecs` ([{ name, value }]), and for products with options `variantLabel` (e.g. "Size: Large · Flavour: Vanilla") and `variationId`. `product.title`/`product.images` show this copy too; `product.id` still points at the live listing. `listingChanged` is true when the seller has edited the listing since (price changes excluded - the paid price is locked).
  *     tags:
  *       - Order
  *     security:
@@ -131,7 +132,7 @@
  * /api/orders/seller/{id}:
  *   get:
  *     summary: Get one order containing the authenticated seller's products
- *     description: Requires an existing store. Returns only the seller's own items within the order, plus `sellerNotes` with only the note the buyer left for this store (empty if none).
+ *     description: Requires an existing store. Returns only the seller's own items within the order (shown as they were ordered - productTitle, productImage etc. - even if the listing was edited since), plus `sellerNotes` with only the note the buyer left for this store (empty if none).
  *     tags:
  *       - Order
  *     security:

@@ -10,7 +10,7 @@
  * /api/cart:
  *   get:
  *     summary: Get the authenticated user's cart
- *     description: Requires authentication. Returns cart items with product details (including a store summary - id, name, slug, logo), subtotal and item count. Returns an empty cart if the user has never added anything.
+ *     description: Requires authentication. Returns cart items with product details (including a store summary - id, name, slug, logo), subtotal and item count. Each item also has `unitPrice` (the chosen option's price, else the product's), `variantLabel` (e.g. "Size: Large · Flavour: Vanilla", null without options) and `variation`. Returns an empty cart if the user has never added anything.
  *     tags:
  *       - Cart
  *     security:
@@ -22,7 +22,7 @@
  *         description: Unauthorized - no or invalid token
  *   post:
  *     summary: Add a product to the cart
- *     description: Requires authentication. Creates the user's cart on first use. If the product is already in the cart, increases its quantity instead of duplicating the entry. Fails if the requested quantity exceeds available stock.
+ *     description: Requires authentication. Creates the user's cart on first use. If the same product (and same option) is already in the cart, increases its quantity instead of duplicating the entry - the same product in two options is two lines. Products with options require `variationId`. Fails if the requested quantity exceeds the available stock of the product or chosen option.
  *     tags:
  *       - Cart
  *     security:
@@ -38,6 +38,9 @@
  *             properties:
  *               productId:
  *                 type: string
+ *               variationId:
+ *                 type: string
+ *                 description: The chosen combination - required when the product has options.
  *               quantity:
  *                 type: integer
  *                 default: 1
@@ -45,7 +48,7 @@
  *       201:
  *         description: Product added to cart
  *       400:
- *         description: Product unavailable or requested quantity exceeds stock
+ *         description: Product or option unavailable, no option chosen for a product with options, or requested quantity exceeds stock
  *       401:
  *         description: Unauthorized - no or invalid token
  *       404:
@@ -66,6 +69,7 @@
  *       - in: path
  *         name: productId
  *         required: true
+ *         description: The cart item's id. A product id also works when that product is in the cart only once.
  *         schema:
  *           type: string
  *     requestBody:
@@ -99,6 +103,7 @@
  *       - in: path
  *         name: productId
  *         required: true
+ *         description: The cart item's id. A product id also works when that product is in the cart only once.
  *         schema:
  *           type: string
  *     responses:

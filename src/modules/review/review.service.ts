@@ -166,6 +166,15 @@ export const getProductReviewsService = async (
 ) => {
   const skip = (page - 1) * limit;
 
+  // Reviews from before the seller turned the listing into a different
+  // product are still shown, but labelled and left out of the rating.
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { reviewsResetAt: true },
+  });
+  const resetAt = product?.reviewsResetAt ?? null;
+  const current = resetAt ? { productId, createdAt: { gte: resetAt } } : { productId };
+
   const [reviews, total, aggregate] = await Promise.all([
     prisma.review.findMany({
       where: { productId },
@@ -178,18 +187,24 @@ export const getProductReviewsService = async (
     }),
     prisma.review.count({ where: { productId } }),
     prisma.review.aggregate({
-      where: { productId },
+      where: current,
       _avg: { rating: true },
+      _count: { _all: true },
     }),
   ]);
 
   return {
-    reviews,
+    reviews: reviews.map((review) => ({
+      ...review,
+      earlierVersion: !!resetAt && review.createdAt < resetAt,
+    })),
     total,
     page,
     limit,
     totalPages: Math.ceil(total / limit),
     averageRating: aggregate._avg.rating ?? 0,
+    ratingCount: aggregate._count._all,
+    earlierVersionCount: total - aggregate._count._all,
   };
 };
 

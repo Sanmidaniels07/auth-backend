@@ -8,6 +8,7 @@ import {
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { getSellerStore } from "../seller/seller.utils";
+import { asOrdered } from "../../utils/orderItemSnapshot";
 import { RETURN_WINDOW_DAYS, recordOrderEvent, returnWindowEndsAt } from "../order/order-delivery";
 import { notifyProblemReported, notifyReturnStatusChanged } from "../order/order-notifications";
 
@@ -128,7 +129,7 @@ export const getCustomerReturnRequestsService = async (
   ]);
 
   return {
-    returns,
+    returns: returns.map((entry) => ({ ...entry, orderItem: entry.orderItem && asOrdered(entry.orderItem) })),
     total,
     page,
     limit,
@@ -171,7 +172,7 @@ export const getSellerReturnRequestsService = async (
   ]);
 
   return {
-    returns,
+    returns: returns.map((entry) => ({ ...entry, orderItem: entry.orderItem && asOrdered(entry.orderItem) })),
     total,
     page,
     limit,

@@ -292,6 +292,10 @@
  *                 type: string
  *                 maxLength: 300
  *                 description: Pickup only - where buyers collect
+ *               vehicle:
+ *                 type: string
+ *                 enum: [BIKE, CAR, TRUCK]
+ *                 description: Delivery only - what this price is for (dispatch bike, car or truck). Buyers only see zones whose vehicle can carry everything they're buying from the store (bigger carries smaller). Omitted = not specified, offered for every product. The same areas can be priced once per vehicle.
  *           example:
  *             fee: 2500
  *             eta: "Same day"
@@ -402,6 +406,11 @@
  *                 type: string
  *                 nullable: true
  *                 description: Pickup only; null falls back to the store's address
+ *               vehicle:
+ *                 type: string
+ *                 enum: [BIKE, CAR, TRUCK]
+ *                 nullable: true
+ *                 description: Delivery only; null = not specified (offered for every product). Cleared for pickup.
  *               isArchived:
  *                 type: boolean
  *           example:

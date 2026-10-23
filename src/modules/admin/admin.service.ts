@@ -299,3 +299,109 @@ export const updateSellerStatusService = async (
 
   return updated;
 };
+
+/**
+ * Products in any status (drafts and archived too), newest edit first,
+ * with how many times each has been edited. Search matches the title, SKU
+ * or store name.
+ */
+export const listProductsAdminService = async (
+  page: number,
+  limit: number,
+  search?: string
+) => {
+  const skip = (page - 1) * limit;
+  const where: any = {};
+
+  if (search) {
+    where.OR = [
+      { title: { contains: search, mode: "insensitive" } },
+      { sku: { contains: search, mode: "insensitive" } },
+      { store: { name: { contains: search, mode: "insensitive" } } },
+    ];
+  }
+
+  const [products, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        sku: true,
+        status: true,
+        price: true,
+        updatedAt: true,
+        reviewsResetAt: true,
+        images: { where: { isPrimary: true }, take: 1, select: { url: true } },
+        store: { select: { id: true, name: true, slug: true } },
+        _count: { select: { revisions: true, reviews: true } },
+      },
+    }),
+    prisma.product.count({ where }),
+  ]);
+
+  return {
+    products,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+};
+
+/**
+ * Every saved edit to one product - what changed, who made it and when -
+ * newest first. For disputes and spotting sellers who switch listings.
+ */
+export const getProductHistoryAdminService = async (
+  productId: string,
+  page: number,
+  limit: number
+) => {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      createdAt: true,
+      reviewsResetAt: true,
+      store: { select: { id: true, name: true, slug: true } },
+    },
+  });
+
+  if (!product) {
+    throw new AppError("Product not found.", 404);
+  }
+
+  const skip = (page - 1) * limit;
+
+  const [revisions, total] = await Promise.all([
+    prisma.productRevision.findMany({
+      where: { productId },
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        changes: true,
+        reviewsReset: true,
+        createdAt: true,
+        editedBy: { select: { id: true, name: true, username: true } },
+      },
+    }),
+    prisma.productRevision.count({ where: { productId } }),
+  ]);
+
+  return {
+    product,
+    revisions,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+};
