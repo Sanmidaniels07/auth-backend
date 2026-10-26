@@ -4,6 +4,7 @@ import { DeliveryVehicle, ShippingOptionType } from "@prisma/client";
 import prisma from "../../prisma/prisma";
 import { findState } from "../../data/nigeria-locations";
 import { isAdminUser } from "../../utils/isAdmin";
+import { generateReferralCode } from "../../utils/referral";
 import { AppError } from "../../utils/appError";
 import { generateUniqueSlug } from "../../utils/slugify";
 import { getApprovedSellerProfile } from "../seller/seller.utils";
@@ -140,6 +141,7 @@ export const createStoreService = async (
       state: data.state ? findState(data.state)?.name ?? data.state.trim() : data.state,
       slug,
       sellerId: seller.id,
+      referralCode: await generateReferralCode(),
     },
   });
 };

@@ -10,6 +10,8 @@ export const signupSchema = z.object({
     password: z.string().min(6),
     // Optional - powers birthday reminders for the people who follow you.
     dateOfBirth: optionalDateOfBirthField,
+    // Seller share link they arrived through (?ref=CODE), if any.
+    referralCode: z.string().trim().max(20).optional(),
   }),
 });
 

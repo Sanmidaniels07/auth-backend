@@ -29,6 +29,7 @@ import { notifyOrderPaid } from "../order/order-notifications";
 import { snapshotOf } from "../../utils/orderItemSnapshot";
 import { unitPriceOf, variationLabel } from "../../utils/productOptions";
 import { VEHICLE_LABEL, canCarry, requiredVehicle } from "../../utils/deliveryVehicle";
+import { referralCommission, referralRewardApplies } from "../../utils/referral";
 
 const NAIRA_TO_KOBO = 100;
 const LOW_STOCK_THRESHOLD = 5;
@@ -130,8 +131,23 @@ const buildPendingOrder = async (
 
   const stores = await prisma.store.findMany({
     where: { id: { in: storeIds } },
-    include: { shippingOptions: { where: { isArchived: false } } },
+    include: {
+      shippingOptions: { where: { isArchived: false } },
+      seller: { select: { userId: true } },
+    },
   });
+
+  // Buyers who joined through a store's share link: that store pays less
+  // commission on their orders for a while.
+  const rewardedStores = new Set(
+    stores
+      .filter((store) => referralRewardApplies(user, { id: store.id, sellerUserId: store.seller.userId }))
+      .map((store) => store.id),
+  );
+  const commissionOf = (item: (typeof cart.items)[number]) =>
+    rewardedStores.has(item.product.storeId)
+      ? referralCommission(item.product.category.commissionRate)
+      : item.product.category.commissionRate;
 
   const shippingRows: {
     storeId: string;
@@ -233,7 +249,7 @@ const buildPendingOrder = async (
     const net =
       priceOf(item) *
       item.quantity *
-      (1 - item.product.category.commissionRate / 100);
+      (1 - commissionOf(item) / 100);
 
     netKoboByStore.set(
       store.id,
@@ -314,7 +330,8 @@ const buildPendingOrder = async (
           totalPrice: priceOf(item) * item.quantity,
           // Snapshot the category's current commission rate so a later
           // rate change doesn't retroactively affect this order.
-          commissionRate: item.product.category.commissionRate,
+          commissionRate: commissionOf(item),
+          referralReward: rewardedStores.has(item.product.storeId),
           // What the buyer is paying for - later edits to the listing
           // don't change it.
           ...snapshotOf(item.product),
