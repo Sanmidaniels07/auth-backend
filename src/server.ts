@@ -7,6 +7,7 @@ import { initSocket } from "./socket";
 import { startAutoConfirmDeliveriesJob } from "./jobs/auto-confirm-deliveries.job";
 import { startBirthdayRemindersJob } from "./jobs/birthday-reminders.job";
 import { startSellerRemindersJob } from "./jobs/seller-reminders.job";
+import { startShoppingAlertsJob } from "./jobs/shopping-alerts.job";
 
 const PORT = process.env.PORT || 5000;
 
@@ -22,4 +23,5 @@ server.listen(PORT, () => {
   startAutoConfirmDeliveriesJob();
   startBirthdayRemindersJob();
   startSellerRemindersJob();
+  startShoppingAlertsJob();
 });

@@ -5,6 +5,7 @@ import {
   OrderItemStatus,
   OrderStatus,
   Prisma,
+  ProductStatus,
   ReturnRequestStatus,
 } from "@prisma/client";
 
@@ -280,6 +281,12 @@ export const cancelOrderService = async (
           });
         }
       }
+
+      // Anything that sold out because of this order is on sale again.
+      await tx.product.updateMany({
+        where: { id: { in: order.items.map((item) => item.productId) }, status: ProductStatus.OUT_OF_STOCK, stock: { gt: 0 } },
+        data: { status: ProductStatus.PUBLISHED },
+      });
     }
 
     await recordOrderEvent(tx, {

@@ -53,8 +53,6 @@
  *                 type: number
  *               stock:
  *                 type: integer
- *               isFeatured:
- *                 type: boolean
  *               highlights:
  *                 type: array
  *                 maxItems: 10
@@ -184,7 +182,7 @@
  * /api/products/featured:
  *   get:
  *     summary: Get featured products
- *     description: Returns published products marked as featured (`isFeatured = true`). Public endpoint.
+ *     description: Returns published products marked as featured (`isFeatured = true`). Public endpoint. Only admins can feature a product (PATCH /api/admin/products/{id}/featured). Only admins can feature a product (PATCH /api/admin/products/{id}/featured).
  *     tags:
  *       - Product
  *     security: []
@@ -413,7 +411,7 @@
  * /api/products/{id}:
  *   get:
  *     summary: Get a published product by id
- *     description: Public endpoint. Only returns products with status PUBLISHED. Products of a suspended store return 404, except to admins (send their token), who can still review them - store.isSuspended tells them. `store.canDeliver` is false when the store has no delivery zone and no pickup point - the product can be viewed but not added to a cart.
+ *     description: Public endpoint. Returns products with status PUBLISHED or OUT_OF_STOCK (sold-out pages stay viewable so buyers can ask to be told when they're back - see /api/stock-alerts); listings and search only include PUBLISHED. Products of a suspended store return 404, except to admins (send their token), who can still review them - store.isSuspended tells them. `store.canDeliver` is false when the store has no delivery zone and no pickup point - the product can be viewed but not added to a cart.
  *     tags:
  *       - Product
  *     security: []
@@ -475,8 +473,6 @@
  *                 type: number
  *               stock:
  *                 type: integer
- *               isFeatured:
- *                 type: boolean
  *               highlights:
  *                 type: array
  *                 maxItems: 10

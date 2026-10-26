@@ -90,3 +90,49 @@ export const getCatalogueService = async () => {
     }),
   };
 };
+
+/**
+ * Everything Google Merchant Center needs to list live products in Google
+ * Shopping (free listings): one entry per product, with its images, price
+ * (and the compare-at price when it's on sale), stock, condition, brand,
+ * category and store. The website serves it as an XML feed.
+ */
+export const getMerchantFeedService = async () => {
+  const products = await prisma.product.findMany({
+    where: { status: { in: [ProductStatus.PUBLISHED, ProductStatus.OUT_OF_STOCK] }, store: { isSuspended: false } },
+    orderBy: { updatedAt: "desc" },
+    take: MAX_ENTRIES,
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      price: true,
+      originalPrice: true,
+      stock: true,
+      status: true,
+      condition: true,
+      brand: true,
+      updatedAt: true,
+      images: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }], take: 10, select: { url: true } },
+      category: { select: { name: true } },
+      store: { select: { name: true } },
+      // Products with options: the cheapest active one is the "from" price.
+      variations: { where: { isActive: true, isArchived: false }, select: { price: true, stock: true } },
+    },
+  });
+
+  return products
+    .filter((product) => product.images.length > 0)
+    .map(({ variations, images, category, store, ...product }) => {
+      const prices = variations.map((v) => v.price ?? product.price);
+      const stock = variations.length > 0 ? variations.reduce((sum, v) => sum + v.stock, 0) : product.stock;
+      return {
+        ...product,
+        price: prices.length > 0 ? Math.min(...prices) : product.price,
+        inStock: product.status === ProductStatus.PUBLISHED && stock > 0,
+        images: images.map((image) => image.url),
+        category: category.name,
+        storeName: store.name,
+      };
+    });
+};

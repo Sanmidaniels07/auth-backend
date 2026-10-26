@@ -11,6 +11,7 @@ import {
   listSellersAdminService,
   listProductsAdminService,
   getProductHistoryAdminService,
+  setProductFeaturedAdminService,
   updateSellerStatusService,
   setSellerVerifiedService,
 } from "./admin.service";
@@ -137,6 +138,16 @@ export const getProductHistoryAdmin = asyncHandler(
 
     res.status(200).json(
       apiResponse(result, "Product history fetched successfully")
+    );
+  }
+);
+
+export const setProductFeatured = asyncHandler(
+  async (req: Request<IdParams>, res: Response) => {
+    const product = await setProductFeaturedAdminService(req.params.id, req.body.isFeatured);
+
+    res.status(200).json(
+      apiResponse(product, product.isFeatured ? "Product featured" : "Product no longer featured")
     );
   }
 );

@@ -12,6 +12,7 @@ import {
   setSellerVerifiedSchema,
   listProductsAdminSchema,
   productHistoryAdminSchema,
+  setProductFeaturedSchema,
 } from "./admin.validation";
 import {
   updateUserRole,
@@ -22,6 +23,7 @@ import {
   setSellerVerified,
   listProductsAdmin,
   getProductHistoryAdmin,
+  setProductFeatured,
 } from "./admin.controller";
 
 const router = Router();
@@ -74,6 +76,12 @@ router.get(
   "/products/:id/history",
   validate(productHistoryAdminSchema),
   getProductHistoryAdmin
+);
+
+router.patch(
+  "/products/:id/featured",
+  validate(setProductFeaturedSchema),
+  setProductFeatured
 );
 
 export default router;

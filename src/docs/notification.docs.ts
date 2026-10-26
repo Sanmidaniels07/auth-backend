@@ -90,7 +90,7 @@
  *             properties:
  *               type:
  *                 type: string
- *                 enum: [LIKE, COMMENT, FOLLOW, MESSAGE, ORDER, SYSTEM]
+ *                 enum: [LIKE, COMMENT, FOLLOW, MESSAGE, ORDER, SYSTEM, SHOPPING]
  *               enabled:
  *                 type: boolean
  *     responses:

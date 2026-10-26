@@ -31,4 +31,17 @@
  *         description: Catalogue fetched successfully
  */
 
+/**
+ * @swagger
+ * /api/seo/merchant-feed:
+ *   get:
+ *     summary: Products for the Google Merchant Center feed
+ *     description: Public. Live products (published or sold out, store not suspended) with at least one image - id, title, description, price (the cheapest active option for products with options), originalPrice (compare-at, when on sale), inStock, condition, brand, images (up to 10), category, storeName, updatedAt. The website serves this as /feeds/google-merchant.xml for Google Shopping free listings.
+ *     tags:
+ *       - SEO
+ *     responses:
+ *       200:
+ *         description: Merchant feed fetched successfully
+ */
+
 export {};

@@ -345,4 +345,39 @@
  *         description: Product not found
  */
 
+/**
+ * @swagger
+ * /api/admin/products/{id}/featured:
+ *   patch:
+ *     summary: Feature or unfeature a product
+ *     description: Admin only. Featured products appear in the marketplace's featured sections. Sellers can't feature their own products.
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [isFeatured]
+ *             properties:
+ *               isFeatured:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Product featured / no longer featured
+ *       403:
+ *         description: Not an admin
+ *       404:
+ *         description: Product not found
+ */
+
 export {};
