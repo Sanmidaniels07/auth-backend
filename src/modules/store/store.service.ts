@@ -251,7 +251,7 @@ export const setupPayoutAccountService = async (
   return updated;
 };
 
-// Fields only the store owner (and admins) may see.
+// Fields only the store owner may see (they get them from /stores/me).
 const PRIVATE_STORE_FIELDS = [
   "payoutBankName",
   "payoutBankCode",
@@ -260,6 +260,11 @@ const PRIVATE_STORE_FIELDS = [
   "paystackSubaccountCode",
   "payoutAccountUpdatedAt",
 ] as const;
+
+// The seller's social handles. Kept from buyers so deals don't move to
+// WhatsApp/DMs and off Nestly checkout; the owner and admins (checking a
+// store is genuine) still see them. Email and phone stay public.
+const SOCIAL_STORE_FIELDS = ["whatsapp", "instagram", "facebook", "tiktok"] as const;
 
 export const getPublicStoreService = async (
   slug: string,
@@ -289,8 +294,10 @@ export const getPublicStoreService = async (
     },
   });
 
+  const viewerIsAdmin = await isAdminUser(viewerId);
+
   // Suspended stores are hidden from everyone but admins.
-  if (!store || (store.isSuspended && !(await isAdminUser(viewerId)))) {
+  if (!store || (store.isSuspended && !viewerIsAdmin)) {
     throw new AppError("Store not found.", 404);
   }
 
@@ -320,6 +327,7 @@ export const getPublicStoreService = async (
   // never send bank details or the Paystack subaccount to the public.
   const { _count, ...rest } = store;
   for (const field of PRIVATE_STORE_FIELDS) delete rest[field];
+  if (!viewerIsAdmin && viewerId !== store.seller.user.id) for (const field of SOCIAL_STORE_FIELDS) delete rest[field];
 
   return {
     ...rest,
