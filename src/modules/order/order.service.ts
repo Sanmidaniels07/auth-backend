@@ -5,6 +5,7 @@ import {
   OrderItemStatus,
   OrderStatus,
   Prisma,
+  ProductStatus,
   ReturnRequestStatus,
 } from "@prisma/client";
 
@@ -280,6 +281,12 @@ export const cancelOrderService = async (
           });
         }
       }
+
+      // Anything that sold out because of this order is on sale again.
+      await tx.product.updateMany({
+        where: { id: { in: order.items.map((item) => item.productId) }, status: ProductStatus.OUT_OF_STOCK, stock: { gt: 0 } },
+        data: { status: ProductStatus.PUBLISHED },
+      });
     }
 
     await recordOrderEvent(tx, {
@@ -326,6 +333,7 @@ export const getSellerOrdersService = async (
       orderBy: { createdAt: "desc" },
       include: {
         user: { select: { id: true, name: true } }, // no email (Privacy Policy)
+        address: { select: SELLER_ADDRESS_SELECT },
         // How this seller's items reach the buyer. Never includes the
         // buyer's delivery code.
         shipping: {
@@ -355,12 +363,34 @@ export const getSellerOrdersService = async (
   ]);
 
   return {
-    orders: orders.map((order) => ({ ...order, items: order.items.map(asOrdered) })),
+    orders: orders.map((order) => forSeller({ ...order, items: order.items.map(asOrdered) })),
     total,
     page,
     limit,
     totalPages: Math.ceil(total / limit),
   };
+};
+
+// Where the seller delivers to - never the address's phone or the buyer's
+// email; the number to call is order.deliveryPhone (see forSeller).
+const SELLER_ADDRESS_SELECT = {
+  fullName: true,
+  address: true,
+  city: true,
+  state: true,
+  country: true,
+  postalCode: true,
+} as const;
+
+// The delivery phone is for delivering: sellers only get it for a delivery
+// (not pickup) while some of their items are still on the way.
+const forSeller = <T extends { deliveryPhone: string | null; shipping: { type: string }[]; items: { status: OrderItemStatus }[] }>(
+  order: T,
+) => {
+  const delivering =
+    order.shipping[0]?.type === "DELIVERY" &&
+    order.items.some((item) => item.status !== OrderItemStatus.DELIVERED && item.status !== OrderItemStatus.CANCELLED);
+  return { ...order, deliveryPhone: delivering ? order.deliveryPhone : null };
 };
 
 export const getSellerOrderByIdService = async (
@@ -376,7 +406,7 @@ export const getSellerOrderByIdService = async (
     },
     include: {
       user: { select: { id: true, name: true } }, // no email (Privacy Policy)
-      address: true,
+      address: { select: SELLER_ADDRESS_SELECT },
       // How this seller's items reach the buyer. Never includes the
       // buyer's delivery code.
       shipping: {
@@ -408,7 +438,7 @@ export const getSellerOrderByIdService = async (
     throw new AppError("Order not found.", 404);
   }
 
-  return { ...order, items: order.items.map(asOrdered) };
+  return forSeller({ ...order, items: order.items.map(asOrdered) });
 };
 
 export const updateOrderItemStatusService = async (
@@ -668,5 +698,6 @@ export const updateOrderTrackingNumberService = async (
   return prisma.order.update({
     where: { id: orderId },
     data: { trackingNumber },
+    omit: { deliveryPhone: true },
   });
 };

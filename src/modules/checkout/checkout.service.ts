@@ -31,6 +31,7 @@ import { snapshotOf } from "../../utils/orderItemSnapshot";
 import { unitPriceOf, variationLabel } from "../../utils/productOptions";
 import { VEHICLE_LABEL, canCarry, requiredVehicle } from "../../utils/deliveryVehicle";
 import { referralCommission, referralRewardApplies } from "../../utils/referral";
+import { hideContacts } from "../../utils/contactFilter";
 
 const NAIRA_TO_KOBO = 100;
 const LOW_STOCK_THRESHOLD = 5;
@@ -51,6 +52,7 @@ const buildPendingOrder = async (
   shippingSelections: ShippingSelection[],
   couponCode?: string,
   sellerNotes: SellerNoteInput[] = [],
+  deliveryPhone?: string,
 ) => {
   const [user, address, cart] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
@@ -310,7 +312,9 @@ const buildPendingOrder = async (
   // Keep only non-empty notes for stores actually in this cart, one each.
   const noteByStore = new Map<string, string>();
   for (const { storeId, note } of sellerNotes) {
-    const text = note.trim();
+    // Contact details go in the delivery phone field, not notes (see
+    // utils/contactFilter).
+    const text = hideContacts(note.trim()).text;
     if (text && storeIds.includes(storeId)) noteByStore.set(storeId, text);
   }
   const noteRows = Array.from(noteByStore, ([storeId, note]) => ({ storeId, note }));
@@ -328,6 +332,7 @@ const buildPendingOrder = async (
       total,
       paymentMethod: "PAYSTACK",
       paymentReference: reference,
+      deliveryPhone: deliveryPhone?.trim() || address.phone,
       items: {
         create: cart.items.map((item) => ({
           productId: item.productId,
@@ -478,6 +483,7 @@ export const initiateCheckoutService = async (
   shippingSelections: ShippingSelection[] = [],
   couponCode?: string,
   sellerNotes: SellerNoteInput[] = [],
+  deliveryPhone?: string,
 ) => {
   const { user, order, reference, total, split } = await buildPendingOrder(
     userId,
@@ -485,6 +491,7 @@ export const initiateCheckoutService = async (
     shippingSelections,
     couponCode,
     sellerNotes,
+    deliveryPhone,
   );
 
   const paystackData = await initializePaystackTransaction({
@@ -512,6 +519,7 @@ export const checkoutWithSavedCardService = async (
   shippingSelections: ShippingSelection[] = [],
   couponCode?: string,
   sellerNotes: SellerNoteInput[] = [],
+  deliveryPhone?: string,
 ) => {
   const savedCard = await prisma.savedCard.findUnique({
     where: { id: savedCardId },
@@ -527,6 +535,7 @@ export const checkoutWithSavedCardService = async (
     shippingSelections,
     couponCode,
     sellerNotes,
+    deliveryPhone,
   );
 
   const chargeResult = await chargeAuthorization({

@@ -167,7 +167,7 @@
  * /api/stores/{slug}:
  *   get:
  *     summary: Get a public store by slug
- *     description: Returns store details, including basic seller info, shipping options, followersCount, and (if authenticated) isFollowing. Public endpoint. Returns 404 if the store is suspended (owner banned/suspended by an admin) - except to admins (send their token), who can still review it; the response then has isSuspended true. Payout details are never included. The seller's social handles (whatsapp, instagram, facebook, tiktok) are only included for the store owner and admins, so deals stay on Nestly checkout; email and phone are public.
+ *     description: Returns store details, including basic seller info, shipping options, followersCount, and (if authenticated) isFollowing. Public endpoint. Returns 404 if the store is suspended (owner banned/suspended by an admin) - except to admins (send their token), who can still review it; the response then has isSuspended true. Payout details are never included. The seller's contact details (email, phone, whatsapp, instagram, facebook, tiktok) are only included for the store owner and admins - buyers reach sellers through in-app messages so every conversation and sale stays on Nestly.
  *     tags:
  *       - Store
  *     security: []

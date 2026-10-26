@@ -13,6 +13,13 @@ const sellerNotesSchema = z
   .max(50)
   .optional();
 
+// Phone the seller calls to deliver (defaults to the address's phone).
+const deliveryPhoneSchema = z
+  .string()
+  .trim()
+  .regex(/^\+?[\d\s()-]{7,20}$/, "Enter a valid phone number for delivery, e.g. 0803 123 4567.")
+  .optional();
+
 export const initiateCheckoutSchema = z.object({
   body: z.object({
     addressId: z.string(),
@@ -26,6 +33,7 @@ export const initiateCheckoutSchema = z.object({
       .optional(),
     couponCode: z.string().trim().optional(),
     sellerNotes: sellerNotesSchema,
+    deliveryPhone: deliveryPhoneSchema,
   }),
 });
 
@@ -49,5 +57,6 @@ export const checkoutWithSavedCardSchema = z.object({
       .optional(),
     couponCode: z.string().trim().optional(),
     sellerNotes: sellerNotesSchema,
+    deliveryPhone: deliveryPhoneSchema,
   }),
 });

@@ -261,10 +261,10 @@ const PRIVATE_STORE_FIELDS = [
   "payoutAccountUpdatedAt",
 ] as const;
 
-// The seller's social handles. Kept from buyers so deals don't move to
-// WhatsApp/DMs and off Nestly checkout; the owner and admins (checking a
-// store is genuine) still see them. Email and phone stay public.
-const SOCIAL_STORE_FIELDS = ["whatsapp", "instagram", "facebook", "tiktok"] as const;
+// Ways to reach the seller outside Nestly. Kept from buyers so every
+// conversation and sale stays in the app (in-app messages, Nestly
+// checkout); the owner and admins (checking a store is genuine) see them.
+const CONTACT_STORE_FIELDS = ["email", "phone", "whatsapp", "instagram", "facebook", "tiktok"] as const;
 
 export const getPublicStoreService = async (
   slug: string,
@@ -327,7 +327,7 @@ export const getPublicStoreService = async (
   // never send bank details or the Paystack subaccount to the public.
   const { _count, ...rest } = store;
   for (const field of PRIVATE_STORE_FIELDS) delete rest[field];
-  if (!viewerIsAdmin && viewerId !== store.seller.user.id) for (const field of SOCIAL_STORE_FIELDS) delete rest[field];
+  if (!viewerIsAdmin && viewerId !== store.seller.user.id) for (const field of CONTACT_STORE_FIELDS) delete rest[field];
 
   return {
     ...rest,

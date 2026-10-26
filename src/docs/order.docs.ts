@@ -99,7 +99,7 @@
  * /api/orders/seller:
  *   get:
  *     summary: Get orders containing the authenticated seller's products
- *     description: Requires an existing store. Only shows paid+ orders (unpaid PENDING orders are excluded), and only the seller's own items within each order - not other sellers' items in the same order. Each order includes `sellerNotes` holding only the note the buyer left for this store (empty if none). The `status` filter matches the seller's own OrderItem status, not the overall order status.
+ *     description: Requires an existing store. Only shows paid+ orders (unpaid PENDING orders are excluded), and only the seller's own items within each order - not other sellers' items in the same order. Each order includes `sellerNotes` holding only the note the buyer left for this store (empty if none). The `status` filter matches the seller's own OrderItem status, not the overall order status. `address` is where to deliver (fullName, address, city, state, country, postalCode) - never the address's phone or the buyer's email. `deliveryPhone` (the number to call to deliver) is included only for delivery orders while the seller's items are still on the way, otherwise null.
  *     tags:
  *       - Order
  *     security:
@@ -132,7 +132,7 @@
  * /api/orders/seller/{id}:
  *   get:
  *     summary: Get one order containing the authenticated seller's products
- *     description: Requires an existing store. Returns only the seller's own items within the order (shown as they were ordered - productTitle, productImage etc. - even if the listing was edited since), plus `sellerNotes` with only the note the buyer left for this store (empty if none).
+ *     description: Requires an existing store. Returns only the seller's own items within the order (shown as they were ordered - productTitle, productImage etc. - even if the listing was edited since), plus `sellerNotes` with only the note the buyer left for this store (empty if none). `address` is where to deliver (fullName, address, city, state, country, postalCode) - never the address's phone or the buyer's email. `deliveryPhone` (the number to call to deliver) is included only for delivery orders while the seller's items are still on the way, otherwise null.
  *     tags:
  *       - Order
  *     security:

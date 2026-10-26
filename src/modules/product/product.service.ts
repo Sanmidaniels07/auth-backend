@@ -216,6 +216,15 @@ export const updateProductService = async (
 
   }, TX_OPTIONS);
 
+  // Sold out at checkout and now restocked: back on sale (unless the
+  // seller chose a status in this edit) - back-in-stock alerts follow.
+  if (fields.status === undefined) {
+    await prisma.product.updateMany({
+      where: { id: productId, status: ProductStatus.OUT_OF_STOCK, stock: { gt: 0 } },
+      data: { status: ProductStatus.PUBLISHED },
+    });
+  }
+
   const after = await prisma.product.findUniqueOrThrow({
     where: { id: productId },
     include: FULL_PRODUCT_INCLUDE,
@@ -393,10 +402,12 @@ export const getPublicProductByIdService = async (
   id: string,
   viewerId?: string
 ) => {
+  // Sold-out products stay viewable - buyers can ask to be told when
+  // they're back. Listings and search only show PUBLISHED ones.
   const product = await prisma.product.findFirst({
     where: {
       id,
-      status: ProductStatus.PUBLISHED,
+      status: { in: [ProductStatus.PUBLISHED, ProductStatus.OUT_OF_STOCK] },
     },
     include: {
       ...FULL_PRODUCT_INCLUDE,

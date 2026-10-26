@@ -333,6 +333,7 @@ export const listProductsAdminService = async (
         sku: true,
         status: true,
         price: true,
+        isFeatured: true,
         updatedAt: true,
         reviewsResetAt: true,
         images: { where: { isPrimary: true }, take: 1, select: { url: true } },
@@ -404,4 +405,19 @@ export const getProductHistoryAdminService = async (
     limit,
     totalPages: Math.ceil(total / limit),
   };
+};
+
+/**
+ * Featured products appear in the marketplace's featured sections. Only
+ * admins choose them - sellers can't feature their own.
+ */
+export const setProductFeaturedAdminService = async (productId: string, isFeatured: boolean) => {
+  const product = await prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
+  if (!product) throw new AppError("Product not found.", 404);
+
+  return prisma.product.update({
+    where: { id: productId },
+    data: { isFeatured },
+    select: { id: true, title: true, isFeatured: true },
+  });
 };

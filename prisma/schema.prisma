@@ -147,6 +147,8 @@ enum NotificationType {
   MESSAGE
   ORDER
   SYSTEM
+  // New products from followed stores, cart reminders, back in stock.
+  SHOPPING
 }
 
 model User {
@@ -202,6 +204,8 @@ model User {
   sellerProfile SellerProfile?
 
   wishlist Wishlist[]
+
+  stockAlerts StockAlert[]
 
   recentlyViewed RecentlyViewed[]
 
@@ -1078,6 +1082,12 @@ model Product {
 
   updatedAt DateTime   @updatedAt
   cartItems CartItem[]
+
+  // When followers of the store were told about this product (set once,
+  // by the shopping alerts job; existing products were marked at launch).
+  followersNotifiedAt DateTime?
+
+  stockAlerts StockAlert[]
 }
 
 model ProductImage {
@@ -1200,8 +1210,9 @@ model ProductVariation {
   // from buyers.
   isArchived Boolean @default(false)
 
-  cartItems  CartItem[]
-  orderItems OrderItem[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  stockAlerts StockAlert[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1245,8 +1256,32 @@ model Cart {
 
   items CartItem[]
 
+  // Last "you left something in your cart" reminder; another is only sent
+  // after something new is added.
+  reminderSentAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// "Notify me when it's back" on a sold-out product (or one sold-out option).
+// Deleted once the alert is sent.
+model StockAlert {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  variationId String?
+  variation   ProductVariation? @relation(fields: [variationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([userId])
 }
 
 model CartItem {
@@ -1323,6 +1358,11 @@ model Order {
   paymentReference String? @unique
 
   trackingNumber String?
+
+  // Number the seller (who delivers) calls about this order - the address's
+  // phone unless the buyer gave another at checkout. Shown to the seller
+  // only for delivery orders, until their items are delivered.
+  deliveryPhone String?
 
   items OrderItem[]
 

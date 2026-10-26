@@ -84,6 +84,15 @@ export const listProductsAdminSchema = z.object({
   }),
 });
 
+export const setProductFeaturedSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+  body: z.object({
+    isFeatured: z.boolean(),
+  }),
+});
+
 export const productHistoryAdminSchema = z.object({
   params: z.object({
     id: z.string(),

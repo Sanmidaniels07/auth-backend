@@ -18,7 +18,8 @@ export const initiateCheckout = asyncHandler(
       req.body.addressId,
       req.body.shippingSelections,
       req.body.couponCode,
-      req.body.sellerNotes
+      req.body.sellerNotes,
+      req.body.deliveryPhone
     );
 
     res.status(201).json(
@@ -35,7 +36,8 @@ export const checkoutWithSavedCard = asyncHandler(
       req.body.savedCardId,
       req.body.shippingSelections,
       req.body.couponCode,
-      req.body.sellerNotes
+      req.body.sellerNotes,
+      req.body.deliveryPhone
     );
 
     res.status(200).json(

@@ -41,6 +41,7 @@ import blockRoutes from "./modules/block/block.routes";
 import searchRoutes from "./modules/search/search.routes";
 import seoRoutes from "./modules/seo/seo.routes";
 import referralRoutes from "./modules/referral/referral.routes";
+import stockAlertRoutes from "./modules/stock-alert/stock-alert.routes";
 import payoutRoutes from "./modules/payout/payout.routes";
 import paymentMethodRoutes from "./modules/payment-method/payment-method.routes";
 import adminRoutes from "./modules/admin/admin.routes";
@@ -210,6 +211,8 @@ app.use("/api/search", searchRoutes);
 app.use("/api/seo", seoRoutes);
 
 app.use("/api/referrals", referralRoutes);
+
+app.use("/api/stock-alerts", stockAlertRoutes);
 
 app.use("/api/admin/payouts", payoutRoutes);
 
