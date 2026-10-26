@@ -15,6 +15,7 @@ import {
   initializePaystackTransaction,
   verifyPaystackTransaction,
   chargeAuthorization,
+  estimatePaystackFeeKobo,
   PaystackSplitConfig,
 } from "../../utils/paystack";
 import {
@@ -266,21 +267,6 @@ const buildPendingOrder = async (
     );
   }
 
-  const split: PaystackSplitConfig | undefined =
-    netKoboByStore.size > 0
-      ? {
-          type: "flat",
-          currency: "NGN",
-          bearer_type: "all-proportional",
-          subaccounts: Array.from(netKoboByStore.entries()).map(
-            ([storeId, shareKobo]) => ({
-              subaccount: storeById.get(storeId)!.paystackSubaccountCode!,
-              share: shareKobo,
-            }),
-          ),
-        }
-      : undefined;
-
   // No tax rules exist yet.
   const tax = 0;
 
@@ -298,6 +284,26 @@ const buildPendingOrder = async (
   }
 
   const total = subtotal - discountAmount + deliveryFee + tax;
+
+  // Nestly pays Paystack's whole fee out of what's left for the main
+  // account (commission, less any coupon). If that can't cover it - a 0%
+  // category, a small item with a big delivery fee - this order shares the
+  // fee by amount instead, so the payment still goes through.
+  const subaccounts = Array.from(netKoboByStore, ([storeId, shareKobo]) => ({
+    subaccount: storeById.get(storeId)!.paystackSubaccountCode!,
+    share: shareKobo,
+  }));
+  const totalKobo = Math.round(total * NAIRA_TO_KOBO);
+  const mainAccountKobo = totalKobo - subaccounts.reduce((sum, s) => sum + s.share, 0);
+  const split: PaystackSplitConfig | undefined =
+    subaccounts.length > 0
+      ? {
+          type: "flat",
+          currency: "NGN",
+          bearer_type: mainAccountKobo >= estimatePaystackFeeKobo(totalKobo) ? "account" : "all-proportional",
+          subaccounts,
+        }
+      : undefined;
 
   const reference = `NESTLY_${crypto.randomUUID().replace(/-/g, "")}`;
 

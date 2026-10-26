@@ -34,15 +34,25 @@ const paystackFetch = async (
 // amount (not a percentage) - each subaccount gets exactly its net-of-commission
 // revenue plus its own delivery fee for this order, and whatever's left
 // (commission + tax + stores without a subaccount) settles to the main
-// account automatically. "all-proportional" splits Paystack's fee between
-// everyone in proportion to what they receive, so the platform never pays
-// the whole fee out of a small commission.
+// account automatically. Nestly covers Paystack's fee ("account" - the main
+// account bears it) whenever its part of the order can pay it; otherwise
+// "all-proportional" splits the fee by what each party receives.
 export interface PaystackSplitConfig {
   type: "flat";
   currency: "NGN";
-  bearer_type: "all-proportional";
+  bearer_type: "account" | "all-proportional";
   subaccounts: { subaccount: string; share: number }[];
 }
+
+// Paystack's local (Nigerian card / transfer) pricing: 1.5% + ₦100, the
+// ₦100 waived under ₦2,500, capped at ₦2,000. Only used to check Nestly's
+// share of an order can cover the fee - Paystack deducts the real one.
+// Update if Paystack's pricing changes.
+export const estimatePaystackFeeKobo = (amountKobo: number) => {
+  const naira = amountKobo / 100;
+  const fee = naira * 0.015 + (naira >= 2500 ? 100 : 0);
+  return Math.ceil(Math.min(fee, 2000) * 100);
+};
 
 interface InitializeTransactionParams {
   email: string;
