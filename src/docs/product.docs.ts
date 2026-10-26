@@ -411,7 +411,7 @@
  * /api/products/{id}:
  *   get:
  *     summary: Get a published product by id
- *     description: Public endpoint. Returns products with status PUBLISHED or OUT_OF_STOCK (sold-out pages stay viewable so buyers can ask to be told when they're back - see /api/stock-alerts); listings and search only include PUBLISHED. Products of a suspended store return 404, except to admins (send their token), who can still review them - store.isSuspended tells them. `store.canDeliver` is false when the store has no delivery zone and no pickup point - the product can be viewed but not added to a cart.
+ *     description: Public endpoint. Returns products with status PUBLISHED or OUT_OF_STOCK (sold-out pages stay viewable so buyers can ask to be told when they're back - see /api/stock-alerts); listings and search only include PUBLISHED. Products of a suspended store return 404, except to admins (send their token), who can still review them - store.isSuspended tells them. `store.sellerUserId` is the seller's user id (to start a chat). `store.canDeliver` is false when the store has no delivery zone and no pickup point - the product can be viewed but not added to a cart.
  *     tags:
  *       - Product
  *     security: []

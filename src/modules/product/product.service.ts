@@ -419,6 +419,8 @@ export const getPublicProductByIdService = async (
           city: true,
           state: true,
           isSuspended: true,
+          // So buyers can message the seller about this product.
+          seller: { select: { userId: true } },
           _count: { select: { shippingOptions: { where: { isArchived: false } } } },
         },
       },
@@ -432,8 +434,8 @@ export const getPublicProductByIdService = async (
 
   // canDeliver: the store has a delivery zone or pickup point - without
   // one the product can be viewed but not bought.
-  const { _count, ...store } = product.store;
-  return { ...product, store: { ...store, canDeliver: _count.shippingOptions > 0 } };
+  const { _count, seller, ...store } = product.store;
+  return { ...product, store: { ...store, sellerUserId: seller.userId, canDeliver: _count.shippingOptions > 0 } };
 };
 
 export const getFeaturedProductsService = async (
