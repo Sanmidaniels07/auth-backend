@@ -5,7 +5,7 @@ import { sendEmail } from "../auth/email.services";
 import { createNotificationService } from "../notification/notification.service";
 import { cacReminderTemplate } from "../../templates/cac-reminder.template";
 
-// Sellers who joined without a CAC number get two gentle reminders - a few
+// Sellers with a store but no CAC number get two gentle reminders - a few
 // days after approval and again after two weeks - in the app and by email.
 // Never more than two, and at least a week apart (so sellers approved long
 // before this existed don't get both at once).
@@ -21,6 +21,8 @@ export const sendCacRemindersService = async (now: Date = new Date()) => {
       status: SellerStatus.APPROVED,
       OR: [{ cacNumber: null }, { cacNumber: "" }],
       cacRemindersSent: { lt: REMINDER_DAYS.length },
+      // The badge goes on their store - nothing to verify until they have one.
+      store: { isNot: null },
     },
     select: {
       id: true,
