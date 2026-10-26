@@ -148,8 +148,13 @@ const buildPendingOrder = async (
   let deliveryFee = 0;
 
   for (const store of stores) {
+    // The buyer needs a way to get the order - at least one delivery zone
+    // or a pickup point (pickup on its own is fine).
     if (store.shippingOptions.length === 0) {
-      continue;
+      throw new AppError(
+        `"${store.name}" hasn't set up delivery or pickup yet, so this can't be ordered right now.` + " Remove it from your cart to check out the rest.",
+        400,
+      );
     }
 
     // Only zones whose vehicle can carry everything bought from this store

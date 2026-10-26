@@ -413,7 +413,7 @@
  * /api/products/{id}:
  *   get:
  *     summary: Get a published product by id
- *     description: Public endpoint. Only returns products with status PUBLISHED. Products of a suspended store return 404, except to admins (send their token), who can still review them - store.isSuspended tells them.
+ *     description: Public endpoint. Only returns products with status PUBLISHED. Products of a suspended store return 404, except to admins (send their token), who can still review them - store.isSuspended tells them. `store.canDeliver` is false when the store has no delivery zone and no pickup point - the product can be viewed but not added to a cart.
  *     tags:
  *       - Product
  *     security: []

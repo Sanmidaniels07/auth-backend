@@ -9,7 +9,15 @@ const CART_ITEM_INCLUDE = {
     include: {
       images: { where: { isPrimary: true }, take: 1 },
       // Lets checkout group items by seller by name (notes, delivery).
-      store: { select: { id: true, name: true, slug: true, logo: true } },
+      store: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          logo: true,
+          _count: { select: { shippingOptions: { where: { isArchived: false } } } },
+        },
+      },
       options: { select: { name: true, position: true } },
     },
   },
@@ -21,10 +29,12 @@ type CartItemWithProduct = Prisma.CartItemGetPayload<{ include: typeof CART_ITEM
 // Adds what the cart page needs per line: the price of the chosen
 // combination and a label like "Size: Large · Flavour: Vanilla".
 const presentItem = (item: CartItemWithProduct) => {
-  const { options, ...product } = item.product;
+  const { options, store, ...rest } = item.product;
+  const { _count, ...storeSummary } = store;
   return {
     ...item,
-    product,
+    // canDeliver: the store has a delivery zone or pickup point.
+    product: { ...rest, store: { ...storeSummary, canDeliver: _count.shippingOptions > 0 } },
     unitPrice: unitPriceOf(item.product, item.variation),
     variantLabel: item.variation ? variationLabel(options, item.variation) : null,
   };
@@ -76,7 +86,10 @@ export const addToCartService = async (
 ) => {
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    include: { variations: { where: { isArchived: false }, select: { id: true, stock: true, isActive: true } } },
+    include: {
+      variations: { where: { isArchived: false }, select: { id: true, stock: true, isActive: true } },
+      store: { select: { name: true, _count: { select: { shippingOptions: { where: { isArchived: false } } } } } },
+    },
   });
 
   if (!product) {
@@ -88,6 +101,11 @@ export const addToCartService = async (
       "This product is not available.",
       400
     );
+  }
+
+  // Buyers need a way to get it: a delivery zone or pickup point.
+  if (product.store._count.shippingOptions === 0) {
+    throw new AppError(`"${product.store.name}" hasn't set up delivery or pickup yet, so this can't be ordered right now.`, 400);
   }
 
   // Products with options are bought as one of their combinations.

@@ -408,6 +408,7 @@ export const getPublicProductByIdService = async (
           city: true,
           state: true,
           isSuspended: true,
+          _count: { select: { shippingOptions: { where: { isArchived: false } } } },
         },
       },
     },
@@ -418,7 +419,10 @@ export const getPublicProductByIdService = async (
     throw new AppError("Product not found.", 404);
   }
 
-  return product;
+  // canDeliver: the store has a delivery zone or pickup point - without
+  // one the product can be viewed but not bought.
+  const { _count, ...store } = product.store;
+  return { ...product, store: { ...store, canDeliver: _count.shippingOptions > 0 } };
 };
 
 export const getFeaturedProductsService = async (
