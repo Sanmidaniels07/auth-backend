@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { authMiddleware } from "../../middleware/auth-middleware";
+import { optionalAuthMiddleware } from "../../middleware/optional-auth-middleware";
 import { validate } from "../../middleware/validate.middleware";
 import {
   createProductSchema,
@@ -94,7 +95,7 @@ router.get(
   getProductReviews
 );
 
-router.get("/:id", getProductById);
+router.get("/:id", optionalAuthMiddleware, getProductById);
 
 router.patch(
   "/:id",

@@ -1,6 +1,38 @@
 import { z } from "zod";
 import { DeliveryVehicle, ShippingOptionType } from "@prisma/client";
 
+const blankToNull = (value: unknown) => (typeof value === "string" && value.trim() === "" ? null : value);
+
+// "@ray.cakes", "ray.cakes" or "https://www.instagram.com/ray.cakes/?hl=en" -> "ray.cakes"
+const handleFrom = (value: string) => {
+  const trimmed = value.trim();
+  const fromUrl = trimmed.match(/^(?:https?:\/\/)?(?:www\.|m\.)?[a-z]+\.(?:com|net)\/@?([^/?#]+)/i);
+  return (fromUrl ? fromUrl[1] : trimmed).replace(/^@/, "");
+};
+
+const socialHandle = (label: string, pattern: RegExp) =>
+  z.preprocess(
+    (value) => (typeof value === "string" ? (value.trim() ? handleFrom(value) : null) : value),
+    z.string().regex(pattern, `That doesn't look like a valid ${label} username.`).nullable().optional()
+  );
+
+// "0815 967 1809", "+234 815 967 1809", "wa.me/2348159671809" -> "2348159671809"
+const whatsappNumber = z.preprocess(
+  (value) => {
+    if (typeof value !== "string" || !value.trim()) return blankToNull(value);
+    const digits = value.replace(/\D/g, "");
+    return digits.startsWith("0") && digits.length === 11 ? `234${digits.slice(1)}` : digits;
+  },
+  z.string().regex(/^\d{10,15}$/, "Enter your WhatsApp number, e.g. 0815 967 1809.").nullable().optional()
+);
+
+const socialFields = {
+  instagram: socialHandle("Instagram", /^[A-Za-z0-9._]{1,30}$/),
+  facebook: socialHandle("Facebook", /^[A-Za-z0-9.\-]{2,80}$/),
+  tiktok: socialHandle("TikTok", /^[A-Za-z0-9._]{2,24}$/),
+  whatsapp: whatsappNumber,
+};
+
 const storeFields = {
   name: z.string().trim().min(2),
   description: z.string().trim().optional(),
@@ -15,6 +47,7 @@ const storeFields = {
   returnPolicy: z.string().trim().optional(),
   shippingPolicy: z.string().trim().optional(),
   warrantyPolicy: z.string().trim().optional(),
+  ...socialFields,
 };
 
 export const createStoreSchema = z.object({

@@ -215,6 +215,13 @@ model User {
 
   productRevisions ProductRevision[]
 
+  // The store whose share link brought this user to Nestly (set at
+  // signup). Their orders from that store earn the seller a referral
+  // reward for a while - see utils/referral.
+  referredByStoreId String?
+  referredByStore   Store?    @relation("StoreReferrals", fields: [referredByStoreId], references: [id], onDelete: SetNull)
+  referredAt        DateTime?
+
   // Social
   following Follow[] @relation("Follower")
   followers Follow[] @relation("Following")
@@ -789,6 +796,11 @@ model SellerProfile {
   cacRemindersSent  Int       @default(0)
   lastCacReminderAt DateTime?
 
+  // Reminders to finish setting up (store, payout account, delivery
+  // zones, first product) - see utils/sellerReadiness.
+  setupRemindersSent  Int       @default(0)
+  lastSetupReminderAt DateTime?
+
   createdAt DateTime @default(now())
 
   store Store?
@@ -830,6 +842,14 @@ model Store {
 
   isSuspended Boolean @default(false)
 
+  // Where buyers can also find the seller - shown as buttons on the store
+  // page. Stored normalised: handles without "@" or URL, WhatsApp as an
+  // international number (2348012345678).
+  instagram String?
+  facebook  String?
+  tiktok    String?
+  whatsapp  String?
+
   returnPolicy   String?
   shippingPolicy String?
   warrantyPolicy String?
@@ -864,6 +884,12 @@ model Store {
   shippingOptions ShippingOption[]
 
   orderShipments OrderShipping[]
+
+  // Stable code in the seller's share links (?ref=...) - doesn't change
+  // when the store is renamed.
+  referralCode   String?           @unique
+  referredUsers  User[]            @relation("StoreReferrals")
+  referralVisits ReferralVisit[]
   orderNotes     OrderSellerNote[]
 
   payouts Payout[]
@@ -1079,6 +1105,21 @@ model ProductSpecification {
 // One saved edit to a product: what changed, who did it and when. Shown to
 // admins for disputes and spotting sellers who switch listings around.
 // Stock changes from orders aren't recorded - only edits.
+// One visit to Nestly through a seller's share link (counted at most once
+// a day per browser). No personal data - just which store and page.
+model ReferralVisit {
+  id String @id @default(cuid())
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  path String?
+
+  createdAt DateTime @default(now())
+
+  @@index([storeId, createdAt])
+}
+
 model ProductRevision {
   id String @id @default(cuid())
 
@@ -1406,6 +1447,10 @@ model OrderItem {
   // one configured at the time). False means the money is sitting in the
   // platform's main account and still needs a manual Payout record.
   autoPaidViaSplit Boolean @default(false)
+
+  // The buyer joined through this seller's share link, so the commission
+  // above was reduced (see utils/referral).
+  referralReward Boolean @default(false)
 
   // Copy of the listing as the buyer saw it when ordering. Order pages,
   // emails and disputes use this, so editing the product later never

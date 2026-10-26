@@ -14,6 +14,8 @@ interface SignupData {
   password: string;
   /** Already validated and normalised to UTC midnight by signupSchema. */
   dateOfBirth?: Date;
+  /** Seller share link they arrived through (?ref=CODE), if any. */
+  referralCode?: string;
 }
 
 interface LoginData {
@@ -62,7 +64,7 @@ export const issueUserSession = async (
   };
 };
 export const signupService = async (data: SignupData) => {
-  const { name, email, password, dateOfBirth } = data;
+  const { name, email, password, dateOfBirth, referralCode } = data;
 
   if (!name || !email || !password) {
     throw new Error("All fields are required");
@@ -78,6 +80,16 @@ export const signupService = async (data: SignupData) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
+  // Joined through a seller's share link - that store earns a referral
+  // reward on this buyer's orders for a while (utils/referral).
+  const referrer = referralCode
+    ? await prisma.store.findUnique({
+        where: { referralCode: referralCode.toUpperCase() },
+        select: { id: true, isSuspended: true },
+      })
+    : null;
+  const referredBy = referrer && !referrer.isSuspended ? referrer : null;
+
   const verificationToken = generateVerificationToken();
 
   const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -88,6 +100,7 @@ export const signupService = async (data: SignupData) => {
       email,
       password: hashedPassword,
       dateOfBirth,
+      ...(referredBy ? { referredByStoreId: referredBy.id, referredAt: new Date() } : {}),
 
       verificationToken,
       verificationTokenExpiry: expiry,

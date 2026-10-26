@@ -51,6 +51,23 @@
  *                 type: string
  *               warrantyPolicy:
  *                 type: string
+ *               instagram:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Username, @username or profile URL - stored as the username. "" or null removes it.
+ *                 example: "@raycakes"
+ *               facebook:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Page username or URL - stored as the username.
+ *               tiktok:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Username, @username or profile URL - stored as the username.
+ *               whatsapp:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Phone number in any common format (0815 967 1809, +234..., wa.me link) - stored as 2348159671809. Shown to buyers as a WhatsApp chat button.
  *     responses:
  *       201:
  *         description: Store created successfully
@@ -120,7 +137,7 @@
  * /api/stores/{slug}/products:
  *   get:
  *     summary: List a store's published products
- *     description: Returns a paginated list of published products belonging to the store identified by slug. Public endpoint. Returns 404 if the store is suspended.
+ *     description: Returns a paginated list of published products belonging to the store identified by slug. Public endpoint. Returns 404 if the store is suspended, except to admins (send their token).
  *     tags:
  *       - Store
  *     security: []
@@ -150,7 +167,7 @@
  * /api/stores/{slug}:
  *   get:
  *     summary: Get a public store by slug
- *     description: Returns store details, including basic seller info, shipping options, followersCount, and (if authenticated) isFollowing. Public endpoint. Returns 404 if the store is suspended (owner banned/suspended by an admin), regardless of who is asking.
+ *     description: Returns store details, including basic seller info, shipping options, followersCount, and (if authenticated) isFollowing. Public endpoint. Returns 404 if the store is suspended (owner banned/suspended by an admin) - except to admins (send their token), who can still review it; the response then has isSuspended true. Public payout details are never included.
  *     tags:
  *       - Store
  *     security: []
@@ -535,6 +552,23 @@
  *                 type: string
  *               warrantyPolicy:
  *                 type: string
+ *               instagram:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Username, @username or profile URL - stored as the username. "" or null removes it.
+ *                 example: "@raycakes"
+ *               facebook:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Page username or URL - stored as the username.
+ *               tiktok:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Username, @username or profile URL - stored as the username.
+ *               whatsapp:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Phone number in any common format (0815 967 1809, +234..., wa.me link) - stored as 2348159671809. Shown to buyers as a WhatsApp chat button.
  *     responses:
  *       200:
  *         description: Store updated successfully

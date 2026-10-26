@@ -22,7 +22,7 @@
  *         description: Unauthorized - no or invalid token
  *   post:
  *     summary: Add a product to the cart
- *     description: Requires authentication. Creates the user's cart on first use. If the same product (and same option) is already in the cart, increases its quantity instead of duplicating the entry - the same product in two options is two lines. Products with options require `variationId`. Fails if the requested quantity exceeds the available stock of the product or chosen option.
+ *     description: Requires authentication. Creates the user's cart on first use. If the same product (and same option) is already in the cart, increases its quantity instead of duplicating the entry - the same product in two options is two lines. Products with options require `variationId`. Fails (400) if the product's store has no delivery zone and no pickup point yet. Fails if the requested quantity exceeds the available stock of the product or chosen option.
  *     tags:
  *       - Cart
  *     security:

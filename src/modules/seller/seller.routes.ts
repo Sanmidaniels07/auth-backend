@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
   becomeSeller,
   getSellerProfile,
+  getSellerReadiness,
   updateSeller,
 } from "./seller.controller";
 import { authMiddleware } from "../../middleware/auth-middleware";
@@ -22,6 +23,8 @@ router.post(
 );
 
 router.get("/me", authMiddleware, getSellerProfile);
+
+router.get("/me/readiness", authMiddleware, getSellerReadiness);
 
 router.patch(
   "/me",

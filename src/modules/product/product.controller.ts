@@ -233,7 +233,8 @@ export const getProductReviews = asyncHandler(
 export const getProductById = asyncHandler(
   async (req: Request<IdParams>, res: Response) => {
     const product = await getPublicProductByIdService(
-      req.params.id
+      req.params.id,
+      req.user?.id
     );
 
     res.status(200).json(

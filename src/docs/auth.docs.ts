@@ -37,6 +37,10 @@
  *                 format: date
  *                 example: "1998-05-14"
  *                 description: Optional. Calendar date (YYYY-MM-DD); the user must be 13-100 years old. Used for birthday reminders to followers; the full date (year) is never shown publicly.
+ *               referralCode:
+ *                 type: string
+ *                 example: K7Q2MZPA
+ *                 description: Optional. Code from the seller share link (?ref=) the user arrived through. Links the new user to that store, which then pays 2 points less commission on their orders from it for 90 days. Unknown codes are ignored.
  *     responses:
  *       201:
  *         description: User created successfully

@@ -7,6 +7,7 @@ import { getSellerStore } from "../seller/seller.utils";
 import { findState, stateSpellings } from "../../data/nigeria-locations";
 import { OPTIONS_INCLUDE, assertValidOptions, saveProductOptions } from "../../utils/productOptions";
 import { diffProducts, isDifferentProduct, recordProductRevision, recordStatusChanges } from "../../utils/productHistory";
+import { isAdminUser } from "../../utils/isAdmin";
 import {
   CreateProductInput,
   UpdateProductInput,
@@ -389,13 +390,13 @@ export const getProductsService = async (
 };
 
 export const getPublicProductByIdService = async (
-  id: string
+  id: string,
+  viewerId?: string
 ) => {
   const product = await prisma.product.findFirst({
     where: {
       id,
       status: ProductStatus.PUBLISHED,
-      store: { isSuspended: false },
     },
     include: {
       ...FULL_PRODUCT_INCLUDE,
@@ -406,16 +407,22 @@ export const getPublicProductByIdService = async (
           slug: true,
           city: true,
           state: true,
+          isSuspended: true,
+          _count: { select: { shippingOptions: { where: { isArchived: false } } } },
         },
       },
     },
   });
 
-  if (!product) {
+  // Products of a suspended store are hidden from everyone but admins.
+  if (!product || (product.store.isSuspended && !(await isAdminUser(viewerId)))) {
     throw new AppError("Product not found.", 404);
   }
 
-  return product;
+  // canDeliver: the store has a delivery zone or pickup point - without
+  // one the product can be viewed but not bought.
+  const { _count, ...store } = product.store;
+  return { ...product, store: { ...store, canDeliver: _count.shippingOptions > 0 } };
 };
 
 export const getFeaturedProductsService = async (
