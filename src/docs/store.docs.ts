@@ -51,6 +51,23 @@
  *                 type: string
  *               warrantyPolicy:
  *                 type: string
+ *               instagram:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Username, @username or profile URL - stored as the username. "" or null removes it.
+ *                 example: "@raycakes"
+ *               facebook:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Page username or URL - stored as the username.
+ *               tiktok:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Username, @username or profile URL - stored as the username.
+ *               whatsapp:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Phone number in any common format (0815 967 1809, +234..., wa.me link) - stored as 2348159671809. Shown to buyers as a WhatsApp chat button.
  *     responses:
  *       201:
  *         description: Store created successfully
@@ -535,6 +552,23 @@
  *                 type: string
  *               warrantyPolicy:
  *                 type: string
+ *               instagram:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Username, @username or profile URL - stored as the username. "" or null removes it.
+ *                 example: "@raycakes"
+ *               facebook:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Page username or URL - stored as the username.
+ *               tiktok:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Username, @username or profile URL - stored as the username.
+ *               whatsapp:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Phone number in any common format (0815 967 1809, +234..., wa.me link) - stored as 2348159671809. Shown to buyers as a WhatsApp chat button.
  *     responses:
  *       200:
  *         description: Store updated successfully

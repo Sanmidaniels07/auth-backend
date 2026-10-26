@@ -835,6 +835,14 @@ model Store {
 
   isSuspended Boolean @default(false)
 
+  // Where buyers can also find the seller - shown as buttons on the store
+  // page. Stored normalised: handles without "@" or URL, WhatsApp as an
+  // international number (2348012345678).
+  instagram String?
+  facebook  String?
+  tiktok    String?
+  whatsapp  String?
+
   returnPolicy   String?
   shippingPolicy String?
   warrantyPolicy String?
