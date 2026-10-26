@@ -151,6 +151,26 @@ export const getSellerProfileService = async (
   return withReapplyInfo(seller);
 };
 
+const notifyAdminsOfCacNumber = async (sellerProfileId: string, userId: string) => {
+  const [user, admins] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+    prisma.user.findMany({ where: { role: Role.ADMIN }, select: { id: true } }),
+  ]);
+  if (!user) return;
+
+  for (const admin of admins) {
+    createNotificationService(
+      admin.id,
+      "CAC number to check",
+      `${user.name} added a CAC number - check it on the CAC register and verify their store.`,
+      undefined,
+      { type: "ADMIN_CAC_SUBMITTED", id: sellerProfileId }
+    ).catch((error) => {
+      console.error("Notification failed:", error);
+    });
+  }
+};
+
 export const updateSellerService = async (
   userId: string,
   data: { cacNumber?: string }
@@ -178,6 +198,11 @@ export const updateSellerService = async (
 
   if (data.cacNumber !== undefined && cacNumberChanged(seller.cacNumber, data.cacNumber)) {
     await clearBusinessVerification(seller.id);
+    if (data.cacNumber) {
+      notifyAdminsOfCacNumber(seller.id, userId).catch((error) => {
+        console.error("Failed to notify admins of CAC number:", error);
+      });
+    }
     return { ...updated, isVerified: false };
   }
 

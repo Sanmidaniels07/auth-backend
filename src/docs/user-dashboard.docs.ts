@@ -22,7 +22,7 @@
  *       - **community** - communities joined and your next 3 upcoming events (created or RSVP'd going).
  *       - **inbox** - unread notifications and unread messages.
  *       - **upcomingBirthdays** - up to 5 people you follow with a birthday in the next 30 days.
- *       - **seller** - your seller application status and store, or null if you don't sell.
+ *       - **seller** - your seller application status and store, or null if you don't sell. `needsCacNumber` is true for approved sellers who haven't added a CAC number yet (show a reminder).
  *         Store numbers come from `/api/seller/dashboard/*`.
  *     tags:
  *       - Dashboard

@@ -131,7 +131,7 @@ export const getUserDashboardService = async (
     }),
     prisma.sellerProfile.findUnique({
       where: { userId },
-      select: { status: true, store: { select: { id: true, name: true, slug: true } } },
+      select: { status: true, cacNumber: true, store: { select: { id: true, name: true, slug: true } } },
     }),
   ]);
 
@@ -197,7 +197,13 @@ export const getUserDashboardService = async (
     },
     upcomingBirthdays,
     seller: seller
-      ? { status: seller.status, hasStore: !!seller.store, store: seller.store }
+      ? {
+          status: seller.status,
+          hasStore: !!seller.store,
+          store: seller.store,
+          // Approved but no CAC number yet - the dashboard shows a reminder.
+          needsCacNumber: seller.status === "APPROVED" && !seller.cacNumber,
+        }
       : null,
   };
 };
