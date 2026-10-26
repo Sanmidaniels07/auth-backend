@@ -9,6 +9,8 @@ import {
   getMessagesService,
   sendMessageService,
   markConversationReadService,
+  reactToMessageService,
+  deleteMessageService,
 } from "./conversation.service";
 
 export const createConversation = asyncHandler(
@@ -74,7 +76,9 @@ export const sendMessage = asyncHandler(
       req.user.id,
       req.params.id,
       req.body.content,
-      req.body.media
+      req.body.media,
+      req.body.replyToId,
+      req.body.productId
     );
 
     res.status(201).json(
@@ -96,5 +100,30 @@ export const markConversationRead = asyncHandler(
         "Conversation marked as read"
       )
     );
+  }
+);
+
+export const reactToMessage = asyncHandler(
+  async (req: Request, res: Response) => {
+    const message = await reactToMessageService(
+      req.user.id,
+      req.params.id as string,
+      req.params.messageId as string,
+      req.body.emoji
+    );
+
+    res.status(200).json(apiResponse(message, "Reaction saved"));
+  }
+);
+
+export const deleteMessage = asyncHandler(
+  async (req: Request, res: Response) => {
+    const message = await deleteMessageService(
+      req.user.id,
+      req.params.id as string,
+      req.params.messageId as string
+    );
+
+    res.status(200).json(apiResponse(message, "Message deleted"));
   }
 );

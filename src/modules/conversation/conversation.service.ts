@@ -1,4 +1,4 @@
-import { MediaType, NotificationType } from "@prisma/client";
+import { MediaType, NotificationType, ProductStatus } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
@@ -6,6 +6,7 @@ import { getIO } from "../../socket";
 import { createNotificationService } from "../notification/notification.service";
 import { isBlockedEitherWay } from "../block/block.service";
 import { hideContacts } from "../../utils/contactFilter";
+import { isOnline } from "../../socket/presence";
 
 interface MediaInput {
   url: string;
@@ -19,11 +20,63 @@ const PARTICIPANT_USER_SELECT = {
   avatar: true,
 };
 
+const PRODUCT_CARD_SELECT = {
+  id: true,
+  title: true,
+  price: true,
+  status: true,
+  images: { where: { isPrimary: true }, take: 1, select: { url: true } },
+  store: { select: { name: true, slug: true } },
+} as const;
+
 const MESSAGE_INCLUDE = {
   sender: { select: PARTICIPANT_USER_SELECT },
   media: {
     orderBy: { order: "asc" as const },
   },
+  // What a reply is quoting - enough to show "Replying to Ada: ...".
+  replyTo: {
+    select: {
+      id: true,
+      content: true,
+      senderId: true,
+      deletedAt: true,
+      sender: { select: { name: true } },
+      media: { orderBy: { order: "asc" as const }, take: 1, select: { url: true, type: true } },
+      product: { select: { title: true } },
+    },
+  },
+  product: { select: PRODUCT_CARD_SELECT },
+  reactions: { select: { emoji: true, userId: true } },
+};
+
+// The person on the other side of a chat, with what the header and list
+// show: when they were last active and their store (if they sell).
+const CHAT_PARTNER_SELECT = {
+  ...PARTICIPANT_USER_SELECT,
+  lastSeenAt: true,
+  sellerProfile: { select: { store: { select: { name: true, slug: true } } } },
+} as const;
+
+const toChatPartner = (user: {
+  id: string;
+  lastSeenAt: Date | null;
+  sellerProfile: { store: { name: string; slug: string } | null } | null;
+} & Record<string, unknown>) => {
+  const { sellerProfile, ...rest } = user;
+  return { ...rest, online: isOnline(user.id), store: sellerProfile?.store ?? null };
+};
+
+// Tell everyone in the chat (including the actor's other tabs) that a
+// message changed - a reaction, or it was unsent.
+const broadcastUpdate = async (conversationId: string, message: unknown) => {
+  try {
+    const participants = await prisma.conversationParticipant.findMany({ where: { conversationId }, select: { userId: true } });
+    const io = getIO();
+    for (const participant of participants) io.to(participant.userId).emit("message:updated", message);
+  } catch (error) {
+    console.error("Realtime message update failed:", error);
+  }
 };
 
 const assertParticipant = async (
@@ -109,7 +162,7 @@ export const getConversationsService = async (
       include: {
         participants: {
           include: {
-            user: { select: PARTICIPANT_USER_SELECT },
+            user: { select: CHAT_PARTNER_SELECT },
           },
         },
         messages: {
@@ -117,6 +170,7 @@ export const getConversationsService = async (
           take: 1,
           include: {
             media: { orderBy: { order: "asc" as const } },
+            product: { select: { title: true } },
           },
         },
       },
@@ -126,9 +180,10 @@ export const getConversationsService = async (
 
   const conversationsWithMeta = await Promise.all(
     conversations.map(async (conversation) => {
-      const otherParticipant = conversation.participants.find(
+      const partner = conversation.participants.find(
         (p) => p.userId !== userId
       )?.user;
+      const otherParticipant = partner ? toChatPartner(partner) : undefined;
 
       const unreadCount = await prisma.message.count({
         where: {
@@ -191,9 +246,24 @@ export const sendMessageService = async (
   userId: string,
   conversationId: string,
   content: string | undefined,
-  media?: MediaInput[]
+  media?: MediaInput[],
+  replyToId?: string,
+  productId?: string
 ) => {
   await assertParticipant(userId, conversationId);
+
+  if (replyToId) {
+    const original = await prisma.message.findFirst({ where: { id: replyToId, conversationId }, select: { id: true } });
+    if (!original) throw new AppError("The message you're replying to isn't in this chat.", 400);
+  }
+
+  if (productId) {
+    const product = await prisma.product.findFirst({
+      where: { id: productId, status: { in: [ProductStatus.PUBLISHED, ProductStatus.OUT_OF_STOCK] }, store: { isSuspended: false } },
+      select: { id: true },
+    });
+    if (!product) throw new AppError("That product isn't available.", 404);
+  }
 
   const otherParticipants =
     await prisma.conversationParticipant.findMany({
@@ -225,6 +295,8 @@ export const sendMessageService = async (
         conversationId,
         senderId: userId,
         content,
+        replyToId: replyToId ?? null,
+        productId: productId ?? null,
         media: media
           ? {
               create: media.map((item, index) => ({
@@ -257,9 +329,11 @@ export const sendMessageService = async (
 
   const notificationBody = message.content
     ? `${message.sender.name} sent you a message`
-    : `${message.sender.name} sent you ${
-        message.media[0]?.type === MediaType.VIDEO ? "a video" : "a photo"
-      }`;
+    : message.product
+      ? `${message.sender.name} shared a product with you`
+      : `${message.sender.name} sent you ${
+          message.media[0]?.type === MediaType.VIDEO ? "a video" : "a photo"
+        }`;
 
   for (const participant of otherParticipants) {
     createNotificationService(
@@ -310,4 +384,60 @@ export const markConversationReadService = async (
       console.error("Realtime read receipt failed:", error);
     }
   }
+};
+
+const findMessageInChat = async (conversationId: string, messageId: string) => {
+  const message = await prisma.message.findFirst({ where: { id: messageId, conversationId } });
+  if (!message) throw new AppError("Message not found.", 404);
+  return message;
+};
+
+/** React with an emoji (replaces your earlier reaction); null removes it. */
+export const reactToMessageService = async (
+  userId: string,
+  conversationId: string,
+  messageId: string,
+  emoji: string | null
+) => {
+  await assertParticipant(userId, conversationId);
+  const message = await findMessageInChat(conversationId, messageId);
+  if (message.deletedAt) throw new AppError("This message was deleted.", 400);
+
+  if (emoji) {
+    await prisma.messageReaction.upsert({
+      where: { messageId_userId: { messageId, userId } },
+      create: { messageId, userId, emoji },
+      update: { emoji },
+    });
+  } else {
+    await prisma.messageReaction.deleteMany({ where: { messageId, userId } });
+  }
+
+  const updated = await prisma.message.findUniqueOrThrow({ where: { id: messageId }, include: MESSAGE_INCLUDE });
+  await broadcastUpdate(conversationId, updated);
+  return updated;
+};
+
+/**
+ * Unsend your own message for everyone: it becomes "This message was
+ * deleted" - text, photos, product card and reactions are removed.
+ */
+export const deleteMessageService = async (userId: string, conversationId: string, messageId: string) => {
+  await assertParticipant(userId, conversationId);
+  const message = await findMessageInChat(conversationId, messageId);
+  if (message.senderId !== userId) throw new AppError("You can only delete your own messages.", 403);
+  if (message.deletedAt) return prisma.message.findUniqueOrThrow({ where: { id: messageId }, include: MESSAGE_INCLUDE });
+
+  const [, , updated] = await prisma.$transaction([
+    prisma.messageMedia.deleteMany({ where: { messageId } }),
+    prisma.messageReaction.deleteMany({ where: { messageId } }),
+    prisma.message.update({
+      where: { id: messageId },
+      data: { content: null, productId: null, deletedAt: new Date() },
+      include: MESSAGE_INCLUDE,
+    }),
+  ]);
+
+  await broadcastUpdate(conversationId, updated);
+  return updated;
 };
