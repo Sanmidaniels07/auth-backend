@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 
 import prisma from "../prisma/prisma";
 import { JwtPayload } from "../middleware/auth-middleware";
+import { userConnected, userDisconnected } from "./presence";
 
 let io: Server;
 
@@ -54,6 +55,7 @@ export const initSocket = (
     // Room = verified identity, not whatever the client claims - joining
     // happens right here instead of waiting on a client-sent "join" event.
     socket.join(userId);
+    void userConnected(io, userId);
 
     console.log(
       `User ${userId} connected:`,
@@ -91,6 +93,7 @@ export const initSocket = (
     socket.on(
       "disconnect",
       () => {
+        void userDisconnected(io, userId);
         console.log(
           `User ${userId} disconnected:`,
           socket.id

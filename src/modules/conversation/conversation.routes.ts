@@ -8,6 +8,8 @@ import {
   conversationIdSchema,
   listMessagesSchema,
   sendMessageSchema,
+  reactToMessageSchema,
+  deleteMessageSchema,
 } from "./conversation.validation";
 import {
   createConversation,
@@ -15,6 +17,8 @@ import {
   getMessages,
   sendMessage,
   markConversationRead,
+  reactToMessage,
+  deleteMessage,
 } from "./conversation.controller";
 
 const router = Router();
@@ -43,6 +47,18 @@ router.post(
   "/:id/messages",
   validate(sendMessageSchema),
   sendMessage
+);
+
+router.put(
+  "/:id/messages/:messageId/reaction",
+  validate(reactToMessageSchema),
+  reactToMessage
+);
+
+router.delete(
+  "/:id/messages/:messageId",
+  validate(deleteMessageSchema),
+  deleteMessage
 );
 
 router.patch(

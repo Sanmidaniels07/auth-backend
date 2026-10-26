@@ -43,13 +43,34 @@ export const sendMessageSchema = z.object({
     .object({
       content: z.string().trim().min(1).max(2000).optional(),
       media: z.array(mediaItemSchema).max(10).optional(),
+      // Quote an earlier message in this chat.
+      replyToId: z.string().min(1).optional(),
+      // Share a product as a card.
+      productId: z.string().min(1).optional(),
     })
     .refine(
-      (data) => !!data.content || (data.media && data.media.length > 0),
+      (data) => !!data.content || (data.media && data.media.length > 0) || !!data.productId,
       {
         message:
-          "A message needs text content, at least one image or video, or both.",
+          "A message needs text, a photo or video, or a product.",
         path: ["content"],
       }
     ),
+});
+
+const messageParams = z.object({
+  id: z.string(),
+  messageId: z.string(),
+});
+
+export const reactToMessageSchema = z.object({
+  params: messageParams,
+  body: z.object({
+    // One emoji (some are several characters); null removes your reaction.
+    emoji: z.string().trim().min(1).max(16).nullable(),
+  }),
+});
+
+export const deleteMessageSchema = z.object({
+  params: messageParams,
 });

@@ -185,6 +185,10 @@ model User {
 
   deletedAt DateTime?
 
+  // Last time they had Nestly open (socket disconnect) - "Active 5m ago"
+  // in chats. Online right now is tracked in memory (socket/index.ts).
+  lastSeenAt DateTime?
+
   twoFactorSecret  String?
   twoFactorEnabled Boolean @default(false)
 
@@ -247,6 +251,7 @@ model User {
 
   conversationParticipations ConversationParticipant[]
   sentMessages               Message[]
+  messageReactions           MessageReaction[]
 
   stories        Story[]
   storyViews     StoryView[]
@@ -514,9 +519,41 @@ model Message {
 
   media MessageMedia[]
 
+  // Replying to an earlier message in the same conversation (shown quoted).
+  replyToId String?
+  replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageReplies")
+
+  // A product shared in the chat, shown as a card.
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  reactions MessageReaction[]
+
   readAt DateTime?
 
+  // Unsent by the sender ("This message was deleted") - content, media,
+  // product and reactions are cleared.
+  deletedAt DateTime?
+
   createdAt DateTime @default(now())
+}
+
+// One emoji reaction per person per message (reacting again replaces it).
+model MessageReaction {
+  id String @id @default(cuid())
+
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  emoji String
+
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId])
 }
 
 model MessageMedia {
@@ -1088,6 +1125,9 @@ model Product {
   followersNotifiedAt DateTime?
 
   stockAlerts StockAlert[]
+
+  // Shared into chats as product cards.
+  messages Message[]
 }
 
 model ProductImage {
