@@ -60,6 +60,7 @@ router.patch(
 
 router.get(
   "/:slug/products",
+  optionalAuthMiddleware,
   validate(storeProductsSchema),
   getStoreProducts
 );

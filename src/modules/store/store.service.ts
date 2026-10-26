@@ -3,6 +3,7 @@ import { Prisma, ProductStatus, Role } from "@prisma/client";
 import { DeliveryVehicle, ShippingOptionType } from "@prisma/client";
 import prisma from "../../prisma/prisma";
 import { findState } from "../../data/nigeria-locations";
+import { isAdminUser } from "../../utils/isAdmin";
 import { AppError } from "../../utils/appError";
 import { generateUniqueSlug } from "../../utils/slugify";
 import { getApprovedSellerProfile } from "../seller/seller.utils";
@@ -286,7 +287,8 @@ export const getPublicStoreService = async (
     },
   });
 
-  if (!store || store.isSuspended) {
+  // Suspended stores are hidden from everyone but admins.
+  if (!store || (store.isSuspended && !(await isAdminUser(viewerId)))) {
     throw new AppError("Store not found.", 404);
   }
 
@@ -301,8 +303,9 @@ export const getPublicStoreService = async (
     isFollowing = !!follow;
   }
 
-  // Don't count the owner's own visits; anonymous viewers are logged with a null viewerId.
-  if (viewerId !== store.seller.user.id) {
+  // Don't count the owner's own visits (or admins reviewing a suspended
+  // store); anonymous viewers are logged with a null viewerId.
+  if (viewerId !== store.seller.user.id && !store.isSuspended) {
     await prisma.storeView.create({
       data: {
         storeId: store.id,
@@ -552,13 +555,14 @@ export const listStoresService = async (
 export const getStoreProductsService = async (
   slug: string,
   page: number,
-  limit: number
+  limit: number,
+  viewerId?: string
 ) => {
   const store = await prisma.store.findUnique({
     where: { slug },
   });
 
-  if (!store || store.isSuspended) {
+  if (!store || (store.isSuspended && !(await isAdminUser(viewerId)))) {
     throw new AppError("Store not found.", 404);
   }
 

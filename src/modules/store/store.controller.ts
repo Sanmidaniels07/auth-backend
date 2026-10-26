@@ -186,7 +186,8 @@ export const getStoreProducts = asyncHandler(
     const result = await getStoreProductsService(
       req.params.slug,
       page,
-      limit
+      limit,
+      req.user?.id
     );
 
     res.status(200).json(

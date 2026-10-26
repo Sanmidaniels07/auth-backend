@@ -413,7 +413,7 @@
  * /api/products/{id}:
  *   get:
  *     summary: Get a published product by id
- *     description: Public endpoint. Only returns products with status PUBLISHED.
+ *     description: Public endpoint. Only returns products with status PUBLISHED. Products of a suspended store return 404, except to admins (send their token), who can still review them - store.isSuspended tells them.
  *     tags:
  *       - Product
  *     security: []

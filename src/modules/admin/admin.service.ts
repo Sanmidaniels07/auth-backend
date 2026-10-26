@@ -171,7 +171,7 @@ const ADMIN_SELLER_SELECT = {
   // Shown next to the CAC number so the admin can compare it with the
   // name the CAC public search returns.
   store: {
-    select: { id: true, name: true, slug: true },
+    select: { id: true, name: true, slug: true, isSuspended: true },
   },
 };
 

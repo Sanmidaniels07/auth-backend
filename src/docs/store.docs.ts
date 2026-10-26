@@ -120,7 +120,7 @@
  * /api/stores/{slug}/products:
  *   get:
  *     summary: List a store's published products
- *     description: Returns a paginated list of published products belonging to the store identified by slug. Public endpoint. Returns 404 if the store is suspended.
+ *     description: Returns a paginated list of published products belonging to the store identified by slug. Public endpoint. Returns 404 if the store is suspended, except to admins (send their token).
  *     tags:
  *       - Store
  *     security: []
@@ -150,7 +150,7 @@
  * /api/stores/{slug}:
  *   get:
  *     summary: Get a public store by slug
- *     description: Returns store details, including basic seller info, shipping options, followersCount, and (if authenticated) isFollowing. Public endpoint. Returns 404 if the store is suspended (owner banned/suspended by an admin), regardless of who is asking.
+ *     description: Returns store details, including basic seller info, shipping options, followersCount, and (if authenticated) isFollowing. Public endpoint. Returns 404 if the store is suspended (owner banned/suspended by an admin) - except to admins (send their token), who can still review it; the response then has isSuspended true. Public payout details are never included.
  *     tags:
  *       - Store
  *     security: []
