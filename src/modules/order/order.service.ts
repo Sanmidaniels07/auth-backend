@@ -326,6 +326,7 @@ export const getSellerOrdersService = async (
       orderBy: { createdAt: "desc" },
       include: {
         user: { select: { id: true, name: true } }, // no email (Privacy Policy)
+        address: { select: SELLER_ADDRESS_SELECT },
         // How this seller's items reach the buyer. Never includes the
         // buyer's delivery code.
         shipping: {
@@ -363,6 +364,18 @@ export const getSellerOrdersService = async (
   };
 };
 
+// Where the seller delivers to - never the buyer's phone (or email):
+// sellers and buyers talk through in-app messages so every conversation
+// and sale stays on Nestly.
+const SELLER_ADDRESS_SELECT = {
+  fullName: true,
+  address: true,
+  city: true,
+  state: true,
+  country: true,
+  postalCode: true,
+} as const;
+
 export const getSellerOrderByIdService = async (
   userId: string,
   orderId: string
@@ -376,7 +389,7 @@ export const getSellerOrderByIdService = async (
     },
     include: {
       user: { select: { id: true, name: true } }, // no email (Privacy Policy)
-      address: true,
+      address: { select: SELLER_ADDRESS_SELECT },
       // How this seller's items reach the buyer. Never includes the
       // buyer's delivery code.
       shipping: {
