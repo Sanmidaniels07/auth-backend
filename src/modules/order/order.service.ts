@@ -356,7 +356,7 @@ export const getSellerOrdersService = async (
   ]);
 
   return {
-    orders: orders.map((order) => ({ ...order, items: order.items.map(asOrdered) })),
+    orders: orders.map((order) => forSeller({ ...order, items: order.items.map(asOrdered) })),
     total,
     page,
     limit,
@@ -364,9 +364,8 @@ export const getSellerOrdersService = async (
   };
 };
 
-// Where the seller delivers to - never the buyer's phone (or email):
-// sellers and buyers talk through in-app messages so every conversation
-// and sale stays on Nestly.
+// Where the seller delivers to - never the address's phone or the buyer's
+// email; the number to call is order.deliveryPhone (see forSeller).
 const SELLER_ADDRESS_SELECT = {
   fullName: true,
   address: true,
@@ -375,6 +374,17 @@ const SELLER_ADDRESS_SELECT = {
   country: true,
   postalCode: true,
 } as const;
+
+// The delivery phone is for delivering: sellers only get it for a delivery
+// (not pickup) while some of their items are still on the way.
+const forSeller = <T extends { deliveryPhone: string | null; shipping: { type: string }[]; items: { status: OrderItemStatus }[] }>(
+  order: T,
+) => {
+  const delivering =
+    order.shipping[0]?.type === "DELIVERY" &&
+    order.items.some((item) => item.status !== OrderItemStatus.DELIVERED && item.status !== OrderItemStatus.CANCELLED);
+  return { ...order, deliveryPhone: delivering ? order.deliveryPhone : null };
+};
 
 export const getSellerOrderByIdService = async (
   userId: string,
@@ -421,7 +431,7 @@ export const getSellerOrderByIdService = async (
     throw new AppError("Order not found.", 404);
   }
 
-  return { ...order, items: order.items.map(asOrdered) };
+  return forSeller({ ...order, items: order.items.map(asOrdered) });
 };
 
 export const updateOrderItemStatusService = async (
@@ -681,5 +691,6 @@ export const updateOrderTrackingNumberService = async (
   return prisma.order.update({
     where: { id: orderId },
     data: { trackingNumber },
+    omit: { deliveryPhone: true },
   });
 };

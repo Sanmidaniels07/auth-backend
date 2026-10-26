@@ -82,6 +82,7 @@ export const notifyOrderPaid = (orderId: string) =>
       where: { id: orderId },
       include: {
         user: { select: USER_SELECT },
+        address: { select: { fullName: true, address: true, city: true, state: true } },
         shipping: { include: { store: { select: { id: true, name: true } } } },
         sellerNotes: { select: { storeId: true, note: true } },
         items: {
@@ -136,12 +137,24 @@ export const notifyOrderPaid = (orderId: string) =>
         const shipment = order.shipping.find((s) => s.storeId === store.id);
         const isPickup = shipment?.type === ShippingOptionType.PICKUP;
         const buyerNote = order.sellerNotes.find((n) => n.storeId === store.id)?.note ?? null;
+        // Sellers deliver themselves, so they get the receiver and the number
+        // to call - for delivery orders only.
+        const deliverTo =
+          !isPickup && order.address
+            ? {
+                name: order.address.fullName,
+                address: [order.address.address, order.address.city, order.address.state].filter(Boolean).join(", "),
+                phone: order.deliveryPhone,
+              }
+            : null;
 
         return deliver({
           to: seller,
           title: buyerNote ? "New order - with a note" : "New order",
           message: `Order ${number}: ${count} item${count === 1 ? "" : "s"} from ${store.name}. ${
-            isPickup ? "The buyer will pick it up - get it ready." : "Prepare it for delivery."
+            isPickup
+              ? "The buyer will pick it up - get it ready."
+              : `Prepare it for delivery${deliverTo ? ` to ${deliverTo.name}, ${deliverTo.address}${deliverTo.phone ? ` - call ${deliverTo.phone}` : ""}` : ""}.`
           }${buyerNote ? ` Buyer's note: "${truncate(buyerNote, 140)}"` : ""}`,
           target: { type: "SELLER_ORDER", id: order.id },
           email: {
@@ -155,6 +168,7 @@ export const notifyOrderPaid = (orderId: string) =>
               shippingOption: shipment?.optionName ?? null,
               isPickup,
               buyerNote,
+              deliverTo,
               ordersUrl: sellerOrdersUrl(),
             }),
           },

@@ -84,6 +84,8 @@ export const newOrderEmail = (opts: {
   shippingOption: string | null;
   isPickup?: boolean;
   buyerNote?: string | null;
+  /** Delivery orders only - the seller delivers, so they get the number to call. */
+  deliverTo?: { name: string; address: string; phone: string | null } | null;
   ordersUrl: string;
 }) =>
   renderEmailLayout({
@@ -99,6 +101,21 @@ export const newOrderEmail = (opts: {
                 <td style="padding:14px 16px; background:#F5F3FF; border-left:3px solid #7C3AED; border-radius:10px; font-size:14px; line-height:1.55; color:#13131A;">
                   <div style="font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#6D28D9; margin-bottom:6px;">Note from the buyer</div>
                   ${escapeHtml(opts.buyerNote).replace(/\n/g, "<br />")}
+                </td>
+              </tr>
+            </table>`
+          : ""
+      }
+      ${
+        opts.deliverTo
+          ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 0 0;">
+              <tr>
+                <td style="padding:14px 16px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; font-size:14px; line-height:1.6; color:#13131A;">
+                  <div style="font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#64748B; margin-bottom:6px;">Deliver to</div>
+                  <strong>${escapeHtml(opts.deliverTo.name)}</strong><br />
+                  ${escapeHtml(opts.deliverTo.address)}
+                  ${opts.deliverTo.phone ? `<br />Phone: <a href="tel:${escapeHtml(opts.deliverTo.phone)}" style="color:#6D28D9; font-weight:600;">${escapeHtml(opts.deliverTo.phone)}</a>` : ""}
+                  <div style="margin-top:8px; font-size:12px; color:#64748B;">For delivering this order only. Keep everything else - questions, extra orders and payment - on Nestly.</div>
                 </td>
               </tr>
             </table>`

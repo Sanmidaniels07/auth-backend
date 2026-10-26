@@ -1324,6 +1324,11 @@ model Order {
 
   trackingNumber String?
 
+  // Number the seller (who delivers) calls about this order - the address's
+  // phone unless the buyer gave another at checkout. Shown to the seller
+  // only for delivery orders, until their items are delivered.
+  deliveryPhone String?
+
   items OrderItem[]
 
   shipping OrderShipping[]

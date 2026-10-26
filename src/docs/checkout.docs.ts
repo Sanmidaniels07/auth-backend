@@ -40,9 +40,13 @@
  *                       type: string
  *               couponCode:
  *                 type: string
+ *               deliveryPhone:
+ *                 type: string
+ *                 example: "0803 123 4567"
+ *                 description: Optional. Number the seller calls to deliver; defaults to the address's phone. Sellers only see it for delivery (not pickup) orders - in the "New order" notification and email, and on the order until their items are delivered.
  *               sellerNotes:
  *                 type: array
- *                 description: Optional note per store (extras, sizes, gift message), max 500 characters each. Blank notes and stores not in the cart are ignored. Each seller only ever sees their own store's note, shown on their order and in the "New order" notification and email once payment succeeds.
+ *                 description: Optional note per store (extras, sizes, gift message), max 500 characters each. Blank notes and stores not in the cart are ignored. Each seller only ever sees their own store's note, shown on their order and in the "New order" notification and email once payment succeeds. Phone numbers, emails, handles and social links in notes are hidden - the delivery number goes in deliveryPhone.
  *                 items:
  *                   type: object
  *                   required:
@@ -101,9 +105,13 @@
  *                       type: string
  *               couponCode:
  *                 type: string
+ *               deliveryPhone:
+ *                 type: string
+ *                 example: "0803 123 4567"
+ *                 description: Optional. Number the seller calls to deliver; defaults to the address's phone. Sellers only see it for delivery (not pickup) orders - in the "New order" notification and email, and on the order until their items are delivered.
  *               sellerNotes:
  *                 type: array
- *                 description: Optional note per store (extras, sizes, gift message), max 500 characters each. Blank notes and stores not in the cart are ignored. Each seller only ever sees their own store's note, shown on their order and in the "New order" notification and email once payment succeeds.
+ *                 description: Optional note per store (extras, sizes, gift message), max 500 characters each. Blank notes and stores not in the cart are ignored. Each seller only ever sees their own store's note, shown on their order and in the "New order" notification and email once payment succeeds. Phone numbers, emails, handles and social links in notes are hidden - the delivery number goes in deliveryPhone.
  *                 items:
  *                   type: object
  *                   required:

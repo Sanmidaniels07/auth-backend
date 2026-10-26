@@ -91,7 +91,7 @@
  *         description: Conversation not found (or you're not a participant)
  *   post:
  *     summary: Send a message
- *     description: Requires authentication and being a participant. Delivered in real time to the other participant via Socket.IO if they're connected.
+ *     description: Requires authentication and being a participant. Delivered in real time to the other participant via Socket.IO if they're connected. In a conversation involving a seller (anyone with a store), phone numbers, bank account numbers, emails, @handles and WhatsApp/Instagram/Facebook/TikTok/Telegram/X/Snapchat links in `content` are replaced with "••••••" before saving, so buyers and sellers keep talking and paying on Nestly; the response has `contactHidden: true` when that happened.
  *     tags:
  *       - Conversation
  *     security:

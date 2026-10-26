@@ -5,6 +5,7 @@ import { AppError } from "../../utils/appError";
 import { getIO } from "../../socket";
 import { createNotificationService } from "../notification/notification.service";
 import { isBlockedEitherWay } from "../block/block.service";
+import { hideContacts } from "../../utils/contactFilter";
 
 interface MediaInput {
   url: string;
@@ -208,6 +209,16 @@ export const sendMessageService = async (
     }
   }
 
+  // Chats with a seller stay on Nestly: phone numbers, emails, handles and
+  // social links are hidden before the message is saved (utils/contactFilter).
+  const involvesSeller =
+    !!content &&
+    (await prisma.store.count({
+      where: { seller: { userId: { in: [userId, ...otherParticipants.map((p) => p.userId)] } } },
+    })) > 0;
+  const filtered = involvesSeller && content ? hideContacts(content) : null;
+  if (filtered) content = filtered.text;
+
   const [message] = await prisma.$transaction([
     prisma.message.create({
       data: {
@@ -262,7 +273,7 @@ export const sendMessageService = async (
     });
   }
 
-  return message;
+  return { ...message, contactHidden: !!filtered?.hidden };
 };
 
 export const markConversationReadService = async (
