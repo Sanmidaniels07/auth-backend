@@ -113,7 +113,7 @@ export const getMerchantFeedService = async () => {
       condition: true,
       brand: true,
       updatedAt: true,
-      images: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }], take: 10, select: { url: true } },
+      images: { orderBy: [{ isPrimary: "desc" }, { id: "asc" }], take: 10, select: { url: true } },
       category: { select: { name: true } },
       store: { select: { name: true } },
       // Products with options: the cheapest active one is the "from" price.
