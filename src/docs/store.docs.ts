@@ -67,7 +67,7 @@
  *               whatsapp:
  *                 type: string
  *                 nullable: true
- *                 description: Phone number in any common format (0815 967 1809, +234..., wa.me link) - stored as 2348159671809. Private: only the owner and admins see it.
+ *                 description: Phone number in any common format (0815 967 1809, +234..., wa.me link) - stored as 2348159671809. Not shown to buyers: only the owner and admins see it.
  *     responses:
  *       201:
  *         description: Store created successfully
@@ -167,7 +167,7 @@
  * /api/stores/{slug}:
  *   get:
  *     summary: Get a public store by slug
- *     description: Returns store details, including basic seller info, shipping options, followersCount, and (if authenticated) isFollowing. Public endpoint. Returns 404 if the store is suspended (owner banned/suspended by an admin) - except to admins (send their token), who can still review it; the response then has isSuspended true. Payout details are never included, and the seller's contact details (email, phone, whatsapp, instagram, facebook, tiktok) are left out for everyone but admins - buyers reach sellers through in-app messages so sales stay on Nestly.
+ *     description: Returns store details, including basic seller info, shipping options, followersCount, and (if authenticated) isFollowing. Public endpoint. Returns 404 if the store is suspended (owner banned/suspended by an admin) - except to admins (send their token), who can still review it; the response then has isSuspended true. Payout details are never included. The seller's social handles (whatsapp, instagram, facebook, tiktok) are only included for the store owner and admins, so deals stay on Nestly checkout; email and phone are public.
  *     tags:
  *       - Store
  *     security: []
@@ -568,7 +568,7 @@
  *               whatsapp:
  *                 type: string
  *                 nullable: true
- *                 description: Phone number in any common format (0815 967 1809, +234..., wa.me link) - stored as 2348159671809. Private: only the owner and admins see it.
+ *                 description: Phone number in any common format (0815 967 1809, +234..., wa.me link) - stored as 2348159671809. Not shown to buyers: only the owner and admins see it.
  *     responses:
  *       200:
  *         description: Store updated successfully
