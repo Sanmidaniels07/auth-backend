@@ -5,24 +5,22 @@ import { sendEmail } from "../auth/email.services";
 import { createNotificationService } from "../notification/notification.service";
 import { cacReminderTemplate } from "../../templates/cac-reminder.template";
 
-// Sellers with a store but no CAC number get two gentle reminders - a few
-// days after approval and again after two weeks - in the app and by email.
-// Never more than two, and at least a week apart (so sellers approved long
-// before this existed don't get both at once).
-const REMINDER_DAYS = [3, 14];
-const MIN_GAP_DAYS = 7;
+// Every approved seller without a CAC number (store or not) is reminded in
+// the app and by email: first a few days after approval, then every two
+// weeks until they add one - occasional, never daily. (The Seller Hub and
+// home dashboard also show a banner the whole time.)
+const FIRST_AFTER_DAYS = 3;
+const EVERY_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const settingsUrl = () => `${process.env.FRONTEND_URL ?? ""}/settings/marketplace?tab=store#business-verification`;
+// Seller Hub opens with the CAC form ready (works without a store too).
+const sellerHubUrl = () => `${process.env.FRONTEND_URL ?? ""}/settings/marketplace?cac=1`;
 
 export const sendCacRemindersService = async (now: Date = new Date()) => {
   const sellers = await prisma.sellerProfile.findMany({
     where: {
       status: SellerStatus.APPROVED,
       OR: [{ cacNumber: null }, { cacNumber: "" }],
-      cacRemindersSent: { lt: REMINDER_DAYS.length },
-      // The badge goes on their store - nothing to verify until they have one.
-      store: { isNot: null },
     },
     select: {
       id: true,
@@ -39,9 +37,10 @@ export const sendCacRemindersService = async (now: Date = new Date()) => {
 
   for (const seller of sellers) {
     const approvedAt = seller.statusUpdatedAt ?? seller.createdAt;
-    const dueAfter = REMINDER_DAYS[seller.cacRemindersSent] * DAY_MS;
-    if (now.getTime() - approvedAt.getTime() < dueAfter) continue;
-    if (seller.lastCacReminderAt && now.getTime() - seller.lastCacReminderAt.getTime() < MIN_GAP_DAYS * DAY_MS) continue;
+    const dueAt = seller.lastCacReminderAt
+      ? seller.lastCacReminderAt.getTime() + EVERY_DAYS * DAY_MS
+      : approvedAt.getTime() + FIRST_AFTER_DAYS * DAY_MS;
+    if (now.getTime() < dueAt) continue;
 
     // Claim this reminder first so overlapping runs can't send it twice.
     const claim = await prisma.sellerProfile.updateMany({
@@ -53,12 +52,12 @@ export const sendCacRemindersService = async (now: Date = new Date()) => {
     await Promise.allSettled([
       createNotificationService(
         seller.user.id,
-        "Get your store verified",
-        "Add your CAC number in Seller Hub to get a verified badge buyers can trust.",
+        "Add your CAC number",
+        "Registered with the CAC? Add your number in Seller Hub to get a verified badge buyers can trust.",
         NotificationType.SYSTEM,
         { type: "CAC_REMINDER", id: seller.id }
       ),
-      sendEmail(seller.user.email, "Get a verified badge on your Nestly store", cacReminderTemplate(seller.user.name, seller.store?.name ?? null, settingsUrl())),
+      sendEmail(seller.user.email, "Get a verified badge on your Nestly store", cacReminderTemplate(seller.user.name, seller.store?.name ?? null, sellerHubUrl())),
     ]).then((results) =>
       results.forEach((result) => {
         if (result.status === "rejected") console.error(`CAC reminder to ${seller.user.id} failed:`, result.reason);

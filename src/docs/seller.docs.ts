@@ -55,7 +55,7 @@
  *         description: Seller profile not found
  *   patch:
  *     summary: Update the authenticated user's seller profile
- *     description: Updates seller profile fields for the authenticated user. Requires authentication and an existing seller profile. `cacNumber` can be added or changed at any time (letters and numbers, stored uppercase without spaces; "" removes it). A new or changed number clears the business verification and the store's verified badge until an admin checks it, and notifies admins. Approved sellers without a CAC number get up to two reminders (in-app and email, around day 3 and day 14 after approval).
+ *     description: Updates seller profile fields for the authenticated user. Requires authentication and an existing seller profile. `cacNumber` can be added or changed at any time (letters and numbers, stored uppercase without spaces; "" removes it). A new or changed number clears the business verification and the store's verified badge until an admin checks it, and notifies admins. Approved sellers without a CAC number (with or without a store) get reminders in-app and by email: 3 days after approval, then every 14 days until they add one.
  *     tags:
  *       - Seller
  *     security:

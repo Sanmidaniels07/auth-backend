@@ -785,7 +785,7 @@ model SellerProfile {
   isVerified Boolean @default(false)
 
   // Reminders to add a CAC number (sellers who joined without one): how
-  // many have gone out (at most 2) and when the last one did.
+  // many have gone out and when the last one did (next one 14 days later).
   cacRemindersSent  Int       @default(0)
   lastCacReminderAt DateTime?
 
