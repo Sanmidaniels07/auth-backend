@@ -3,6 +3,7 @@ import { OrderStatus } from "@prisma/client";
 import prisma from "../../prisma/prisma";
 import { getBlockedUserIds } from "../block/block.service";
 import { REVENUE_STATUSES } from "../../utils/sellerRevenue";
+import { missingSetup } from "../../utils/sellerReadiness";
 import { DAY_MS, nextBirthday, nigeriaToday } from "../../utils/birthday";
 
 const ACTIVE_ORDER_STATUSES: OrderStatus[] = [
@@ -131,7 +132,19 @@ export const getUserDashboardService = async (
     }),
     prisma.sellerProfile.findUnique({
       where: { userId },
-      select: { status: true, cacNumber: true, store: { select: { id: true, name: true, slug: true } } },
+      select: {
+        status: true,
+        cacNumber: true,
+        store: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            paystackSubaccountCode: true,
+            _count: { select: { shippingOptions: { where: { isArchived: false } }, products: { where: { status: "PUBLISHED" } } } },
+          },
+        },
+      },
     }),
   ]);
 
@@ -200,7 +213,9 @@ export const getUserDashboardService = async (
       ? {
           status: seller.status,
           hasStore: !!seller.store,
-          store: seller.store,
+          store: seller.store ? { id: seller.store.id, name: seller.store.name, slug: seller.store.slug } : null,
+          // Approved but not ready to take orders yet - the dashboard lists what's left.
+          missingSetup: seller.status === "APPROVED" ? missingSetup(seller) : [],
           // Approved but no CAC number yet - the dashboard shows a reminder.
           needsCacNumber: seller.status === "APPROVED" && !seller.cacNumber,
         }

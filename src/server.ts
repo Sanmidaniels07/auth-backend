@@ -6,7 +6,7 @@ import app from "./app";
 import { initSocket } from "./socket";
 import { startAutoConfirmDeliveriesJob } from "./jobs/auto-confirm-deliveries.job";
 import { startBirthdayRemindersJob } from "./jobs/birthday-reminders.job";
-import { startCacRemindersJob } from "./jobs/cac-reminders.job";
+import { startSellerRemindersJob } from "./jobs/seller-reminders.job";
 
 const PORT = process.env.PORT || 5000;
 
@@ -21,5 +21,5 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   startAutoConfirmDeliveriesJob();
   startBirthdayRemindersJob();
-  startCacRemindersJob();
+  startSellerRemindersJob();
 });

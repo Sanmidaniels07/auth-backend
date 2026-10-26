@@ -79,4 +79,23 @@
  *         description: Seller profile not found
  */
 
+/**
+ * @swagger
+ * /api/seller/me/readiness:
+ *   get:
+ *     summary: What's left before buyers can order from this seller
+ *     description: Requires authentication and a seller profile. For approved sellers, `missing` lists the steps still to do - STORE (set up the store), PAYOUT (payout bank account), DELIVERY (at least one active delivery zone or pickup), PRODUCT (at least one published product) - each with `title`, `why` and `path` (where to do it). `ready` is true when nothing is missing. Approved sellers who aren't ready also get reminders in-app and by email: 2 days after approval, then weekly until done.
+ *     tags:
+ *       - Seller
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Seller readiness fetched successfully
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       404:
+ *         description: Seller profile not found
+ */
+
 export {};

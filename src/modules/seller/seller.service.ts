@@ -3,6 +3,7 @@ import { Role, SellerStatus } from "@prisma/client";
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { createNotificationService } from "../notification/notification.service";
+import { READINESS_SELECT, READINESS_STEPS, missingSetup } from "../../utils/sellerReadiness";
 
 export const SELLER_REAPPLY_COOLDOWN_DAYS = 3;
 
@@ -169,6 +170,28 @@ const notifyAdminsOfCacNumber = async (sellerProfileId: string, userId: string) 
       console.error("Notification failed:", error);
     });
   }
+};
+
+/**
+ * What's left before buyers can order from this seller: store, payout
+ * account, delivery zones (or pickup), a published product. Drives the
+ * "Finish setting up" banner; empty `missing` means ready to sell.
+ */
+export const getSellerReadinessService = async (userId: string) => {
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { userId },
+    select: { status: true, ...READINESS_SELECT },
+  });
+
+  if (!seller) {
+    throw new AppError("Seller profile not found.", 404);
+  }
+
+  const missing = seller.status === SellerStatus.APPROVED ? missingSetup(seller) : [];
+  return {
+    ready: missing.length === 0,
+    missing: READINESS_STEPS.filter((step) => missing.includes(step.key)),
+  };
 };
 
 export const updateSellerService = async (

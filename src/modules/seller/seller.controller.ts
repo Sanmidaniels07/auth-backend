@@ -4,6 +4,7 @@ import { asyncHandler } from "../../utils/asyncHandlers";
 import {
   becomeSellerService,
   getSellerProfileService,
+  getSellerReadinessService,
   updateSellerService,
 } from "./seller.service";
 
@@ -48,6 +49,18 @@ export const updateSeller = asyncHandler(
       success: true,
       message: "Seller profile updated successfully.",
       data: seller,
+    });
+  }
+);
+
+export const getSellerReadiness = asyncHandler(
+  async (req: Request, res: Response) => {
+    const readiness = await getSellerReadinessService(req.user.id);
+
+    res.status(200).json({
+      success: true,
+      message: "Seller readiness fetched successfully.",
+      data: readiness,
     });
   }
 );
