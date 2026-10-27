@@ -1286,6 +1286,8 @@ model RecentlyViewed {
   viewedAt DateTime @default(now())
 
   @@unique([userId, productId])
+  // Trending and "For you" read recent views across all users.
+  @@index([viewedAt])
 }
 
 model Cart {
