@@ -48,7 +48,7 @@ const cached = async <T>(key: string, load: () => Promise<T>): Promise<T> => {
 const loadProducts = async (ids: string[], extraWhere: Prisma.ProductWhereInput = {}) => {
   if (!ids.length) return [];
   const products = await prisma.product.findMany({
-    where: { ...LIVE_PRODUCT, ...extraWhere, id: { in: ids } },
+    where: { AND: [LIVE_PRODUCT, extraWhere, { id: { in: ids } }] },
     include: CARD_INCLUDE,
   });
   const byId = new Map(products.map((product) => [product.id, product]));
