@@ -46,6 +46,27 @@ export interface SellerNoteInput {
   note: string;
 }
 
+/**
+ * The Paystack split for a payment: each seller's subaccount gets its flat
+ * share. Nestly pays Paystack's whole fee out of what's left for the main
+ * account (commission, less any coupon). If that can't cover it - a 0%
+ * category, a small item with a big delivery fee - the fee is shared by
+ * amount instead, so the payment still goes through.
+ */
+export const paystackSplitFor = (
+  totalKobo: number,
+  subaccounts: { subaccount: string; share: number }[],
+): PaystackSplitConfig | undefined => {
+  if (subaccounts.length === 0) return undefined;
+  const mainAccountKobo = totalKobo - subaccounts.reduce((sum, s) => sum + s.share, 0);
+  return {
+    type: "flat",
+    currency: "NGN",
+    bearer_type: mainAccountKobo >= estimatePaystackFeeKobo(totalKobo) ? "account" : "all-proportional",
+    subaccounts,
+  };
+};
+
 const buildPendingOrder = async (
   userId: string,
   addressId: string,
@@ -287,25 +308,13 @@ const buildPendingOrder = async (
 
   const total = subtotal - discountAmount + deliveryFee + tax;
 
-  // Nestly pays Paystack's whole fee out of what's left for the main
-  // account (commission, less any coupon). If that can't cover it - a 0%
-  // category, a small item with a big delivery fee - this order shares the
-  // fee by amount instead, so the payment still goes through.
-  const subaccounts = Array.from(netKoboByStore, ([storeId, shareKobo]) => ({
-    subaccount: storeById.get(storeId)!.paystackSubaccountCode!,
-    share: shareKobo,
-  }));
-  const totalKobo = Math.round(total * NAIRA_TO_KOBO);
-  const mainAccountKobo = totalKobo - subaccounts.reduce((sum, s) => sum + s.share, 0);
-  const split: PaystackSplitConfig | undefined =
-    subaccounts.length > 0
-      ? {
-          type: "flat",
-          currency: "NGN",
-          bearer_type: mainAccountKobo >= estimatePaystackFeeKobo(totalKobo) ? "account" : "all-proportional",
-          subaccounts,
-        }
-      : undefined;
+  const split = paystackSplitFor(
+    Math.round(total * NAIRA_TO_KOBO),
+    Array.from(netKoboByStore, ([storeId, shareKobo]) => ({
+      subaccount: storeById.get(storeId)!.paystackSubaccountCode!,
+      share: shareKobo,
+    })),
+  );
 
   const reference = `NESTLY_${crypto.randomUUID().replace(/-/g, "")}`;
 
@@ -382,10 +391,11 @@ const notifyLowStock = (
   });
 };
 
-const finalizeOrderPayment = async (order: {
+export const finalizeOrderPayment = async (order: {
   id: string;
   userId: string;
   couponCode: string | null;
+  paymentLinkId: string | null;
   items: { productId: string; variationId: string | null; quantity: number }[];
 }) => {
   const updatedOrder = await prisma.$transaction(async (tx) => {
@@ -416,7 +426,8 @@ const finalizeOrderPayment = async (order: {
 
       if (
         updatedProduct.stock > 0 &&
-        updatedProduct.stock <= LOW_STOCK_THRESHOLD
+        updatedProduct.stock <= LOW_STOCK_THRESHOLD &&
+        updatedProduct.status !== ProductStatus.PRIVATE
       ) {
         const seller = await tx.sellerProfile.findUnique({
           where: { id: updatedProduct.store.sellerId },
@@ -433,9 +444,10 @@ const finalizeOrderPayment = async (order: {
       }
     }
 
-    const cart = await tx.cart.findUnique({
-      where: { userId: order.userId },
-    });
+    // Bought through a payment link - the buyer's cart is untouched.
+    const cart = order.paymentLinkId
+      ? null
+      : await tx.cart.findUnique({ where: { userId: order.userId } });
 
     if (cart) {
       await tx.cartItem.deleteMany({

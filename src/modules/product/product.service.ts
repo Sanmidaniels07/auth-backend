@@ -13,6 +13,10 @@ import {
   UpdateProductInput,
 } from "./product.validation";
 
+// Payment-link items (PRIVATE) are managed through the payment-link module,
+// so the seller product endpoints below act as if they don't exist.
+const NOT_LINK_ITEM = { status: { not: ProductStatus.PRIVATE } };
+
 const PRIMARY_IMAGE_INCLUDE = {
   images: { where: { isPrimary: true }, take: 1 },
 };
@@ -107,8 +111,8 @@ export const updateProductService = async (
 ) => {
   const store = await getSellerStore(userId);
 
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
+  const product = await prisma.product.findFirst({
+    where: { id: productId, ...NOT_LINK_ITEM },
   });
 
   if (!product) {
@@ -259,8 +263,8 @@ export const archiveProductService = async (
 ) => {
   const store = await getSellerStore(userId);
 
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
+  const product = await prisma.product.findFirst({
+    where: { id: productId, ...NOT_LINK_ITEM },
   });
 
   if (!product) {
@@ -553,7 +557,7 @@ export const getSellerProductsService = async (
 
   const skip = (page - 1) * limit;
 
-  const where: any = { storeId: store.id };
+  const where: any = { storeId: store.id, ...NOT_LINK_ITEM };
   if (status) where.status = status;
 
   const [products, total] = await Promise.all([
@@ -590,12 +594,12 @@ export const bulkUpdateProductStatusService = async (
 
   const result = await prisma.$transaction(async (tx) => {
     const products = await tx.product.findMany({
-      where: { id: { in: productIds }, storeId: store.id },
+      where: { id: { in: productIds }, storeId: store.id, ...NOT_LINK_ITEM },
       select: { id: true, status: true },
     });
     await recordStatusChanges(tx, userId, products, status);
     return tx.product.updateMany({
-      where: { id: { in: productIds }, storeId: store.id },
+      where: { id: { in: productIds }, storeId: store.id, ...NOT_LINK_ITEM },
       data: { status },
     });
   }, TX_OPTIONS);
@@ -611,12 +615,12 @@ export const bulkDeleteProductsService = async (
 
   const result = await prisma.$transaction(async (tx) => {
     const products = await tx.product.findMany({
-      where: { id: { in: productIds }, storeId: store.id },
+      where: { id: { in: productIds }, storeId: store.id, ...NOT_LINK_ITEM },
       select: { id: true, status: true },
     });
     await recordStatusChanges(tx, userId, products, ProductStatus.ARCHIVED);
     return tx.product.updateMany({
-      where: { id: { in: productIds }, storeId: store.id },
+      where: { id: { in: productIds }, storeId: store.id, ...NOT_LINK_ITEM },
       data: { status: ProductStatus.ARCHIVED },
     });
   }, TX_OPTIONS);
@@ -638,7 +642,7 @@ export const exportSellerProductsCsvService = async (
   const store = await getSellerStore(userId);
 
   const products = await prisma.product.findMany({
-    where: { storeId: store.id },
+    where: { storeId: store.id, ...NOT_LINK_ITEM },
     include: {
       category: { select: { name: true } },
     },
@@ -687,7 +691,7 @@ export const getSellerProductByIdService = async (
   const store = await getSellerStore(userId);
 
   const product = await prisma.product.findFirst({
-    where: { id: productId, storeId: store.id },
+    where: { id: productId, storeId: store.id, ...NOT_LINK_ITEM },
     // legacyVariants: old free-form rows the edit form offers to turn into options.
     include: { ...FULL_PRODUCT_INCLUDE, legacyVariants: true },
   });

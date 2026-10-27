@@ -39,6 +39,16 @@ enum ProductStatus {
   PUBLISHED
   OUT_OF_STOCK
   ARCHIVED
+  // The item behind a payment link - bought only through the link, never
+  // listed, searched or shown on the store.
+  PRIVATE
+}
+
+// How the buyer gets a payment link's item: the seller delivers for the
+// link's fixed fee, or the buyer collects it.
+enum PaymentLinkDelivery {
+  DELIVERY
+  PICKUP
 }
 
 enum OrderStatus {
@@ -918,6 +928,8 @@ model Store {
 
   products Product[]
 
+  paymentLinks PaymentLink[]
+
   reviews Review[]
 
   followers StoreFollow[]
@@ -1128,6 +1140,42 @@ model Product {
 
   // Shared into chats as product cards.
   messages Message[]
+
+  // Set for PRIVATE products - the link they're sold through.
+  paymentLink PaymentLink?
+}
+
+// A protected payment link a seller shares in DMs, WhatsApp or their bio.
+// The buyer pays through Nestly and the money is released like any order
+// (delivery code, buyer protection). Title, price, photos, quantity and
+// category live on the PRIVATE product behind it.
+model PaymentLink {
+  id String @id @default(cuid())
+
+  // Short code in the URL: nestlyapp.site/pay/{code}
+  code String @unique
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  productId String  @unique
+  product   Product @relation(fields: [productId], references: [id])
+
+  deliveryType PaymentLinkDelivery @default(DELIVERY)
+
+  // Agreed with the buyer; 0 = free delivery. Unused for pickup.
+  deliveryFee Float @default(0)
+
+  // Paused links can't be paid; deleted ones are hidden from the seller too.
+  isActive   Boolean @default(true)
+  isArchived Boolean @default(false)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([storeId, createdAt])
 }
 
 model ProductImage {
@@ -1417,6 +1465,10 @@ model Order {
   couponRedemption CouponRedemption?
 
   events OrderEvent[]
+
+  // Paid through a seller's payment link rather than the cart.
+  paymentLinkId String?
+  paymentLink   PaymentLink? @relation(fields: [paymentLinkId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

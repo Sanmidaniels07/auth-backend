@@ -119,6 +119,8 @@ const CUSTOMER_ORDER_INCLUDE = {
         select: {
           id: true,
           title: true,
+          // PRIVATE = bought through a payment link (no product page).
+          status: true,
           // Current listing - only compared with the order's copy (see
           // asOrderedForBuyer), then dropped from the response.
           description: true,
@@ -138,6 +140,7 @@ const CUSTOMER_ORDER_INCLUDE = {
     },
   },
   address: true,
+  paymentLink: { select: { code: true } },
   // Includes the buyer's own delivery codes - this include is only ever
   // used for the order's owner.
   shipping: true,
@@ -349,6 +352,7 @@ export const getSellerOrdersService = async (
               select: {
                 id: true,
                 title: true,
+                status: true,
                 images: {
                   where: { isPrimary: true },
                   take: 1,
@@ -423,6 +427,7 @@ export const getSellerOrderByIdService = async (
             select: {
               id: true,
               title: true,
+              status: true,
               images: {
                 where: { isPrimary: true },
                 take: 1,
