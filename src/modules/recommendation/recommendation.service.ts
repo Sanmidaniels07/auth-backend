@@ -135,8 +135,8 @@ type Reason = "FOLLOWED_STORE" | "SIMILAR" | "POPULAR" | "NEW";
 /**
  * Products picked for one buyer: from stores they follow or have shopped
  * at, and in categories they've viewed, saved, carted or bought - with
- * popular and new ones mixed in. Their own products and things they've
- * already bought are left out. Each comes with a `reason`.
+ * popular and new ones mixed in. Their own products, things they've
+ * already bought and what's in their cart are left out. Each comes with a `reason`.
  */
 export const getForYouService = async (userId: string, limit: number) => {
   const since = daysAgo(60);
@@ -172,9 +172,11 @@ export const getForYouService = async (userId: string, limit: number) => {
 
   const boughtIds = new Set(bought.map(({ product }) => product.id));
   const seenIds = new Set(viewed.map(({ product }) => product.id));
-  const keptIds = new Set([...saved, ...carted].map(({ product }) => product.id));
+  const savedIds = new Set(saved.map(({ product }) => product.id));
+  // Already bought or already in the cart - nothing to discover there.
+  const excludedIds = [...boughtIds, ...carted.map(({ product }) => product.id)];
   const excluded: Prisma.ProductWhereInput = {
-    id: { notIn: [...boughtIds] },
+    id: { notIn: excludedIds },
     ...(ownStore ? { storeId: { not: ownStore.id } } : {}),
   };
 
@@ -204,7 +206,7 @@ export const getForYouService = async (userId: string, limit: number) => {
     let score = fromCategory * 2 + fromStore * 1.5 + Math.log1p(popular.get(candidate.id) ?? 0);
     if (candidate.createdAt.getTime() >= newSince) score += 1;
     // Already known to the buyer - still shown, but after fresh finds.
-    if (keptIds.has(candidate.id)) score -= 3;
+    if (savedIds.has(candidate.id)) score -= 3;
     else if (seenIds.has(candidate.id)) score -= 1.5;
 
     const reason: Reason = followed.has(candidate.storeId) ? "FOLLOWED_STORE" : "SIMILAR";

@@ -55,7 +55,7 @@
  * /api/recommendations/for-you:
  *   get:
  *     summary: Products picked for the signed-in buyer
- *     description: Requires authentication. Based on the buyer's views (last 60 days), saved items, cart, past orders and followed stores, mixed with popular products, then new arrivals when there's little to go on. Leaves out the buyer's own store and products they've already bought. Each product has `reason` - FOLLOWED_STORE, SIMILAR, POPULAR or NEW.
+ *     description: Requires authentication. Based on the buyer's views (last 60 days), saved items, cart, past orders and followed stores, mixed with popular products, then new arrivals when there's little to go on. Leaves out the buyer's own store, products they've already bought and what's in their cart. Each product has `reason` - FOLLOWED_STORE, SIMILAR, POPULAR or NEW.
  *     tags:
  *       - Recommendation
  *     security:
