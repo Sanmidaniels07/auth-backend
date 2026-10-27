@@ -5,6 +5,7 @@ import {
   PaymentLinkDelivery,
   Prisma,
   ProductStatus,
+  ShippingOption,
   ShippingOptionType,
 } from "@prisma/client";
 
@@ -19,6 +20,7 @@ import { getSellerStore } from "../seller/seller.utils";
 import { isPayoutAccountEligibleForSplit, storePickupAddress } from "../store/store.service";
 import { generateDeliveryCode } from "../order/order-delivery";
 import { paystackSplitFor } from "../checkout/checkout.service";
+import { VEHICLE_LABEL, canCarry } from "../../utils/deliveryVehicle";
 import {
   CreatePaymentLinkInput,
   PayPaymentLinkInput,
@@ -70,14 +72,27 @@ const assertCategory = async (categoryId: string) => {
   }
 };
 
-const assertPickupPossible = (
+const assertDeliveryPossible = async (
   deliveryType: PaymentLinkDelivery,
-  store: { address: string | null; city: string | null; state: string | null }
+  store: { id: string; address: string | null; city: string | null; state: string | null }
 ) => {
   if (deliveryType === PaymentLinkDelivery.PICKUP && !storePickupAddress(store)) {
     throw new AppError("Add your store's address first so buyers know where to pick up.", 400);
   }
+  if (
+    deliveryType === PaymentLinkDelivery.STORE_OPTIONS &&
+    !(await prisma.shippingOption.count({ where: { storeId: store.id, isArchived: false } }))
+  ) {
+    throw new AppError(
+      "Set up your delivery zones or a pickup point first (Store settings → Delivery), or set a delivery fee on the link.",
+      400
+    );
+  }
 };
+
+// The fee only applies when the seller delivers for an agreed amount.
+const feeFor = (deliveryType: PaymentLinkDelivery, fee: number | undefined) =>
+  deliveryType === PaymentLinkDelivery.DELIVERY ? fee ?? 0 : 0;
 
 /** Paid orders through each link: how many orders, units and naira (cancelled items left out). */
 const salesByProduct = async (productIds: string[]) => {
@@ -112,6 +127,7 @@ const forSeller = (link: LinkWithProduct, sales?: { orders: number; units: numbe
   category: link.product.category,
   deliveryType: link.deliveryType,
   deliveryFee: link.deliveryFee,
+  deliveryVehicle: link.product.deliveryVehicle,
   isActive: link.isActive,
   createdAt: link.createdAt,
   updatedAt: link.updatedAt,
@@ -133,7 +149,7 @@ export const createPaymentLinkService = async (userId: string, data: CreatePayme
   if (store.isSuspended) throw new AppError("Your store is suspended, so you can't create payment links.", 403);
 
   await assertCategory(data.categoryId);
-  assertPickupPossible(data.deliveryType, store);
+  await assertDeliveryPossible(data.deliveryType, store);
 
   const code = await uniqueCode();
   const slug = await generateUniqueSlug(data.title, async (candidate) =>
@@ -144,7 +160,7 @@ export const createPaymentLinkService = async (userId: string, data: CreatePayme
     data: {
       code,
       deliveryType: data.deliveryType,
-      deliveryFee: data.deliveryType === PaymentLinkDelivery.DELIVERY ? data.deliveryFee ?? 0 : 0,
+      deliveryFee: feeFor(data.deliveryType, data.deliveryFee),
       store: { connect: { id: store.id } },
       product: {
         create: {
@@ -152,6 +168,7 @@ export const createPaymentLinkService = async (userId: string, data: CreatePayme
           description: data.description ?? "",
           price: data.price,
           stock: data.quantity ?? 1,
+          deliveryVehicle: data.deliveryVehicle,
           sku: `LINK-${code}`,
           slug,
           status: ProductStatus.PRIVATE,
@@ -186,10 +203,8 @@ export const updatePaymentLinkService = async (userId: string, id: string, data:
 
   if (data.categoryId) await assertCategory(data.categoryId);
   const deliveryType = data.deliveryType ?? link.deliveryType;
-  assertPickupPossible(deliveryType, store);
-
-  const deliveryFee =
-    deliveryType === PaymentLinkDelivery.PICKUP ? 0 : data.deliveryFee ?? link.deliveryFee;
+  await assertDeliveryPossible(deliveryType, store);
+  const deliveryFee = feeFor(deliveryType, data.deliveryFee ?? link.deliveryFee);
 
   const updated = await prisma.$transaction(async (tx) => {
     if (data.images) {
@@ -203,6 +218,7 @@ export const updatePaymentLinkService = async (userId: string, id: string, data:
         price: data.price,
         stock: data.quantity,
         categoryId: data.categoryId,
+        deliveryVehicle: data.deliveryVehicle,
         images: data.images?.length ? { create: withPrimary(data.images) } : undefined,
       },
     });
@@ -248,9 +264,16 @@ const PUBLIC_LINK_INCLUDE = {
       paystackSubaccountCode: true,
       payoutAccountUpdatedAt: true,
       seller: { select: { userId: true } },
+      shippingOptions: { where: { isArchived: false }, orderBy: { fee: "asc" } },
     },
   },
 } satisfies Prisma.PaymentLinkInclude;
+
+type PublicLink = Prisma.PaymentLinkGetPayload<{ include: typeof PUBLIC_LINK_INCLUDE }>;
+
+// Zones / pickup points the buyer can choose for this item (its vehicle).
+const usableOptions = (link: PublicLink) =>
+  link.store.shippingOptions.filter((option) => canCarry(option, link.product.deliveryVehicle));
 
 const findLiveLink = async (code: string) => {
   const link = await prisma.paymentLink.findUnique({ where: { code }, include: PUBLIC_LINK_INCLUDE });
@@ -276,12 +299,29 @@ export const getPublicPaymentLinkService = async (code: string, viewerId?: strin
     deliveryType: link.deliveryType,
     deliveryFee: link.deliveryFee,
     pickupAddress: link.deliveryType === PaymentLinkDelivery.PICKUP ? storePickupAddress(store) : null,
+    deliveryVehicle: product.deliveryVehicle,
+    // STORE_OPTIONS: what the buyer chooses from, as at checkout.
+    shippingOptions:
+      link.deliveryType === PaymentLinkDelivery.STORE_OPTIONS
+        ? usableOptions(link).map(({ id, name, fee, eta, type, areas, state, pickupAddress, vehicle }) => ({
+            id,
+            name,
+            fee,
+            eta,
+            type,
+            areas,
+            state,
+            pickupAddress,
+            vehicle,
+          }))
+        : [],
     availability: availabilityOf(link),
     isOwner: !!viewerId && viewerId === store.seller.userId,
     store: {
       id: store.id,
       name: store.name,
       slug: store.slug,
+      address: store.address,
       logo: store.logo,
       city: store.city,
       state: store.state,
@@ -332,9 +372,57 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
     : fullProduct.category.commissionRate;
   const referralReward = commissionRate !== fullProduct.category.commissionRate;
 
-  const isPickup = link.deliveryType === PaymentLinkDelivery.PICKUP;
+  // How it reaches the buyer: the fee agreed on the link, pickup, or the
+  // store zone / pickup point the buyer chose.
+  let shipping: {
+    optionName: string;
+    fee: number;
+    eta: string | null;
+    type: ShippingOptionType;
+    pickupAddress: string | null;
+    vehicle: ShippingOption["vehicle"];
+  };
+  if (link.deliveryType === PaymentLinkDelivery.STORE_OPTIONS) {
+    if (!data.shippingOptionId) throw new AppError("Choose how you'd like to receive it.", 400);
+    const option = store.shippingOptions.find((o) => o.id === data.shippingOptionId);
+    if (!option) throw new AppError("That delivery option isn't available. Choose another.", 400);
+    if (!canCarry(option, product.deliveryVehicle)) {
+      throw new AppError(
+        `"${option.name}" can't carry this item (it needs a ${VEHICLE_LABEL[product.deliveryVehicle]}). Choose another option.`,
+        400
+      );
+    }
+    const isOptionPickup = option.type === ShippingOptionType.PICKUP;
+    shipping = {
+      optionName: option.name,
+      fee: option.fee,
+      eta: option.eta,
+      type: option.type,
+      pickupAddress: isOptionPickup ? option.pickupAddress ?? storePickupAddress(store) : null,
+      vehicle: isOptionPickup ? null : option.vehicle,
+    };
+  } else if (link.deliveryType === PaymentLinkDelivery.PICKUP) {
+    shipping = {
+      optionName: "Pickup",
+      fee: 0,
+      eta: null,
+      type: ShippingOptionType.PICKUP,
+      pickupAddress: storePickupAddress(store),
+      vehicle: null,
+    };
+  } else {
+    shipping = {
+      optionName: "Delivery (agreed with seller)",
+      fee: link.deliveryFee,
+      eta: null,
+      type: ShippingOptionType.DELIVERY,
+      pickupAddress: null,
+      vehicle: null,
+    };
+  }
+
   const subtotal = product.price * quantity;
-  const deliveryFee = isPickup ? 0 : link.deliveryFee;
+  const deliveryFee = shipping.fee;
   const total = subtotal + deliveryFee;
   const totalKobo = Math.round(total * NAIRA_TO_KOBO);
 
@@ -383,12 +471,7 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
       shipping: {
         create: {
           storeId: store.id,
-          optionName: isPickup ? "Pickup" : "Delivery (agreed with seller)",
-          fee: deliveryFee,
-          eta: null,
-          type: isPickup ? ShippingOptionType.PICKUP : ShippingOptionType.DELIVERY,
-          pickupAddress: isPickup ? storePickupAddress(store) : null,
-          vehicle: null,
+          ...shipping,
           deliveryCode: generateDeliveryCode(),
           paidViaSplit,
         },

@@ -45,10 +45,13 @@ enum ProductStatus {
 }
 
 // How the buyer gets a payment link's item: the seller delivers for the
-// link's fixed fee, or the buyer collects it.
+// link's fixed fee, the buyer collects it, or the buyer chooses one of the
+// store's delivery zones / pickup points (for when the seller doesn't know
+// where the buyer is yet).
 enum PaymentLinkDelivery {
   DELIVERY
   PICKUP
+  STORE_OPTIONS
 }
 
 enum OrderStatus {

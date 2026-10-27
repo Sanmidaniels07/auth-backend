@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PaymentLinkDelivery } from "@prisma/client";
+import { DeliveryVehicle, PaymentLinkDelivery } from "@prisma/client";
 
 export const PAYMENT_LINK_MAX_IMAGES = 6;
 export const PAYMENT_LINK_NOTE_MAX = 500;
@@ -19,8 +19,11 @@ const linkFields = {
   categoryId: z.string().min(1),
   images: z.array(imageSchema).max(PAYMENT_LINK_MAX_IMAGES).optional(),
   deliveryType: z.nativeEnum(PaymentLinkDelivery),
-  // Agreed with the buyer; 0 = free. Ignored for pickup.
+  // Agreed with the buyer; 0 = free. Only for DELIVERY.
   deliveryFee: z.number().min(0).max(1_000_000).optional(),
+  // Smallest vehicle that can carry it - limits which of the store's zones
+  // the buyer can pick (STORE_OPTIONS). Default bike.
+  deliveryVehicle: z.nativeEnum(DeliveryVehicle).optional(),
 };
 
 export const createPaymentLinkSchema = z.object({
@@ -44,6 +47,7 @@ export const updatePaymentLinkSchema = z.object({
       images: linkFields.images,
       deliveryType: linkFields.deliveryType.optional(),
       deliveryFee: linkFields.deliveryFee,
+      deliveryVehicle: linkFields.deliveryVehicle,
       // false pauses the link - buyers see it but can't pay.
       isActive: z.boolean().optional(),
     })
@@ -69,6 +73,9 @@ export const payPaymentLinkSchema = z.object({
   body: z.object({
     quantity: z.number().int().min(1).max(10_000).optional(),
     addressId: z.string().min(1),
+    // The store's delivery zone or pickup point - required when the link
+    // lets the buyer choose (STORE_OPTIONS).
+    shippingOptionId: z.string().min(1).optional(),
     // Phone the seller calls to deliver (defaults to the address's phone).
     deliveryPhone: z
       .string()

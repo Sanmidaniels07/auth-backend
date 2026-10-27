@@ -38,11 +38,15 @@
  *                 type: boolean
  *         deliveryType:
  *           type: string
- *           enum: [DELIVERY, PICKUP]
- *           description: PICKUP needs the store's address.
+ *           enum: [DELIVERY, PICKUP, STORE_OPTIONS]
+ *           description: DELIVERY - the seller delivers for deliveryFee. PICKUP - from the store's address (needs one). STORE_OPTIONS - the buyer chooses one of the store's delivery zones or pickup points when paying and pays that option's fee (needs at least one).
  *         deliveryFee:
  *           type: number
- *           description: Agreed with the buyer; 0 = free. Ignored for pickup.
+ *           description: Agreed with the buyer; 0 = free. Only for DELIVERY.
+ *         deliveryVehicle:
+ *           type: string
+ *           enum: [BIKE, CAR, TRUCK]
+ *           description: Smallest vehicle that can carry it (default BIKE). For STORE_OPTIONS only zones with that vehicle or bigger are offered.
  */
 
 /**
@@ -144,7 +148,7 @@
  * /api/payment-links/{code}:
  *   get:
  *     summary: A payment link as the buyer sees it
- *     description: Public (login optional). `availability` is AVAILABLE, SOLD_OUT or PAUSED. `isOwner` is true for the seller who made it. `pickupAddress` is set for pickup links. 404 for deleted links and suspended stores.
+ *     description: Public (login optional). `availability` is AVAILABLE, SOLD_OUT or PAUSED. `isOwner` is true for the seller who made it. `pickupAddress` is set for pickup links. For STORE_OPTIONS links, `shippingOptions` lists the zones and pickup points the buyer can choose (only ones whose vehicle can carry the item). 404 for deleted links and suspended stores.
  *     tags:
  *       - PaymentLink
  *     parameters:
@@ -189,6 +193,9 @@
  *                 default: 1
  *               addressId:
  *                 type: string
+ *               shippingOptionId:
+ *                 type: string
+ *                 description: Required for STORE_OPTIONS links - one of the link's `shippingOptions`; its fee is charged.
  *               deliveryPhone:
  *                 type: string
  *                 description: Defaults to the address's phone.
