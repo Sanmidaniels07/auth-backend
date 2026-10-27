@@ -169,7 +169,11 @@ model User {
 
   name     String
   email    String @unique
-  password String
+  // Null for people who signed up with Google and never set one.
+  password String?
+
+  // Google account ("sub") linked through Continue with Google.
+  googleId String? @unique
 
   username String? @unique
   avatar   String?
@@ -204,6 +208,10 @@ model User {
 
   twoFactorSecret  String?
   twoFactorEnabled Boolean @default(false)
+
+  // "Finish your profile" nudges after signup (jobs/profile-reminders).
+  profileRemindersSent  Int       @default(0)
+  lastProfileReminderAt DateTime?
 
   verificationToken       String?
   verificationTokenExpiry DateTime?

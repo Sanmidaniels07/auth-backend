@@ -8,6 +8,7 @@ import { startAutoConfirmDeliveriesJob } from "./jobs/auto-confirm-deliveries.jo
 import { startBirthdayRemindersJob } from "./jobs/birthday-reminders.job";
 import { startSellerRemindersJob } from "./jobs/seller-reminders.job";
 import { startShoppingAlertsJob } from "./jobs/shopping-alerts.job";
+import { startProfileRemindersJob } from "./jobs/profile-reminders.job";
 
 const PORT = process.env.PORT || 5000;
 
@@ -24,4 +25,5 @@ server.listen(PORT, () => {
   startBirthdayRemindersJob();
   startSellerRemindersJob();
   startShoppingAlertsJob();
+  startProfileRemindersJob();
 });

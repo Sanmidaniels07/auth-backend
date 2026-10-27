@@ -32,7 +32,7 @@ export const deleteAccount = asyncHandler(
   async (req: Request, res: Response) => {
     const result = await deleteAccountService(
       req.user.id,
-      req.body.password
+      req.body
     );
 
     res.clearCookie(REFRESH_COOKIE_NAME, clearRefreshCookieOptions);

@@ -7,10 +7,17 @@ export const changePasswordSchema = z.object({
   }),
 });
 
+// Accounts with a password confirm with it; Google-only accounts confirm by
+// signing in with Google again (googleCredential).
 export const deleteAccountSchema = z.object({
-  body: z.object({
-    password: z.string().min(1),
-  }),
+  body: z
+    .object({
+      password: z.string().min(1).optional(),
+      googleCredential: z.string().min(20).max(4096).optional(),
+    })
+    .refine((body) => body.password || body.googleCredential, {
+      message: "Confirm with your password or Google account.",
+    }),
 });
 
 export const revokeSessionSchema = z.object({

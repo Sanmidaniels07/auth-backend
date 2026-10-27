@@ -1,5 +1,8 @@
+import { Prisma } from "@prisma/client";
+
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
+import { PROFILE_STEPS, missingProfileSteps } from "../../utils/profileSetup";
 import { UpdateProfileInput } from "./profile.validation";
 
 const PROFILE_SELECT = {
@@ -24,7 +27,11 @@ const PROFILE_SELECT = {
   isVerified: true,
   twoFactorEnabled: true,
   createdAt: true,
-};
+  // Only turned into booleans below - never sent.
+  password: true,
+  googleId: true,
+  _count: { select: { addresses: true } },
+} as const;
 
 const SIMPLE_COMPLETION_FIELDS = [
   "username",
@@ -90,6 +97,26 @@ const withProfileCompletion = <
   };
 };
 
+type ProfileRow = Prisma.UserGetPayload<{ select: typeof PROFILE_SELECT }>;
+
+const toProfile = ({ password, googleId, _count, ...user }: ProfileRow) => {
+  const missing = missingProfileSteps({ ...user, _count });
+
+  return {
+    ...withProfileCompletion(user),
+    // Google-only accounts have no password to confirm with or change.
+    hasPassword: !!password,
+    hasGoogle: !!googleId,
+    setupSteps: PROFILE_STEPS.map((step) => ({
+      key: step.key,
+      title: step.title,
+      why: step.why,
+      path: step.path,
+      done: !missing.includes(step.key),
+    })),
+  };
+};
+
 export const getProfileService = async (userId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -100,7 +127,7 @@ export const getProfileService = async (userId: string) => {
     throw new AppError("User not found.", 404);
   }
 
-  return withProfileCompletion(user);
+  return toProfile(user);
 };
 
 export const updateProfileService = async (
@@ -123,5 +150,5 @@ export const updateProfileService = async (
     select: PROFILE_SELECT,
   });
 
-  return withProfileCompletion(user);
+  return toProfile(user);
 };
