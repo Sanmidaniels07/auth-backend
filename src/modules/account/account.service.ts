@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
+import { verifyGoogleCredential } from "../../utils/googleAuth";
 
 export const changePasswordService = async (
   userId: string,
@@ -14,6 +15,13 @@ export const changePasswordService = async (
 
   if (!user) {
     throw new AppError("User not found.", 404);
+  }
+
+  if (!user.password) {
+    throw new AppError(
+      "You sign in with Google and don't have a password yet. Use Forgot password on the login page to add one.",
+      400
+    );
   }
 
   const isCorrect = await bcrypt.compare(
@@ -47,7 +55,7 @@ export const changePasswordService = async (
 
 export const deleteAccountService = async (
   userId: string,
-  password: string
+  confirm: { password?: string; googleCredential?: string }
 ) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -57,25 +65,38 @@ export const deleteAccountService = async (
     throw new AppError("User not found.", 404);
   }
 
-  const isCorrect = await bcrypt.compare(
-    password,
-    user.password
-  );
+  if (user.password) {
+    const isCorrect = await bcrypt.compare(
+      confirm.password ?? "",
+      user.password
+    );
 
-  if (!isCorrect) {
-    throw new AppError("Password is incorrect.", 400);
+    if (!isCorrect) {
+      throw new AppError("Password is incorrect.", 400);
+    }
+  } else {
+    // Google-only account: a fresh Google sign-in for this same account.
+    const google = confirm.googleCredential
+      ? await verifyGoogleCredential(confirm.googleCredential)
+      : null;
+
+    if (!google || google.googleId !== user.googleId) {
+      throw new AppError("Please confirm with the Google account you sign in with.", 400);
+    }
   }
 
   await prisma.$transaction([
     prisma.session.deleteMany({ where: { userId } }),
     // Soft delete: keep the row (existing posts/orders/etc. reference it),
-    // but free up the email/username for reuse and block future logins.
+    // but free up the email/username/Google account for reuse and block
+    // future logins.
     prisma.user.update({
       where: { id: userId },
       data: {
         deletedAt: new Date(),
         email: `deleted_${userId}_${user.email}`,
         username: null,
+        googleId: null,
       },
     }),
   ]);

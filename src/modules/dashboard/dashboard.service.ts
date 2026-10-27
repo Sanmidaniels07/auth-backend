@@ -328,7 +328,8 @@ export const getSellerCustomersService = async (
   const items = await prisma.orderItem.findMany({
     where: {
       product: { storeId: store.id },
-      order: { status: { not: OrderStatus.PENDING } },
+      // Sold-out cancellations (cancelReason) never reached the seller.
+      order: { status: { not: OrderStatus.PENDING }, cancelReason: null },
     },
     select: {
       totalPrice: true,

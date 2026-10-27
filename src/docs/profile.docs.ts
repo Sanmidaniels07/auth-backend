@@ -10,7 +10,11 @@
  * /api/profile:
  *   get:
  *     summary: Get the authenticated user's profile
- *     description: Requires authentication. Returns the full profile record plus a computed `profileCompletion` percentage (based on whether username/avatar/cover/bio are filled in).
+ *     description: >
+ *       Requires authentication. Returns the full profile record plus a computed `profileCompletion` percentage
+ *       (based on whether username/avatar/cover/bio are filled in), `hasPassword` / `hasGoogle` (how the account
+ *       signs in - Google-only accounts have no password), and `setupSteps`: the "Finish your profile" checklist
+ *       (USERNAME, PHOTO, BIRTHDAY, BIO, ADDRESS), each with title, why, path and done. PATCH returns the same shape.
  *     tags:
  *       - Profile
  *     security:

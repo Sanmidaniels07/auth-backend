@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { forgotPasswordService, loginService, resetPasswordService, signupService } from "./auth.service";
+import { forgotPasswordService, googleAuthService, loginService, resetPasswordService, signupService } from "./auth.service";
 import { asyncHandler } from "../../utils/asyncHandlers";
 import { apiResponse } from "../../utils/apiResponse";
 import { REFRESH_COOKIE_NAME, refreshCookieOptions } from "../../utils/cookies";
@@ -47,6 +47,40 @@ export const login = asyncHandler(
       apiResponse(
         result,
         "Login successful"
+      )
+    );
+  }
+);
+
+export const googleAuth = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result = await googleAuthService(req.body, {
+      userAgent: req.headers["user-agent"] as
+        | string
+        | undefined,
+      ipAddress: req.ip,
+    });
+
+    if ("requires2FA" in result) {
+      res.status(200).json(
+        apiResponse(
+          result,
+          "Two-factor authentication required"
+        )
+      );
+      return;
+    }
+
+    res.cookie(
+      REFRESH_COOKIE_NAME,
+      result.refreshToken,
+      refreshCookieOptions
+    );
+
+    res.status(result.isNewUser ? 201 : 200).json(
+      apiResponse(
+        result,
+        result.isNewUser ? "Account created with Google" : "Login successful"
       )
     );
   }

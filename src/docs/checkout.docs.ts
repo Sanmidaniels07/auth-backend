@@ -13,6 +13,8 @@
  *     description: |
  *       Requires authentication. Validates the cart and the given address, creates a PENDING order (snapshotting current cart prices), and starts a Paystack transaction. Stock is NOT decremented and the cart is NOT cleared here - that only happens once payment is confirmed via verify or webhook.
  *
+ *       The unpaid order holds its quantities for 15 minutes: while other buyers' unpaid orders hold the remaining stock, this returns 409 ("someone is paying for the last one"). The buyer's own earlier unpaid attempts don't count. If a payment is confirmed after its hold ran out and the item sold out meanwhile, nothing is taken from stock - verify/webhook return the order as CANCELLED with `cancelReason`, and the payment is refunded through Paystack (`refundStatus` REQUESTED, or FAILED when admins must refund it by hand - they're notified). The same applies to payment links and saved-card checkout.
+ *
  *       Since a cart can span multiple stores and each store may have its own shipping tiers, `shippingSelections` must include one entry per store in the cart that has shipping options configured (a store with no delivery zone and no pickup point can't be ordered from - 400; pickup alone is enough). Only zones whose `vehicle` can carry every product bought from that store (by each product's `deliveryVehicle`; truck > car > bike), zones with no vehicle and pickup can be chosen - otherwise 400. The chosen vehicle is saved on the order's shipping row. If `couponCode` is provided it's re-validated and applied server-side - the discount is never trusted from the client.
  *     tags:
  *       - Checkout

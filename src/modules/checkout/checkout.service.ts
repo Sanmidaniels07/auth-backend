@@ -32,6 +32,8 @@ import { unitPriceOf, variationLabel } from "../../utils/productOptions";
 import { VEHICLE_LABEL, canCarry, requiredVehicle } from "../../utils/deliveryVehicle";
 import { referralCommission, referralRewardApplies } from "../../utils/referral";
 import { hideContacts } from "../../utils/contactFilter";
+import { STOCK_HOLD_TX, SoldOutError, assertStockAvailable } from "../../utils/stockHold";
+import { cancelSoldOutOrder } from "./sold-out-refund";
 
 const NAIRA_TO_KOBO = 100;
 const LOW_STOCK_THRESHOLD = 5;
@@ -328,46 +330,60 @@ const buildPendingOrder = async (
   }
   const noteRows = Array.from(noteByStore, ([storeId, note]) => ({ storeId, note }));
 
-  const order = await prisma.order.create({
-    data: {
+  // The unpaid order holds its stock while the buyer pays (utils/stockHold).
+  const order = await prisma.$transaction(async (tx) => {
+    await assertStockAvailable(
+      tx,
       userId,
-      addressId,
-      status: OrderStatus.PENDING,
-      subtotal,
-      deliveryFee,
-      tax,
-      discountAmount,
-      couponCode: appliedCouponCode,
-      total,
-      paymentMethod: "PAYSTACK",
-      paymentReference: reference,
-      deliveryPhone: deliveryPhone?.trim() || address.phone,
-      items: {
-        create: cart.items.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice: priceOf(item),
-          totalPrice: priceOf(item) * item.quantity,
-          // Snapshot the category's current commission rate so a later
-          // rate change doesn't retroactively affect this order.
-          commissionRate: commissionOf(item),
-          referralReward: rewardedStores.has(item.product.storeId),
-          // What the buyer is paying for - later edits to the listing
-          // don't change it.
-          ...snapshotOf(item.product),
-          variationId: item.variation?.id ?? null,
-          variantLabel: item.variation ? variationLabel(item.product.options, item.variation) : null,
-          autoPaidViaSplit: (() => {
-            const itemStore = storeById.get(item.product.storeId);
-            return !!itemStore && isPayoutAccountEligibleForSplit(itemStore);
-          })(),
-        })),
+      cart.items.map((item) => ({
+        productId: item.productId,
+        variationId: item.variation?.id ?? null,
+        quantity: item.quantity,
+        title: item.product.title,
+      })),
+    );
+
+    return tx.order.create({
+      data: {
+        userId,
+        addressId,
+        status: OrderStatus.PENDING,
+        subtotal,
+        deliveryFee,
+        tax,
+        discountAmount,
+        couponCode: appliedCouponCode,
+        total,
+        paymentMethod: "PAYSTACK",
+        paymentReference: reference,
+        deliveryPhone: deliveryPhone?.trim() || address.phone,
+        items: {
+          create: cart.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice: priceOf(item),
+            totalPrice: priceOf(item) * item.quantity,
+            // Snapshot the category's current commission rate so a later
+            // rate change doesn't retroactively affect this order.
+            commissionRate: commissionOf(item),
+            referralReward: rewardedStores.has(item.product.storeId),
+            // What the buyer is paying for - later edits to the listing
+            // don't change it.
+            ...snapshotOf(item.product),
+            variationId: item.variation?.id ?? null,
+            variantLabel: item.variation ? variationLabel(item.product.options, item.variation) : null,
+            autoPaidViaSplit: (() => {
+              const itemStore = storeById.get(item.product.storeId);
+              return !!itemStore && isPayoutAccountEligibleForSplit(itemStore);
+            })(),
+          })),
+        },
+        shipping: shippingRows.length > 0 ? { create: shippingRows } : undefined,
+        sellerNotes: noteRows.length > 0 ? { create: noteRows } : undefined,
       },
-      shipping: shippingRows.length > 0 ? { create: shippingRows } : undefined,
-      sellerNotes: noteRows.length > 0 ? { create: noteRows } : undefined,
-    },
-    include: { items: true, shipping: true },
-  });
+      include: { items: true, shipping: true },
+    });
+  }, STOCK_HOLD_TX);
 
   return { user, order, reference, total, split };
 };
@@ -398,75 +414,95 @@ export const finalizeOrderPayment = async (order: {
   paymentLinkId: string | null;
   items: { productId: string; variationId: string | null; quantity: number }[];
 }) => {
-  const updatedOrder = await prisma.$transaction(async (tx) => {
-    for (const item of order.items) {
-      // The product's stock is the total of its combinations, so both move.
-      if (item.variationId) {
-        await tx.productVariation.update({
-          where: { id: item.variationId },
+  // Sent only once the order has really gone through.
+  const lowStock: { sellerUserId: string; productId: string; title: string; stock: number }[] = [];
+
+  let updatedOrder;
+  try {
+    updatedOrder = await prisma.$transaction(async (tx) => {
+      for (const item of order.items) {
+        // Only take stock that's still there. If someone else's payment got
+        // the last one first (e.g. this buyer's hold ran out mid-payment),
+        // nothing is taken and the order is cancelled and refunded below.
+        // The product's stock is the total of its combinations, so both move.
+        if (item.variationId) {
+          const taken = await tx.productVariation.updateMany({
+            where: { id: item.variationId, stock: { gte: item.quantity } },
+            data: { stock: { decrement: item.quantity } },
+          });
+          if (taken.count === 0) throw new SoldOutError(item.productId);
+        }
+
+        const taken = await tx.product.updateMany({
+          where: { id: item.productId, stock: { gte: item.quantity } },
           data: { stock: { decrement: item.quantity } },
         });
-      }
+        if (taken.count === 0) throw new SoldOutError(item.productId);
 
-      const updatedProduct = await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: { decrement: item.quantity } },
-        include: { store: { select: { sellerId: true } } },
-      });
-
-      if (
-        updatedProduct.stock <= 0 &&
-        updatedProduct.status === ProductStatus.PUBLISHED
-      ) {
-        await tx.product.update({
+        const updatedProduct = await tx.product.findUniqueOrThrow({
           where: { id: item.productId },
-          data: { status: ProductStatus.OUT_OF_STOCK },
-        });
-      }
-
-      if (
-        updatedProduct.stock > 0 &&
-        updatedProduct.stock <= LOW_STOCK_THRESHOLD &&
-        updatedProduct.status !== ProductStatus.PRIVATE
-      ) {
-        const seller = await tx.sellerProfile.findUnique({
-          where: { id: updatedProduct.store.sellerId },
+          include: { store: { select: { sellerId: true } } },
         });
 
-        if (seller) {
-          notifyLowStock(
-            seller.userId,
-            updatedProduct.id,
-            updatedProduct.title,
-            updatedProduct.stock,
-          );
+        if (
+          updatedProduct.stock <= 0 &&
+          updatedProduct.status === ProductStatus.PUBLISHED
+        ) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { status: ProductStatus.OUT_OF_STOCK },
+          });
+        }
+
+        if (
+          updatedProduct.stock > 0 &&
+          updatedProduct.stock <= LOW_STOCK_THRESHOLD &&
+          updatedProduct.status !== ProductStatus.PRIVATE
+        ) {
+          const seller = await tx.sellerProfile.findUnique({
+            where: { id: updatedProduct.store.sellerId },
+          });
+
+          if (seller) {
+            lowStock.push({
+              sellerUserId: seller.userId,
+              productId: updatedProduct.id,
+              title: updatedProduct.title,
+              stock: updatedProduct.stock,
+            });
+          }
         }
       }
-    }
 
-    // Bought through a payment link - the buyer's cart is untouched.
-    const cart = order.paymentLinkId
-      ? null
-      : await tx.cart.findUnique({ where: { userId: order.userId } });
+      // Bought through a payment link - the buyer's cart is untouched.
+      const cart = order.paymentLinkId
+        ? null
+        : await tx.cart.findUnique({ where: { userId: order.userId } });
 
-    if (cart) {
-      await tx.cartItem.deleteMany({
-        where: { cartId: cart.id },
+      if (cart) {
+        await tx.cartItem.deleteMany({
+          where: { cartId: cart.id },
+        });
+      }
+
+      await recordOrderEvent(tx, {
+        orderId: order.id,
+        type: OrderEventType.PAID,
+        actor: OrderEventActor.SYSTEM,
       });
-    }
 
-    await recordOrderEvent(tx, {
-      orderId: order.id,
-      type: OrderEventType.PAID,
-      actor: OrderEventActor.SYSTEM,
+      return tx.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.PAID },
+        include: { items: true },
+      });
     });
+  } catch (error) {
+    if (error instanceof SoldOutError) return cancelSoldOutOrder(order.id, error.productId);
+    throw error;
+  }
 
-    return tx.order.update({
-      where: { id: order.id },
-      data: { status: OrderStatus.PAID },
-      include: { items: true },
-    });
-  });
+  lowStock.forEach((alert) => notifyLowStock(alert.sellerUserId, alert.productId, alert.title, alert.stock));
 
   // Runs once per order (callers claim the order first), so the buyer and
   // sellers are told exactly once.

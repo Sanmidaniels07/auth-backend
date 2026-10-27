@@ -7,6 +7,7 @@ import { generateAccessToken, generateRefreshToken, generateTwoFactorToken } fro
 import { sendEmail } from "./email.services";
 import { verificationTemplate } from "../../templates/verification.template";
 import { resetTemplate } from "../../templates/reset.template";
+import { verifyGoogleCredential } from "../../utils/googleAuth";
 
 interface SignupData {
   name: string;
@@ -70,8 +71,9 @@ export const signupService = async (data: SignupData) => {
     throw new Error("All fields are required");
   }
 
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
+  // Case-insensitive: Google sign-ups are stored lower-case.
+  const existingUser = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
   });
 
   if (existingUser) {
@@ -80,15 +82,7 @@ export const signupService = async (data: SignupData) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // Joined through a seller's share link - that store earns a referral
-  // reward on this buyer's orders for a while (utils/referral).
-  const referrer = referralCode
-    ? await prisma.store.findUnique({
-        where: { referralCode: referralCode.toUpperCase() },
-        select: { id: true, isSuspended: true },
-      })
-    : null;
-  const referredBy = referrer && !referrer.isSuspended ? referrer : null;
+  const referredBy = await activeReferrer(referralCode);
 
   const verificationToken = generateVerificationToken();
 
@@ -144,6 +138,30 @@ export const loginService = async (
     throw new AppError("Invalid credentials", 401);
   }
 
+  assertCanSignIn(user);
+
+  if (!user.password) {
+    throw new AppError(
+      "This account signs in with Google. Tap Continue with Google, or use Forgot password to add a password.",
+      400
+    );
+  }
+
+  // Compare password
+  const isPasswordCorrect = await bcrypt.compare(password, user.password);
+
+  if (!isPasswordCorrect) {
+    throw new AppError("Invalid credentials", 401);
+  }
+
+  return finishSignIn(user, device);
+};
+
+const assertCanSignIn = (user: {
+  deletedAt: Date | null;
+  status: UserStatus;
+  statusReason: string | null;
+}) => {
   if (user.deletedAt) {
     throw new AppError("This account has been deleted", 401);
   }
@@ -165,14 +183,14 @@ export const loginService = async (
       403
     );
   }
+};
 
-  // Compare password
-  const isPasswordCorrect = await bcrypt.compare(password, user.password);
-
-  if (!isPasswordCorrect) {
-    throw new AppError("Invalid credentials", 401);
-  }
-
+// Password and Google sign-ins both still ask for the authenticator code
+// when 2FA is on.
+const finishSignIn = (
+  user: Parameters<typeof issueUserSession>[0] & { twoFactorEnabled: boolean },
+  device: DeviceInfo
+) => {
   if (user.twoFactorEnabled) {
     return {
       requires2FA: true as const,
@@ -183,9 +201,85 @@ export const loginService = async (
   return issueUserSession(user, device);
 };
 
+/**
+ * Continue with Google: signs in the account linked to that Google account,
+ * otherwise links it to the account with the same (Google-verified) email,
+ * otherwise creates a new account. New accounts come back with
+ * isNewUser so the website can show the welcome step.
+ */
+export const googleAuthService = async (
+  data: { credential: string; referralCode?: string },
+  device: DeviceInfo = {}
+) => {
+  const google = await verifyGoogleCredential(data.credential);
+
+  const existing =
+    (await prisma.user.findUnique({ where: { googleId: google.googleId } })) ??
+    (await prisma.user.findFirst({
+      where: { email: { equals: google.email, mode: "insensitive" }, deletedAt: null },
+    }));
+
+  if (existing) {
+    assertCanSignIn(existing);
+
+    // Google has confirmed they own this email, so it also counts as
+    // verifying it. If the email was never verified, whoever set the
+    // password may not be its owner (someone can sign up with another
+    // person's address first) - so that password and its sessions go, and
+    // the owner can add their own password later.
+    let user = existing;
+    if (existing.googleId !== google.googleId || !existing.isVerified || (!existing.avatar && google.picture)) {
+      const link = prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          googleId: google.googleId,
+          ...(existing.isVerified
+            ? {}
+            : { isVerified: true, password: null, verificationToken: null, verificationTokenExpiry: null }),
+          ...(existing.avatar || !google.picture ? {} : { avatar: google.picture }),
+        },
+      });
+      user = existing.isVerified
+        ? await link
+        : (await prisma.$transaction([prisma.session.deleteMany({ where: { userId: existing.id } }), link]))[1];
+    }
+
+    return { ...(await finishSignIn(user, device)), isNewUser: false };
+  }
+
+  const referredBy = await activeReferrer(data.referralCode);
+
+  const user = await prisma.user.create({
+    data: {
+      name: google.name,
+      email: google.email,
+      googleId: google.googleId,
+      avatar: google.picture,
+      isVerified: true,
+      ...(referredBy ? { referredByStoreId: referredBy.id, referredAt: new Date() } : {}),
+    },
+  });
+
+  return { ...(await issueUserSession(user, device)), isNewUser: true };
+};
+
+// Joined through a seller's share link - that store earns a referral
+// reward on this buyer's orders for a while (utils/referral).
+const activeReferrer = async (referralCode?: string) => {
+  const referrer = referralCode
+    ? await prisma.store.findUnique({
+        where: { referralCode: referralCode.toUpperCase() },
+        select: { id: true, isSuspended: true },
+      })
+    : null;
+  return referrer && !referrer.isSuspended ? referrer : null;
+};
+
 export const forgotPasswordService = async (email: string) => {
-  const user = await prisma.user.findUnique({
-    where: { email },
+  // Also how Google sign-ups add a password. Case-insensitive because
+  // those emails are stored lower-case.
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" }, deletedAt: null },
   });
 
   if (!user) {

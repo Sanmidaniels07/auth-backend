@@ -169,7 +169,7 @@
  * /api/payment-links/{code}/pay:
  *   post:
  *     summary: Start paying through a payment link
- *     description: Requires authentication. Creates a pending order (the buyer's cart is untouched) and a Paystack transaction - open it with `accessCode` (popup) or `authorizationUrl`, then confirm with GET /api/checkout/verify/{reference} as for cart orders. From then on it's a normal order - delivery code, buyer protection, seller notified, payout split. Sellers can't pay their own link.
+ *     description: Requires authentication. Creates a pending order (the buyer's cart is untouched) and a Paystack transaction - open it with `accessCode` (popup) or `authorizationUrl`, then confirm with GET /api/checkout/verify/{reference} as for cart orders. From then on it's a normal order - delivery code, buyer protection, seller notified, payout split. Sellers can't pay their own link. Stock is held for 15 minutes while the buyer pays - 409 when others are mid-payment for what's left (see POST /api/checkout/initiate for holds and sold-out refunds).
  *     tags:
  *       - PaymentLink
  *     security:

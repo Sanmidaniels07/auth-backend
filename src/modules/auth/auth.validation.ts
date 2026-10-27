@@ -15,6 +15,14 @@ export const signupSchema = z.object({
   }),
 });
 
+export const googleAuthSchema = z.object({
+  body: z.object({
+    // The ID token Google's sign-in button gives the website.
+    credential: z.string().min(20).max(4096),
+    referralCode: z.string().trim().max(20).optional(),
+  }),
+});
+
 export const loginSchema = z.object({
   body: z.object({
     email: z.string().email(),

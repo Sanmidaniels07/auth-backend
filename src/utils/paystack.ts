@@ -113,6 +113,20 @@ export const verifyPaystackTransaction = async (
   return json.data;
 };
 
+/**
+ * Full refund of a successful transaction back to the buyer's card/bank.
+ * Paystack queues it and processes it within a few business days; it
+ * comes out of the main account's balance.
+ */
+export const refundPaystackTransaction = async (reference: string) => {
+  const json = await paystackFetch("/refund", {
+    method: "POST",
+    body: JSON.stringify({ transaction: reference }),
+  });
+
+  return json.data as { status: string; transaction?: { reference: string } };
+};
+
 interface ChargeAuthorizationParams {
   email: string;
   amountKobo: number;

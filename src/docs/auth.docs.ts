@@ -71,6 +71,50 @@
  *     responses:
  *       200:
  *         description: Login successful
+ *       400:
+ *         description: The account signs in with Google and has no password yet
+ */
+
+/**
+ * @swagger
+ * /api/auth/google:
+ *   post:
+ *     summary: Continue with Google (sign up or log in)
+ *     description: >
+ *       Takes the ID token from Google's sign-in button and checks it with Google (signature, expiry,
+ *       issued for Nestly's client, verified email). Signs in the account linked to that Google account;
+ *       otherwise links it to the account with the same email (also verifying that email - if it was never
+ *       verified, its password and sessions are removed, since whoever set them may not own the address);
+ *       otherwise creates a verified account with the Google name and photo. Banned, suspended and deleted
+ *       accounts are refused, and accounts with 2FA get the usual `requires2FA` challenge (finish with
+ *       POST /api/2fa/login). Sets the refresh cookie like /login. `isNewUser` is true when an account was
+ *       just created, so the website can show its welcome step.
+ *     tags:
+ *       - Authentication
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - credential
+ *             properties:
+ *               credential:
+ *                 type: string
+ *                 description: The Google ID token (JWT) from Google Identity Services.
+ *               referralCode:
+ *                 type: string
+ *                 description: Seller share-link code (?ref=) they arrived through; only used when a new account is created.
+ *     responses:
+ *       200:
+ *         description: Logged in (or 2FA required)
+ *       201:
+ *         description: New account created and logged in
+ *       401:
+ *         description: Invalid Google token, unverified Google email, or deleted account
+ *       403:
+ *         description: Account banned or suspended
  */
 
 /**
