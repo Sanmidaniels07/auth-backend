@@ -36,6 +36,12 @@ const optionsTogether = (body: { options?: unknown; variations?: unknown }) =>
   (body.options === undefined) === (body.variations === undefined);
 const OPTIONS_TOGETHER = { message: "Send options and variations together." };
 
+// PRIVATE belongs to payment links (see the payment-link module) - sellers
+// can't move listings into or out of it here.
+const sellerStatusSchema = z
+  .nativeEnum(ProductStatus)
+  .refine((status) => status !== ProductStatus.PRIVATE, { message: "Invalid status." });
+
 export const createProductSchema = z.object({
   body: z.object({
     categoryId: z.string(),
@@ -68,7 +74,7 @@ export const updateProductSchema = z.object({
     brand: z.string().trim().optional(),
     condition: z.nativeEnum(ProductCondition).optional(),
     deliveryVehicle: z.nativeEnum(DeliveryVehicle).optional(),
-    status: z.nativeEnum(ProductStatus).optional(),
+    status: sellerStatusSchema.optional(),
     price: z.number().positive().optional(),
     originalPrice: z.number().positive().optional(),
     stock: z.number().int().min(0).optional(),
@@ -129,14 +135,14 @@ export const sellerProductsSchema = z.object({
   query: z.object({
     page: z.string().optional(),
     limit: z.string().optional(),
-    status: z.nativeEnum(ProductStatus).optional(),
+    status: sellerStatusSchema.optional(),
   }),
 });
 
 export const bulkUpdateProductStatusSchema = z.object({
   body: z.object({
     productIds: z.array(z.string()).min(1),
-    status: z.nativeEnum(ProductStatus),
+    status: sellerStatusSchema,
   }),
 });
 
