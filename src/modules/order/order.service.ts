@@ -325,6 +325,8 @@ export const getSellerOrdersService = async (
 
   const where = {
     status: { not: OrderStatus.PENDING },
+    // Cancelled by Nestly before the seller ever saw it (sold out).
+    cancelReason: null,
     items: { some: itemFilter },
   };
 

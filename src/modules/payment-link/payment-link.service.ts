@@ -16,6 +16,7 @@ import { initializePaystackTransaction } from "../../utils/paystack";
 import { snapshotOf } from "../../utils/orderItemSnapshot";
 import { referralCommission, referralRewardApplies } from "../../utils/referral";
 import { hideContacts } from "../../utils/contactFilter";
+import { STOCK_HOLD_TX, assertStockAvailable } from "../../utils/stockHold";
 import { getSellerStore } from "../seller/seller.utils";
 import { isPayoutAccountEligibleForSplit, storePickupAddress } from "../store/store.service";
 import { generateDeliveryCode } from "../order/order-delivery";
@@ -443,42 +444,49 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
   const note = data.note ? hideContacts(data.note.trim()).text : "";
   const reference = `NESTLY_${crypto.randomUUID().replace(/-/g, "")}`;
 
-  const order = await prisma.order.create({
-    data: {
-      userId,
-      addressId: address.id,
-      paymentLinkId: link.id,
-      status: OrderStatus.PENDING,
-      subtotal,
-      deliveryFee,
-      tax: 0,
-      total,
-      paymentMethod: "PAYSTACK",
-      paymentReference: reference,
-      deliveryPhone: data.deliveryPhone?.trim() || address.phone,
-      items: {
-        create: {
-          productId: product.id,
-          quantity,
-          unitPrice: product.price,
-          totalPrice: subtotal,
-          commissionRate,
-          referralReward,
-          autoPaidViaSplit: paidViaSplit,
-          ...snapshotOf(fullProduct),
+  // The unpaid order holds its stock while the buyer pays (utils/stockHold).
+  const order = await prisma.$transaction(async (tx) => {
+    await assertStockAvailable(tx, userId, [
+      { productId: product.id, variationId: null, quantity, title: product.title },
+    ]);
+
+    return tx.order.create({
+      data: {
+        userId,
+        addressId: address.id,
+        paymentLinkId: link.id,
+        status: OrderStatus.PENDING,
+        subtotal,
+        deliveryFee,
+        tax: 0,
+        total,
+        paymentMethod: "PAYSTACK",
+        paymentReference: reference,
+        deliveryPhone: data.deliveryPhone?.trim() || address.phone,
+        items: {
+          create: {
+            productId: product.id,
+            quantity,
+            unitPrice: product.price,
+            totalPrice: subtotal,
+            commissionRate,
+            referralReward,
+            autoPaidViaSplit: paidViaSplit,
+            ...snapshotOf(fullProduct),
+          },
         },
-      },
-      shipping: {
-        create: {
-          storeId: store.id,
-          ...shipping,
-          deliveryCode: generateDeliveryCode(),
-          paidViaSplit,
+        shipping: {
+          create: {
+            storeId: store.id,
+            ...shipping,
+            deliveryCode: generateDeliveryCode(),
+            paidViaSplit,
+          },
         },
+        sellerNotes: note ? { create: { storeId: store.id, note } } : undefined,
       },
-      sellerNotes: note ? { create: { storeId: store.id, note } } : undefined,
-    },
-  });
+    });
+  }, STOCK_HOLD_TX);
 
   const paystack = await initializePaystackTransaction({
     email: user.email,

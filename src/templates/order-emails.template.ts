@@ -219,3 +219,19 @@ export const problemReportedEmail = (opts: { sellerName: string; orderNumber: st
       ${emailButton("Review the request", opts.returnsUrl)}
     `,
   });
+
+export const soldOutRefundEmail = (opts: { name: string; orderNumber: string; reason: string; total: number; refunded: boolean; orderUrl: string }) =>
+  renderEmailLayout({
+    preheader: opts.refunded ? `We're refunding ${naira(opts.total)} for order ${opts.orderNumber}` : `About your payment for order ${opts.orderNumber}`,
+    eyebrow: "Order update",
+    heading: "Sorry, it sold out",
+    bodyHtml: `
+      <p style="margin:0;">Hi ${escapeHtml(opts.name)}, ${escapeHtml(opts.reason)} So we've cancelled order <strong>${opts.orderNumber}</strong> - nothing will be sent.</p>
+      ${
+        opts.refunded
+          ? emailNotice(`Your ${naira(opts.total)} is on its way back to the card or account you paid with. Refunds usually arrive within 5-10 business days, depending on your bank.`)
+          : emailNotice(`Our team will refund your ${naira(opts.total)} by hand and email you once it's sent. You don't need to do anything.`, "warning")
+      }
+      ${emailButton("View order", opts.orderUrl)}
+    `,
+  });

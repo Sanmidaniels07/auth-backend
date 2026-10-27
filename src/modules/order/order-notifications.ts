@@ -1,4 +1,4 @@
-import { NotificationType, OrderEventType, OrderItemStatus, ShippingOptionType } from "@prisma/client";
+import { NotificationType, OrderEventType, OrderItemStatus, Role, ShippingOptionType } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { sendEmail } from "../auth/email.services";
@@ -11,6 +11,7 @@ import {
   orderDeliveredEmail,
   orderShippedEmail,
   problemReportedEmail,
+  soldOutRefundEmail,
 } from "../../templates/order-emails.template";
 import { AUTO_CONFIRM_DAYS, RETURN_WINDOW_DAYS, orderNumber } from "./order-delivery";
 
@@ -370,4 +371,54 @@ export const notifyReturnStatusChanged = (orderItemId: string, status: string) =
       message: `Your return request for "${titleOf(item)}" (order ${orderNumber(item.order.id)}) was ${status.toLowerCase()}.`,
       target: { type: "ORDER", id: item.order.id },
     });
+  });
+
+// The item sold out to someone else just before this payment landed, so the
+// order was cancelled (checkout/sold-out-refund). The buyer hears it was
+// refunded; if Paystack refused the refund, admins are asked to do it.
+export const notifySoldOutRefund = (orderId: string, refunded: boolean) =>
+  safely("Sold-out refund notifications", async () => {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, total: true, cancelReason: true, paymentReference: true, user: { select: USER_SELECT } },
+    });
+    if (!order) return;
+
+    const number = orderNumber(order.id);
+    const reason = order.cancelReason ?? "An item in your order sold out just before your payment went through.";
+
+    await deliver({
+      to: order.user,
+      title: "Sorry, it sold out",
+      message: refunded
+        ? `${reason} Order ${number} is cancelled and your money is being refunded.`
+        : `${reason} Order ${number} is cancelled - our team will refund you shortly.`,
+      target: { type: "ORDER", id: order.id },
+      email: {
+        subject: `Order ${number} cancelled - refund ${refunded ? "on its way" : "coming"}`,
+        html: soldOutRefundEmail({
+          name: order.user.name,
+          orderNumber: number,
+          reason,
+          total: order.total,
+          refunded,
+          orderUrl: buyerOrderUrl(order.id),
+        }),
+      },
+    });
+
+    if (refunded) return;
+
+    const admins = await prisma.user.findMany({ where: { role: Role.ADMIN, deletedAt: null }, select: { id: true } });
+    await Promise.allSettled(
+      admins.map((admin) =>
+        createNotificationService(
+          admin.id,
+          "Refund needed",
+          `Order ${number} was cancelled (sold out) but the automatic refund failed. Refund ₦${order.total.toLocaleString("en-NG")} to ${order.user.email} in Paystack (reference ${order.paymentReference}).`,
+          NotificationType.SYSTEM,
+          { type: "ADMIN_REFUND_NEEDED", id: order.id }
+        )
+      )
+    );
   });

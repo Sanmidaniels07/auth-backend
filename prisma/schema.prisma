@@ -1481,8 +1481,23 @@ model Order {
   paymentLinkId String?
   paymentLink   PaymentLink? @relation(fields: [paymentLinkId], references: [id])
 
+  // Set when Nestly itself cancels a paid order - e.g. the item sold out
+  // to someone else just before this payment landed (utils/stockHold).
+  cancelReason String?
+  // Automatic Paystack refund for such an order. FAILED means it needs a
+  // manual refund (admins are notified).
+  refundStatus OrderRefundStatus?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Unpaid orders still within their stock hold (utils/stockHold).
+  @@index([status, createdAt])
+}
+
+enum OrderRefundStatus {
+  REQUESTED
+  FAILED
 }
 
 model OrderShipping {
@@ -1627,6 +1642,8 @@ model OrderItem {
   events OrderEvent[]
 
   returnRequests ReturnRequest[]
+
+  @@index([productId])
 }
 
 model Review {
