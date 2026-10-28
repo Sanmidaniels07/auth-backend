@@ -1,5 +1,5 @@
 import prisma from "../../prisma/prisma";
-import { UserStatus } from "@prisma/client";
+import { TrafficSource, UserStatus } from "@prisma/client";
 import bcrypt from "bcrypt";
 import { AppError } from "../../utils/appError";
 import { generateResetToken, generateVerificationToken } from "../../utils/token";
@@ -17,6 +17,8 @@ interface SignupData {
   dateOfBirth?: Date;
   /** Seller share link they arrived through (?ref=CODE), if any. */
   referralCode?: string;
+  /** Where they came from (admin overview). */
+  source?: TrafficSource;
 }
 
 interface LoginData {
@@ -65,7 +67,7 @@ export const issueUserSession = async (
   };
 };
 export const signupService = async (data: SignupData) => {
-  const { name, email, password, dateOfBirth, referralCode } = data;
+  const { name, email, password, dateOfBirth, referralCode, source } = data;
 
   if (!name || !email || !password) {
     throw new Error("All fields are required");
@@ -94,6 +96,7 @@ export const signupService = async (data: SignupData) => {
       email,
       password: hashedPassword,
       dateOfBirth,
+      signupSource: source,
       ...(referredBy ? { referredByStoreId: referredBy.id, referredAt: new Date() } : {}),
 
       verificationToken,
@@ -208,7 +211,7 @@ const finishSignIn = (
  * isNewUser so the website can show the welcome step.
  */
 export const googleAuthService = async (
-  data: { credential: string; referralCode?: string },
+  data: { credential: string; referralCode?: string; source?: TrafficSource },
   device: DeviceInfo = {}
 ) => {
   const google = await verifyGoogleCredential(data.credential);
@@ -256,6 +259,7 @@ export const googleAuthService = async (
       googleId: google.googleId,
       avatar: google.picture,
       isVerified: true,
+      signupSource: data.source,
       ...(referredBy ? { referredByStoreId: referredBy.id, referredAt: new Date() } : {}),
     },
   });

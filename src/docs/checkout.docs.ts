@@ -15,6 +15,8 @@
  *
  *       The unpaid order holds its quantities for 15 minutes: while other buyers' unpaid orders hold the remaining stock, this returns 409 ("someone is paying for the last one"). The buyer's own earlier unpaid attempts don't count. If a payment is confirmed after its hold ran out and the item sold out meanwhile, nothing is taken from stock - verify/webhook return the order as CANCELLED with `cancelReason`, and the payment is refunded through Paystack (`refundStatus` REQUESTED, or FAILED when admins must refund it by hand - they're notified). The same applies to payment links and saved-card checkout.
  *
+ *       `source` (optional): where the visitor came from - one of GOOGLE, OTHER_SEARCH, WHATSAPP, INSTAGRAM, FACEBOOK, TIKTOK, X, SELLER_LINK, PAYMENT_LINK, OTHER_SITE, DIRECT (unknown values are ignored). Saved on the order for the admin overview only.
+ *
  *       Since a cart can span multiple stores and each store may have its own shipping tiers, `shippingSelections` must include one entry per store in the cart that has shipping options configured (a store with no delivery zone and no pickup point can't be ordered from - 400; pickup alone is enough). Only zones whose `vehicle` can carry every product bought from that store (by each product's `deliveryVehicle`; truck > car > bike), zones with no vehicle and pickup can be chosen - otherwise 400. The chosen vehicle is saved on the order's shipping row. If `couponCode` is provided it's re-validated and applied server-side - the discount is never trusted from the client.
  *     tags:
  *       - Checkout

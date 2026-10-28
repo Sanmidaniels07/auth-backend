@@ -7,6 +7,7 @@ import {
   OrderEventType,
   ShippingOptionType,
   DeliveryVehicle,
+  TrafficSource,
 } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
@@ -76,6 +77,7 @@ const buildPendingOrder = async (
   couponCode?: string,
   sellerNotes: SellerNoteInput[] = [],
   deliveryPhone?: string,
+  source?: TrafficSource,
 ) => {
   const [user, address, cart] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
@@ -357,6 +359,7 @@ const buildPendingOrder = async (
         paymentMethod: "PAYSTACK",
         paymentReference: reference,
         deliveryPhone: deliveryPhone?.trim() || address.phone,
+        source,
         items: {
           create: cart.items.map((item) => ({
             productId: item.productId,
@@ -532,6 +535,7 @@ export const initiateCheckoutService = async (
   couponCode?: string,
   sellerNotes: SellerNoteInput[] = [],
   deliveryPhone?: string,
+  source?: TrafficSource,
 ) => {
   const { user, order, reference, total, split } = await buildPendingOrder(
     userId,
@@ -540,6 +544,7 @@ export const initiateCheckoutService = async (
     couponCode,
     sellerNotes,
     deliveryPhone,
+    source,
   );
 
   const paystackData = await initializePaystackTransaction({
@@ -568,6 +573,7 @@ export const checkoutWithSavedCardService = async (
   couponCode?: string,
   sellerNotes: SellerNoteInput[] = [],
   deliveryPhone?: string,
+  source?: TrafficSource,
 ) => {
   const savedCard = await prisma.savedCard.findUnique({
     where: { id: savedCardId },
@@ -584,6 +590,7 @@ export const checkoutWithSavedCardService = async (
     couponCode,
     sellerNotes,
     deliveryPhone,
+    source,
   );
 
   const chargeResult = await chargeAuthorization({

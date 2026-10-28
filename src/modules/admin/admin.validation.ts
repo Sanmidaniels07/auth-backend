@@ -102,3 +102,9 @@ export const productHistoryAdminSchema = z.object({
     limit: z.string().optional(),
   }),
 });
+
+export const adminOverviewSchema = z.object({
+  query: z.object({
+    days: z.enum(["7", "30", "90"]).optional(),
+  }),
+});

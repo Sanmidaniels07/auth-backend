@@ -463,6 +463,7 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
         paymentMethod: "PAYSTACK",
         paymentReference: reference,
         deliveryPhone: data.deliveryPhone?.trim() || address.phone,
+        source: data.source,
         items: {
           create: {
             productId: product.id,

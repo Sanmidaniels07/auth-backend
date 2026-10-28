@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { DeliveryVehicle, PaymentLinkDelivery } from "@prisma/client";
 
+import { trafficSourceField } from "../../utils/trafficSource";
+
 export const PAYMENT_LINK_MAX_IMAGES = 6;
 export const PAYMENT_LINK_NOTE_MAX = 500;
 
@@ -83,6 +85,7 @@ export const payPaymentLinkSchema = z.object({
       .regex(/^\+?[\d\s()-]{7,20}$/, "Enter a valid phone number for delivery, e.g. 0803 123 4567.")
       .optional(),
     note: z.string().trim().max(PAYMENT_LINK_NOTE_MAX).optional(),
+    source: trafficSourceField,
   }),
 });
 
