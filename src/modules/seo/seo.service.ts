@@ -1,7 +1,9 @@
-import { ProductStatus } from "@prisma/client";
+import { Prisma, ProductStatus, ShippingOptionType } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { findState } from "../../data/nigeria-locations";
+import { AppError } from "../../utils/appError";
+import { findArea, locate, servesArea, storeCoverage } from "../../utils/serviceAreas";
 
 // Google accepts up to 50,000 URLs per sitemap file.
 const MAX_ENTRIES = 45_000;
@@ -135,4 +137,113 @@ export const getMerchantFeedService = async () => {
         storeName: store.name,
       };
     });
+};
+
+// Stores with live products, with what's needed to place them in areas.
+const liveStoresWithCoverage = <T extends Prisma.StoreSelect>(extra: T) =>
+  prisma.store.findMany({
+    where: { isSuspended: false, products: { some: { status: ProductStatus.PUBLISHED } } },
+    select: {
+      ...extra,
+      id: true,
+      city: true,
+      state: true,
+      shippingOptions: { where: { isArchived: false, type: ShippingOptionType.DELIVERY }, select: { areas: true, state: true } },
+    },
+  });
+
+/**
+ * Areas (neighbourhoods / LGAs) with sellers based in them or delivering
+ * to them, by state - what the public "Cakes & Pastries in Lekki, Lagos"
+ * pages and their sitemap entries are built from. Each area has its store
+ * and live product counts, overall and per category.
+ */
+export const getAreasService = async () => {
+  const stores = await liveStoresWithCoverage({
+    products: { where: { status: ProductStatus.PUBLISHED }, select: { updatedAt: true, category: { select: { slug: true } } } },
+  });
+
+  interface AreaEntry { stores: number; products: number; updatedAt: Date; categories: Map<string, number> }
+  const byState = new Map<string, Map<string, AreaEntry>>();
+
+  for (const store of stores) {
+    for (const [state, areas] of storeCoverage(store)) {
+      const inState = byState.get(state) ?? new Map<string, AreaEntry>();
+      for (const area of areas) {
+        const entry = inState.get(area) ?? { stores: 0, products: 0, updatedAt: new Date(0), categories: new Map() };
+        entry.stores += 1;
+        for (const product of store.products) {
+          entry.products += 1;
+          if (product.updatedAt > entry.updatedAt) entry.updatedAt = product.updatedAt;
+          entry.categories.set(product.category.slug, (entry.categories.get(product.category.slug) ?? 0) + 1);
+        }
+        inState.set(area, entry);
+      }
+      byState.set(state, inState);
+    }
+  }
+
+  const states = Array.from(byState, ([name, areas]) => ({
+    name,
+    areas: Array.from(areas, ([area, entry]) => ({
+      name: area,
+      storeCount: entry.stores,
+      productCount: entry.products,
+      updatedAt: entry.updatedAt,
+      categories: Array.from(entry.categories, ([slug, productCount]) => ({ slug, productCount })).sort((a, b) => b.productCount - a.productCount),
+    })).sort((a, b) => b.productCount - a.productCount || a.name.localeCompare(b.name)),
+  }));
+
+  const total = (state: (typeof states)[number]) => state.areas.reduce((sum, area) => sum + area.productCount, 0);
+  return { states: states.sort((a, b) => total(b) - total(a)) };
+};
+
+/** Ids of live stores based in or delivering to an area. */
+export const storeIdsServingArea = async (state: string, area: string) =>
+  (await liveStoresWithCoverage({})).filter((store) => servesArea(store, state, area)).map((store) => store.id);
+
+/**
+ * Sellers serving an area (optionally only those with live products in a
+ * category): sellers based there first, then the best rated. Public store
+ * details only - never contact details or payout information.
+ */
+export const getAreaSellersService = async ({ state, area, category }: { state: string; area: string; category?: string }) => {
+  const canonicalState = findState(state)?.name;
+  const canonicalArea = canonicalState ? findArea(canonicalState, area) : null;
+  if (!canonicalState || !canonicalArea) throw new AppError("Unknown area.", 404);
+
+  const liveProducts = { status: ProductStatus.PUBLISHED, ...(category ? { category: { slug: category } } : {}) };
+  const stores = (
+    await liveStoresWithCoverage({
+      name: true,
+      slug: true,
+      logo: true,
+      rating: true,
+      totalSales: true,
+      isVerified: true,
+      _count: { select: { products: { where: liveProducts }, reviews: true } },
+    })
+  ).filter((store) => store._count.products > 0 && servesArea(store, canonicalState, canonicalArea));
+
+  const sellers = stores
+    .map((store) => {
+      const home = locate(store);
+      return {
+        name: store.name,
+        slug: store.slug,
+        logo: store.logo,
+        rating: store.rating,
+        totalSales: store.totalSales,
+        isVerified: store.isVerified,
+        city: store.city,
+        state: store.state,
+        productCount: store._count.products,
+        reviewCount: store._count.reviews,
+        basedHere: home.state === canonicalState && home.area === canonicalArea,
+      };
+    })
+    .sort((a, b) => Number(b.basedHere) - Number(a.basedHere) || b.rating - a.rating || b.productCount - a.productCount)
+    .slice(0, 24);
+
+  return { state: canonicalState, area: canonicalArea, total: stores.length, sellers };
 };

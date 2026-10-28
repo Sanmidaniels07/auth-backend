@@ -97,6 +97,8 @@ export const listProductsSchema = z.object({
     brand: z.string().optional(),
     // Store's state, e.g. "Lagos" or "Abuja" (any common spelling).
     state: z.string().trim().max(60).optional(),
+    // With state: stores based in or delivering to this area, e.g. "Lekki".
+    area: z.string().trim().max(60).optional(),
     sort: z
       .enum(["newest", "oldest", "price_asc", "price_desc"])
       .optional(),

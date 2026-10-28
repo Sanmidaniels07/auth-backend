@@ -8,6 +8,7 @@ import {
   salesOverviewSchema,
   topProductsSchema,
   sellerCustomersSchema,
+  customerMapSchema,
 } from "./dashboard.validation";
 import {
   getDashboardStats,
@@ -20,6 +21,7 @@ import {
   getSellerEarnings,
   getSellerPayouts,
   getStoreTraffic,
+  getCustomerMap,
 } from "./dashboard.controller";
 
 const router = Router();
@@ -66,6 +68,13 @@ router.get(
   "/traffic",
   validate(salesOverviewSchema),
   getStoreTraffic
+);
+
+// Where customers and interested shoppers are, by state and area.
+router.get(
+  "/customer-map",
+  validate(customerMapSchema),
+  getCustomerMap
 );
 
 router.get(

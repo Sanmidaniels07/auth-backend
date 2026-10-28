@@ -51,10 +51,12 @@ export const getProducts = asyncHandler(
       | undefined;
     const brand = req.query.brand as string;
     const state = req.query.state as string | undefined;
+    const area = req.query.area as string | undefined;
     const sort = req.query.sort as string;
 
     const result = await getProductsService({
       state,
+      area,
       page,
       limit,
       search,
