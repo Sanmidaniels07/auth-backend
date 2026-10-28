@@ -13,6 +13,7 @@ import {
   listProductsAdminSchema,
   productHistoryAdminSchema,
   setProductFeaturedSchema,
+  adminOverviewSchema,
 } from "./admin.validation";
 import {
   updateUserRole,
@@ -24,11 +25,18 @@ import {
   listProductsAdmin,
   getProductHistoryAdmin,
   setProductFeatured,
+  getAdminOverview,
 } from "./admin.controller";
 
 const router = Router();
 
 router.use(authMiddleware, authorize("ADMIN"));
+
+router.get(
+  "/overview",
+  validate(adminOverviewSchema),
+  getAdminOverview
+);
 
 router.get(
   "/users",

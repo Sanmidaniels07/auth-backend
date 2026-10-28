@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { trafficSourceField } from "../../utils/trafficSource";
+
 export const SELLER_NOTE_MAX = 500;
 
 // Optional per-store note from the buyer (extras, sizes, gift message).
@@ -34,6 +36,7 @@ export const initiateCheckoutSchema = z.object({
     couponCode: z.string().trim().optional(),
     sellerNotes: sellerNotesSchema,
     deliveryPhone: deliveryPhoneSchema,
+    source: trafficSourceField,
   }),
 });
 
@@ -58,5 +61,6 @@ export const checkoutWithSavedCardSchema = z.object({
     couponCode: z.string().trim().optional(),
     sellerNotes: sellerNotesSchema,
     deliveryPhone: deliveryPhoneSchema,
+    source: trafficSourceField,
   }),
 });

@@ -213,6 +213,9 @@ model User {
   profileRemindersSent  Int       @default(0)
   lastProfileReminderAt DateTime?
 
+  // Where they came from before signing up (admin overview).
+  signupSource TrafficSource?
+
   verificationToken       String?
   verificationTokenExpiry DateTime?
 
@@ -1488,6 +1491,9 @@ model Order {
   // manual refund (admins are notified).
   refundStatus OrderRefundStatus?
 
+  // Where the buyer came from before this order (admin overview).
+  source TrafficSource?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1498,6 +1504,23 @@ model Order {
 enum OrderRefundStatus {
   REQUESTED
   FAILED
+}
+
+// Where a visitor came from, worked out by the website from the referring
+// site, utm_source and the landing page - the last non-direct one in the
+// past 30 days. Saved on sign-ups and orders for the admin overview.
+enum TrafficSource {
+  GOOGLE
+  OTHER_SEARCH
+  WHATSAPP
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  X
+  SELLER_LINK
+  PAYMENT_LINK
+  OTHER_SITE
+  DIRECT
 }
 
 model OrderShipping {

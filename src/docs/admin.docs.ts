@@ -7,6 +7,38 @@
 
 /**
  * @swagger
+ * /api/admin/overview:
+ *   get:
+ *     summary: Platform overview for the admin dashboard
+ *     description: >
+ *       Admin only. Headline numbers for the last `days` days, with the `days` before them for comparison (`*Prev`):
+ *       users (total, new, active, Google sign-ups, verified, suspended, banned); sellers (pending/approved/rejected,
+ *       business-verified, ready to sell, new applications, stores); products by status; orders (paid orders, sales
+ *       = what buyers paid on orders that went through, Nestly's commission, average order, delivery fees,
+ *       payment-link sales, unpaid checkouts past their hold, cancellations, failed refunds to handle); where
+ *       sign-ups and paying orders came from (TrafficSource, UNKNOWN before sources were recorded); signed-in
+ *       product/store/profile views; a per-day series (Lagos time) of sign-ups, orders and sales; top 5 stores
+ *       and products by sales.
+ *     tags:
+ *       - Administration
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: string
+ *           enum: ["7", "30", "90"]
+ *           default: "30"
+ *     responses:
+ *       200:
+ *         description: Overview fetched successfully
+ *       403:
+ *         description: Not an admin
+ */
+
+/**
+ * @swagger
  * /api/profile:
  *   get:
  *     summary: Get current user profile

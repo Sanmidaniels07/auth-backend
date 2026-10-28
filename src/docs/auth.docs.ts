@@ -41,6 +41,9 @@
  *                 type: string
  *                 example: K7Q2MZPA
  *                 description: Optional. Code from the seller share link (?ref=) the user arrived through. Links the new user to that store, which then pays 2 points less commission on their orders from it for 90 days. Unknown codes are ignored.
+ *               source:
+ *                 type: string
+ *                 description: Optional. Where the visitor came from (GOOGLE, OTHER_SEARCH, WHATSAPP, INSTAGRAM, FACEBOOK, TIKTOK, X, SELLER_LINK, PAYMENT_LINK, OTHER_SITE, DIRECT); unknown values are ignored. Saved as signupSource for the admin overview.
  *     responses:
  *       201:
  *         description: User created successfully
@@ -106,6 +109,9 @@
  *               referralCode:
  *                 type: string
  *                 description: Seller share-link code (?ref=) they arrived through; only used when a new account is created.
+ *               source:
+ *                 type: string
+ *                 description: where the visitor came from - one of GOOGLE, OTHER_SEARCH, WHATSAPP, INSTAGRAM, FACEBOOK, TIKTOK, X, SELLER_LINK, PAYMENT_LINK, OTHER_SITE, DIRECT (unknown values are ignored). Saved as the new account's signupSource for the admin overview only.
  *     responses:
  *       200:
  *         description: Logged in (or 2FA required)

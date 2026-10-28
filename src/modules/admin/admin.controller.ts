@@ -15,6 +15,7 @@ import {
   updateSellerStatusService,
   setSellerVerifiedService,
 } from "./admin.service";
+import { getAdminOverviewService } from "./admin-overview.service";
 
 export const setSellerVerified = asyncHandler(
   async (req: Request<IdParams>, res: Response) => {
@@ -148,6 +149,17 @@ export const setProductFeatured = asyncHandler(
 
     res.status(200).json(
       apiResponse(product, product.isFeatured ? "Product featured" : "Product no longer featured")
+    );
+  }
+);
+
+export const getAdminOverview = asyncHandler(
+  async (req: Request, res: Response) => {
+    const days = Number(req.query.days) || 30;
+    const overview = await getAdminOverviewService(days);
+
+    res.status(200).json(
+      apiResponse(overview, "Overview fetched successfully")
     );
   }
 );
