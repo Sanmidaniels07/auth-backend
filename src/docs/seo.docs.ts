@@ -36,7 +36,8 @@
  * /api/seo/areas:
  *   get:
  *     summary: Areas with sellers, by state
- *     description: Public. Neighbourhoods and LGAs (known names only, e.g. Lekki, Ikeja) with live stores based in them or listing them in a delivery zone, grouped by state - `{ states: [{ name, areas: [{ name, storeCount, productCount, updatedAt, categories: [{ slug, productCount }] }] }] }`, most products first. Flat-rate zones with no areas don't count. Builds the public area pages (e.g. Cakes & Pastries in Lekki, Lagos) and their sitemap entries. Cached for 15 minutes.
+ *     description: >-
+ *       Public. Neighbourhoods and LGAs (known names only, e.g. Lekki, Ikeja) with live stores based in them or listing them in a delivery zone, grouped by state - `{ states: [{ name, areas: [{ name, storeCount, productCount, updatedAt, categories: [{ slug, productCount }] }] }] }`, most products first. Flat-rate zones with no areas don't count. Builds the public area pages (e.g. Cakes & Pastries in Lekki, Lagos) and their sitemap entries. Cached for 15 minutes.
  *     tags:
  *       - SEO
  *     responses:
