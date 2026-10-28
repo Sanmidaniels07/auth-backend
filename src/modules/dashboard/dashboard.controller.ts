@@ -14,6 +14,7 @@ import {
   getSellerPayoutsService,
   getStoreTrafficService,
 } from "./dashboard.service";
+import { getCustomerMapService } from "./customer-map.service";
 
 export const getDashboardStats = asyncHandler(
   async (req: Request, res: Response) => {
@@ -185,6 +186,24 @@ export const getSellerPayouts = asyncHandler(
       apiResponse(
         result,
         "Payouts fetched successfully"
+      )
+    );
+  }
+);
+
+export const getCustomerMap = asyncHandler(
+  async (req: Request, res: Response) => {
+    const days = Number(req.query.days) || 90;
+
+    const map = await getCustomerMapService(
+      req.user.id,
+      days
+    );
+
+    res.status(200).json(
+      apiResponse(
+        map,
+        "Customer map fetched successfully"
       )
     );
   }

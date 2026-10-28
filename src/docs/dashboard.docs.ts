@@ -243,4 +243,38 @@
  *         description: Seller has no store
  */
 
+/**
+ * @swagger
+ * /api/seller/dashboard/customer-map:
+ *   get:
+ *     summary: Where the store's customers are
+ *     description: >
+ *       Counts for the seller's customer map over the last N days (1-365, default 90).
+ *       `orders` - paid orders (sold-out cancellations excluded) by delivery address.
+ *       `interested` - signed-in people who followed the store, visited it, or viewed or saved its products, by their default address or profile location (the seller excluded).
+ *       Each has `total`, `unknown` (no recognisable state) and `states` - [{ state, count, delivers ("all" | "some" | "none"), otherAreas (count in areas Nestly doesn't recognise), areas: [{ area, count, delivers, listed (the store appears on that area's public Nestly pages - home area or named in a delivery zone) }] }], most first.
+ *       Areas the store delivers to are listed even with a count of 0. Counts only - never names or addresses.
+ *     tags:
+ *       - Seller Dashboard
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 365
+ *           default: 90
+ *     responses:
+ *       200:
+ *         description: Customer map fetched successfully
+ *       400:
+ *         description: days is not a whole number from 1 to 365
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Seller has no store
+ */
+
 export {};

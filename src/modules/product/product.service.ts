@@ -5,6 +5,8 @@ import { AppError } from "../../utils/appError";
 import { generateUniqueSlug } from "../../utils/slugify";
 import { getSellerStore } from "../seller/seller.utils";
 import { findState, stateSpellings } from "../../data/nigeria-locations";
+import { findArea } from "../../utils/serviceAreas";
+import { storeIdsServingArea } from "../seo/seo.service";
 import { OPTIONS_INCLUDE, assertValidOptions, saveProductOptions } from "../../utils/productOptions";
 import { diffProducts, isDifferentProduct, recordProductRevision, recordStatusChanges } from "../../utils/productHistory";
 import { isAdminUser } from "../../utils/isAdmin";
@@ -297,6 +299,7 @@ interface ProductFilters {
   condition?: ProductCondition;
   brand?: string;
   state?: string;
+  area?: string;
   sort?: string;
 }
 
@@ -313,6 +316,7 @@ export const getProductsService = async (
     condition,
     brand,
     state,
+    area,
     sort,
   } = filters;
 
@@ -323,7 +327,12 @@ export const getProductsService = async (
     store: { isSuspended: false },
   };
 
-  if (state) {
+  if (state && area) {
+    // Sellers based in or delivering to the area - wherever they are.
+    const canonical = findState(state)?.name;
+    const known = canonical ? findArea(canonical, area) : null;
+    where.storeId = { in: canonical && known ? await storeIdsServingArea(canonical, known) : [] };
+  } else if (state) {
     const canonical = findState(state)?.name ?? state;
     where.store.OR = stateSpellings(canonical).map((spelling) => ({
       state: { equals: spelling, mode: "insensitive" },

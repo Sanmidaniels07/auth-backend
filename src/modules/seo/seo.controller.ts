@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 
 import { asyncHandler } from "../../utils/asyncHandlers";
 import { apiResponse } from "../../utils/apiResponse";
-import { getCatalogueService, getMerchantFeedService, getSitemapEntriesService } from "./seo.service";
+import { getAreaSellersService, getAreasService, getCatalogueService, getMerchantFeedService, getSitemapEntriesService } from "./seo.service";
 
 export const getSitemapEntries = asyncHandler(
   async (_req: Request, res: Response) => {
@@ -34,6 +34,32 @@ export const getMerchantFeed = asyncHandler(
     res.set("Cache-Control", "public, max-age=900");
     res.status(200).json(
       apiResponse({ products }, "Merchant feed fetched successfully")
+    );
+  }
+);
+
+export const getAreas = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const result = await getAreasService();
+
+    res.set("Cache-Control", "public, max-age=900");
+    res.status(200).json(
+      apiResponse(result, "Areas fetched successfully")
+    );
+  }
+);
+
+export const getAreaSellers = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result = await getAreaSellersService({
+      state: req.query.state as string,
+      area: req.query.area as string,
+      category: req.query.category as string | undefined,
+    });
+
+    res.set("Cache-Control", "public, max-age=900");
+    res.status(200).json(
+      apiResponse(result, "Area sellers fetched successfully")
     );
   }
 );

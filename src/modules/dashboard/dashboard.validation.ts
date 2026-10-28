@@ -30,3 +30,10 @@ export const sellerCustomersSchema = z.object({
     limit: z.string().optional(),
   }),
 });
+
+export const customerMapSchema = z.object({
+  query: z.object({
+    // 1-365 days back from today (default 90).
+    days: z.coerce.number().int().min(1).max(365).optional(),
+  }),
+});

@@ -33,6 +33,55 @@
 
 /**
  * @swagger
+ * /api/seo/areas:
+ *   get:
+ *     summary: Areas with sellers, by state
+ *     description: >-
+ *       Public. Neighbourhoods and LGAs (known names only, e.g. Lekki, Ikeja) with live stores based in them or listing them in a delivery zone, grouped by state - `{ states: [{ name, areas: [{ name, storeCount, productCount, updatedAt, categories: [{ slug, productCount }] }] }] }`, most products first. Flat-rate zones with no areas don't count. Builds the public area pages (e.g. Cakes & Pastries in Lekki, Lagos) and their sitemap entries. Cached for 15 minutes.
+ *     tags:
+ *       - SEO
+ *     responses:
+ *       200:
+ *         description: Areas fetched successfully
+ */
+
+/**
+ * @swagger
+ * /api/seo/areas/sellers:
+ *   get:
+ *     summary: Sellers serving an area
+ *     description: Public. Up to 24 live stores based in or delivering to the area (with live products in the category, if given) - name, slug, logo, rating, totalSales, isVerified, city, state, productCount, reviewCount, basedHere. Stores based in the area first, then the best rated. No contact or payout details. Cached for 15 minutes.
+ *     tags:
+ *       - SEO
+ *     parameters:
+ *       - in: query
+ *         name: state
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: Lagos
+ *       - in: query
+ *         name: area
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: Lekki
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           example: cakes-pastries
+ *     responses:
+ *       200:
+ *         description: Area sellers fetched successfully
+ *       400:
+ *         description: state or area missing
+ *       404:
+ *         description: Unknown state or area
+ */
+
+/**
+ * @swagger
  * /api/seo/merchant-feed:
  *   get:
  *     summary: Products for the Google Merchant Center feed

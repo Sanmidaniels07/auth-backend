@@ -168,6 +168,11 @@
  *         schema:
  *           type: string
  *       - in: query
+ *         name: area
+ *         description: With state - only stores based in or delivering to this area (a known neighbourhood or LGA, e.g. Lekki). Unknown areas return no products.
+ *         schema:
+ *           type: string
+ *       - in: query
  *         name: sort
  *         schema:
  *           type: string
