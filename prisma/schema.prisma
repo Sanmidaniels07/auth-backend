@@ -228,6 +228,8 @@ model User {
   sessions      Session[]
   notifications Notification[]
 
+  webPushSubscriptions WebPushSubscription[]
+
   // Marketplace
   sellerProfile SellerProfile?
 
@@ -334,6 +336,27 @@ model PushToken {
   platform String?
 
   createdAt DateTime @default(now())
+}
+
+// A browser/device that allowed Nestly's push notifications (Web Push).
+// One row per device; a device that signs in as someone else moves to
+// them. Removed on logout, or when the browser says it's gone.
+model WebPushSubscription {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  endpoint String @unique
+  p256dh   String
+  auth     String
+
+  userAgent String?
+
+  createdAt    DateTime  @default(now())
+  lastPushedAt DateTime?
+
+  @@index([userId])
 }
 
 model SavedCard {
