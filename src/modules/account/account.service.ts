@@ -87,6 +87,8 @@ export const deleteAccountService = async (
 
   await prisma.$transaction([
     prisma.session.deleteMany({ where: { userId } }),
+    // No more push notifications to their devices.
+    prisma.webPushSubscription.deleteMany({ where: { userId } }),
     // Soft delete: keep the row (existing posts/orders/etc. reference it),
     // but free up the email/username/Google account for reuse and block
     // future logins.
