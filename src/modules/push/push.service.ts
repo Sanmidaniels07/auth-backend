@@ -1,6 +1,7 @@
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
-import { sendPushToUser, vapidPublicKey } from "../../utils/webPush";
+import { isValidPushReadToken, sendPushToUser, vapidPublicKey } from "../../utils/webPush";
+import { markConversationReadService } from "../conversation/conversation.service";
 import { SubscribeInput } from "./push.validation";
 
 /** The key browsers need to subscribe; null when push isn't set up here. */
@@ -23,6 +24,28 @@ export const subscribeService = async (userId: string, data: SubscribeInput, use
 export const unsubscribeService = async (userId: string, endpoint: string) => {
   await prisma.webPushSubscription.deleteMany({ where: { userId, endpoint } });
   return { subscribed: false };
+};
+
+/**
+ * "Mark as read" on an alert. For a message it marks the whole chat read
+ * (as opening it would). Returns what's still unread, for the app icon.
+ */
+export const readFromPushService = async (id: string, token: string) => {
+  const notification = await prisma.notification.findUnique({ where: { id } });
+  if (!notification || !isValidPushReadToken(id, notification.userId, token)) {
+    throw new AppError("This notification can't be marked read.", 403);
+  }
+
+  const { userId } = notification;
+  await prisma.notification.update({ where: { id }, data: { isRead: true } });
+
+  if (notification.type === "MESSAGE" && notification.targetType === "CONVERSATION" && notification.targetId) {
+    // They may have left the chat since - the alert is read either way.
+    await markConversationReadService(userId, notification.targetId).catch(() => undefined);
+  }
+
+  const unread = await prisma.notification.count({ where: { userId, isRead: false } });
+  return { unread };
 };
 
 /** "Send a test notification" on the settings page. */

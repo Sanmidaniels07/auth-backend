@@ -2,7 +2,7 @@ import { NotificationType } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { getIO } from "../../socket";
-import { sendPushToUser } from "../../utils/webPush";
+import { pushReadToken, sendPushToUser } from "../../utils/webPush";
 
 export const createNotificationService = async (
   userId: string,
@@ -43,6 +43,7 @@ export const createNotificationService = async (
   // Also push it to every device they turned notifications on for - even
   // while Nestly is open somewhere (a laptop tab left open mustn't silence
   // their phone).
+  const unread = await prisma.notification.count({ where: { userId, isRead: false } });
   sendPushToUser(userId, {
     title: notification.title,
     body: notification.message,
@@ -55,6 +56,10 @@ export const createNotificationService = async (
     // One alert per chat / order that updates, rather than a pile.
     tag: notification.targetType && notification.targetId ? `${notification.targetType}:${notification.targetId}` : notification.id,
     urgent: type === NotificationType.MESSAGE || type === NotificationType.ORDER,
+    id: notification.id,
+    readToken: pushReadToken(notification.id, userId),
+    type,
+    unread,
   }).catch((error) => console.error("Push failed:", error));
 
   return notification;

@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 
 import { asyncHandler } from "../../utils/asyncHandlers";
 import { apiResponse } from "../../utils/apiResponse";
-import { getPushConfigService, sendTestPushService, subscribeService, unsubscribeService } from "./push.service";
+import { getPushConfigService, readFromPushService, sendTestPushService, subscribeService, unsubscribeService } from "./push.service";
 
 export const getPushConfig = asyncHandler(async (_req: Request, res: Response) => {
   res.status(200).json(apiResponse(getPushConfigService(), "Push config fetched successfully"));
@@ -16,6 +16,11 @@ export const subscribe = asyncHandler(async (req: Request, res: Response) => {
 export const unsubscribe = asyncHandler(async (req: Request, res: Response) => {
   const result = await unsubscribeService(req.user.id, req.body.endpoint);
   res.status(200).json(apiResponse(result, "Notifications turned off for this device"));
+});
+
+export const readFromPush = asyncHandler(async (req: Request, res: Response) => {
+  const result = await readFromPushService(req.body.id, req.body.token);
+  res.status(200).json(apiResponse(result, "Marked as read"));
 });
 
 export const sendTestPush = asyncHandler(async (req: Request, res: Response) => {

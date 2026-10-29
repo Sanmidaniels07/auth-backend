@@ -6,7 +6,7 @@
  *     Web Push - notifications on a phone or computer, even when Nestly isn't open. Every in-app notification
  *     (messages, likes, comments, follows, orders, shopping alerts, reminders, admin alerts) is also pushed
  *     to all of the user's subscribed devices (whether or not Nestly is open), respecting their
- *     per-type notification preferences. Tapping one opens /notifications/open?id&type&target on the website.
+ *     per-type notification preferences. Each push also carries the notification type (for its buttons), the unread count (app icon badge) and a signed readToken for POST /api/push/read. Tapping one opens /notifications/open?id&type&target on the website.
  *     Needs VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY (/ VAPID_SUBJECT) in the environment; without them pushes are skipped.
  */
 
@@ -78,6 +78,36 @@
  *     responses:
  *       200:
  *         description: Notifications turned off for this device
+ */
+
+/**
+ * @swagger
+ * /api/push/read:
+ *   post:
+ *     summary: Mark a notification read from the alert's "Mark as read" button
+ *     description: >-
+ *       Called by the website's service worker, which has no sign-in. Each push carries the
+ *       notification id and a signed readToken; a message alert marks its whole chat read.
+ *       Returns the user's remaining unread count for the app icon badge.
+ *     tags:
+ *       - Push
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [id, token]
+ *             properties:
+ *               id:
+ *                 type: string
+ *               token:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Marked read (unread count returned)
+ *       403:
+ *         description: Unknown notification or wrong token
  */
 
 /**
