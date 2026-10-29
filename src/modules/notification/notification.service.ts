@@ -2,7 +2,6 @@ import { NotificationType } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { getIO } from "../../socket";
-import { isOnline } from "../../socket/presence";
 import { sendPushToUser } from "../../utils/webPush";
 
 export const createNotificationService = async (
@@ -41,23 +40,22 @@ export const createNotificationService = async (
     console.error("Realtime notification delivery failed:", error);
   }
 
-  // Not on Nestly right now - send it to their phone/computer instead.
-  // (While they're on it, the live update above already shows it.)
-  if (!isOnline(userId)) {
-    sendPushToUser(userId, {
-      title: notification.title,
-      body: notification.message,
-      // Opens the notification's page and marks it read (website).
-      url: `/notifications/open?${new URLSearchParams({
-        id: notification.id,
-        ...(notification.targetType ? { type: notification.targetType } : {}),
-        ...(notification.targetId ? { target: notification.targetId } : {}),
-      })}`,
-      // One alert per chat / order that updates, rather than a pile.
-      tag: notification.targetType && notification.targetId ? `${notification.targetType}:${notification.targetId}` : notification.id,
-      urgent: type === NotificationType.MESSAGE || type === NotificationType.ORDER,
-    }).catch((error) => console.error("Push failed:", error));
-  }
+  // Also push it to every device they turned notifications on for - even
+  // while Nestly is open somewhere (a laptop tab left open mustn't silence
+  // their phone).
+  sendPushToUser(userId, {
+    title: notification.title,
+    body: notification.message,
+    // Opens the notification's page and marks it read (website).
+    url: `/notifications/open?${new URLSearchParams({
+      id: notification.id,
+      ...(notification.targetType ? { type: notification.targetType } : {}),
+      ...(notification.targetId ? { target: notification.targetId } : {}),
+    })}`,
+    // One alert per chat / order that updates, rather than a pile.
+    tag: notification.targetType && notification.targetId ? `${notification.targetType}:${notification.targetId}` : notification.id,
+    urgent: type === NotificationType.MESSAGE || type === NotificationType.ORDER,
+  }).catch((error) => console.error("Push failed:", error));
 
   return notification;
 };

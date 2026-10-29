@@ -2,7 +2,7 @@ import webpush from "web-push";
 
 import prisma from "../prisma/prisma";
 
-// Web Push: notifications on a phone or computer when Nestly isn't open.
+// Web Push: notifications on a phone or computer, even when Nestly isn't open.
 // Needs VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY (one pair per environment) -
 // without them pushes are skipped and everything else works as before.
 

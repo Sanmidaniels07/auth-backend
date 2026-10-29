@@ -3,9 +3,9 @@
  * tags:
  *   name: Push
  *   description: >
- *     Web Push - notifications on a phone or computer when Nestly isn't open. Every in-app notification
+ *     Web Push - notifications on a phone or computer, even when Nestly isn't open. Every in-app notification
  *     (messages, likes, comments, follows, orders, shopping alerts, reminders, admin alerts) is also pushed
- *     to the user's subscribed devices while they're offline (no open socket), respecting their
+ *     to all of the user's subscribed devices (whether or not Nestly is open), respecting their
  *     per-type notification preferences. Tapping one opens /notifications/open?id&type&target on the website.
  *     Needs VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY (/ VAPID_SUBJECT) in the environment; without them pushes are skipped.
  */
