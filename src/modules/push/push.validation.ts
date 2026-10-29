@@ -25,4 +25,12 @@ export const unsubscribeSchema = z.object({
   }),
 });
 
+// "Mark as read" tapped on an alert - signed by the alert, no sign-in.
+export const readFromPushSchema = z.object({
+  body: z.object({
+    id: z.string().trim().min(1).max(64),
+    token: z.string().trim().min(1).max(128),
+  }),
+});
+
 export type SubscribeInput = z.infer<typeof subscribeSchema>["body"];

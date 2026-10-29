@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import webpush from "web-push";
 
 import prisma from "../prisma/prisma";
@@ -54,7 +55,30 @@ export interface PushPayload {
   tag?: string;
   /** Messages and orders should arrive straight away, even on battery saver. */
   urgent?: boolean;
+  /** The notification it's for - with readToken, lets "Mark as read" work from the alert itself. */
+  id?: string;
+  readToken?: string;
+  /** NotificationType - picks the alert's buttons (Reply, View order...). */
+  type?: string;
+  /** Unread notifications, for the number on the app icon. */
+  unread?: number;
 }
+
+// Signs "this alert may mark notification X of user Y read" - the service
+// worker has no sign-in of its own, so the alert carries this instead.
+const readSignature = (notificationId: string, userId: string) =>
+  crypto
+    .createHmac("sha256", `push-read:${process.env.JWT_SECRET ?? ""}`)
+    .update(`${notificationId}:${userId}`)
+    .digest("base64url");
+
+export const pushReadToken = (notificationId: string, userId: string) => readSignature(notificationId, userId);
+
+export const isValidPushReadToken = (notificationId: string, userId: string, token: string) => {
+  const expected = Buffer.from(readSignature(notificationId, userId));
+  const given = Buffer.from(token);
+  return expected.length === given.length && crypto.timingSafeEqual(expected, given);
+};
 
 /** Sends to every device the user allowed. Never throws. */
 export const sendPushToUser = async (userId: string, payload: PushPayload) => {
@@ -63,7 +87,17 @@ export const sendPushToUser = async (userId: string, payload: PushPayload) => {
   const subscriptions = await prisma.webPushSubscription.findMany({ where: { userId } });
   if (subscriptions.length === 0) return 0;
 
-  const body = JSON.stringify({ title: payload.title, body: payload.body, url: payload.url, tag: payload.tag });
+  const body = JSON.stringify({
+    title: payload.title,
+    body: payload.body,
+    url: payload.url,
+    tag: payload.tag,
+    urgent: !!payload.urgent,
+    id: payload.id,
+    readToken: payload.readToken,
+    type: payload.type,
+    unread: payload.unread,
+  });
   let sent = 0;
 
   await Promise.all(

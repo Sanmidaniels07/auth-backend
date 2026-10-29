@@ -365,6 +365,13 @@ export const markConversationReadService = async (
     data: { readAt: new Date() },
   });
 
+  // Their "New Message" alerts for this chat are read too - keeps the bell
+  // and the number on the app icon honest.
+  await prisma.notification.updateMany({
+    where: { userId, type: "MESSAGE", targetType: "CONVERSATION", targetId: conversationId, isRead: false },
+    data: { isRead: true },
+  });
+
   // Let whoever sent those messages know they've been seen, live - without
   // this their thread only picks up the read state on its next refetch.
   if (count > 0) {
