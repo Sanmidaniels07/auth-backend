@@ -1451,6 +1451,11 @@ model Address {
 
   postalCode String?
 
+  // Where the buyer dropped the pin on the map (Google Maps) - null for
+  // addresses typed in by hand. Lets the seller open the exact spot.
+  latitude  Float?
+  longitude Float?
+
   isDefault Boolean @default(false)
 
   createdAt DateTime @default(now())

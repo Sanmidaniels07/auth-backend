@@ -71,9 +71,13 @@ export const updateAddressService = async (
     });
   }
 
+  // Retyped by hand without a new pin: the old pin may point elsewhere now.
+  const textChanged = data.address !== undefined || data.city !== undefined || data.state !== undefined;
+  const pin = textChanged && data.latitude === undefined ? { latitude: null, longitude: null } : {};
+
   return prisma.address.update({
     where: { id: addressId },
-    data,
+    data: { ...data, ...pin },
   });
 };
 

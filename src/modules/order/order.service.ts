@@ -386,6 +386,9 @@ const SELLER_ADDRESS_SELECT = {
   state: true,
   country: true,
   postalCode: true,
+  // The buyer's map pin - "Open in Google Maps" for delivering.
+  latitude: true,
+  longitude: true,
 } as const;
 
 // The delivery phone is for delivering: sellers only get it for a delivery
