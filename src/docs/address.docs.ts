@@ -45,6 +45,14 @@
  *                 type: string
  *               isDefault:
  *                 type: boolean
+ *               latitude:
+ *                 type: number
+ *                 nullable: true
+ *                 description: Map pin (Google Maps), inside Nigeria. Send with longitude, or neither.
+ *               longitude:
+ *                 type: number
+ *                 nullable: true
+ *                 description: Map pin longitude. Editing the address text without a new pin clears it.
  *     responses:
  *       201:
  *         description: Address created successfully
@@ -103,6 +111,14 @@
  *                 type: string
  *               isDefault:
  *                 type: boolean
+ *               latitude:
+ *                 type: number
+ *                 nullable: true
+ *                 description: Map pin (Google Maps), inside Nigeria. Send with longitude, or neither.
+ *               longitude:
+ *                 type: number
+ *                 nullable: true
+ *                 description: Map pin longitude. Editing the address text without a new pin clears it.
  *     responses:
  *       200:
  *         description: Address updated successfully
