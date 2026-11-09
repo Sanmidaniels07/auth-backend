@@ -31,6 +31,9 @@
  *                 type: string
  *               isFeatured:
  *                 type: boolean
+ *               isPerishable:
+ *                 type: boolean
+ *                 description: Food, cakes, groceries - buyers have 24 hours to report a problem (with a photo) instead of 3 days
  *     responses:
  *       201:
  *         description: Category created successfully
@@ -140,6 +143,9 @@
  *                 type: string
  *               isFeatured:
  *                 type: boolean
+ *               isPerishable:
+ *                 type: boolean
+ *                 description: Food, cakes, groceries - buyers have 24 hours to report a problem (with a photo) instead of 3 days
  *     responses:
  *       200:
  *         description: Category updated successfully

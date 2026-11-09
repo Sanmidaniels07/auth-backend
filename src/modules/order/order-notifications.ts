@@ -13,7 +13,7 @@ import {
   problemReportedEmail,
   soldOutRefundEmail,
 } from "../../templates/order-emails.template";
-import { AUTO_CONFIRM_DAYS, RETURN_WINDOW_DAYS, orderNumber } from "./order-delivery";
+import { AUTO_CONFIRM_DAYS, orderNumber, returnWindowLabel } from "./order-delivery";
 
 // Every order alert goes through deliver(): in-app (stored + pushed live
 // over the socket) and, when given, email. New channels (e.g. WhatsApp
@@ -193,7 +193,7 @@ export const notifyItemStatusChanged = (orderItemId: string, status: OrderItemSt
     const item = await prisma.orderItem.findUnique({
       where: { id: orderItemId },
       include: {
-        product: { select: { title: true, storeId: true, store: { select: { name: true } } } },
+        product: { select: { title: true, storeId: true, store: { select: { name: true } }, category: { select: { isPerishable: true } } } },
         order: { select: { id: true, user: { select: USER_SELECT } } },
       },
     });
@@ -267,7 +267,7 @@ export const notifyItemStatusChanged = (orderItemId: string, status: OrderItemSt
             lines,
             confirmed: confirmedWithCode,
             autoConfirmDays: AUTO_CONFIRM_DAYS,
-            returnWindowDays: RETURN_WINDOW_DAYS,
+            returnWindow: returnWindowLabel(new Date(), item.product.category.isPerishable),
             orderUrl,
           }),
         },
@@ -291,7 +291,13 @@ const sellerOfItem = (orderItemId: string) =>
     where: { id: orderItemId },
     include: {
       order: { select: { id: true, user: { select: USER_SELECT } } },
-      product: { select: { title: true, store: { select: { name: true, seller: { select: { user: { select: USER_SELECT } } } } } } },
+      product: {
+        select: {
+          title: true,
+          category: { select: { isPerishable: true } },
+          store: { select: { name: true, seller: { select: { user: { select: USER_SELECT } } } } },
+        },
+      },
     },
   });
 
@@ -315,7 +321,7 @@ export const notifyDeliveryConfirmed = (orderItemId: string, by: "BUYER" | "AUTO
       await deliver({
         to: item.order.user,
         title: "Delivery confirmed",
-        message: `We've confirmed delivery of "${titleOf(item)}" (order ${number}). You can still request a return for ${RETURN_WINDOW_DAYS} days.`,
+        message: `We've confirmed delivery of "${titleOf(item)}" (order ${number}). Something wrong? You can still report a problem for ${returnWindowLabel(new Date(), item.product.category.isPerishable)}.`,
         target: { type: "ORDER", id: item.order.id },
       });
     }

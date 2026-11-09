@@ -123,6 +123,8 @@ const CUSTOMER_ORDER_INCLUDE = {
           title: true,
           // PRIVATE = bought through a payment link (no product page).
           status: true,
+          // Perishables have a 24-hour window to report a problem.
+          category: { select: { isPerishable: true } },
           // Current listing - only compared with the order's copy (see
           // asOrderedForBuyer), then dropped from the response.
           description: true,
@@ -175,14 +177,23 @@ const asOrderedForBuyer = <T extends Prisma.OrderItemGetPayload<{ include: typeo
 };
 
 // Per-item delivery state the buyer's order page needs.
-const withDeliveryState = <T extends { status: OrderItemStatus; deliveredAt: Date | null; deliveryConfirmedAt: Date | null }>(
+const withDeliveryState = <
+  T extends {
+    status: OrderItemStatus;
+    deliveredAt: Date | null;
+    deliveryConfirmedAt: Date | null;
+    product: { category?: { isPerishable: boolean } | null };
+  },
+>(
   item: T
 ) => {
-  const windowEnds = item.deliveryConfirmedAt ? returnWindowEndsAt(item.deliveryConfirmedAt) : null;
+  const perishable = !!item.product.category?.isPerishable;
+  const windowEnds = item.deliveryConfirmedAt ? returnWindowEndsAt(item.deliveryConfirmedAt, perishable) : null;
 
   return {
     ...item,
     awaitingConfirmation: item.status === OrderItemStatus.DELIVERED && !item.deliveryConfirmedAt,
+    perishable,
     returnWindowEndsAt: windowEnds,
     // Unconfirmed deliveries can always be reported (that's the dispute path).
     returnWindowOpen: item.status === OrderItemStatus.DELIVERED && (!windowEnds || windowEnds > new Date()),
@@ -656,6 +667,7 @@ export const confirmDeliveryService = async (
         deliveryConfirmedAt: new Date(),
         deliveryConfirmedBy: DeliveryConfirmation.BUYER,
       },
+      include: { product: { select: { category: { select: { isPerishable: true } } } } },
     });
 
     await recordOrderEvent(tx, {

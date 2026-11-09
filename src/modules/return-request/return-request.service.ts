@@ -2,6 +2,7 @@ import {
   OrderEventActor,
   OrderEventType,
   OrderItemStatus,
+  ReturnReason,
   ReturnRequestStatus,
 } from "@prisma/client";
 
@@ -9,7 +10,17 @@ import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { getSellerStore } from "../seller/seller.utils";
 import { asOrdered } from "../../utils/orderItemSnapshot";
-import { RETURN_WINDOW_DAYS, recordOrderEvent, returnWindowEndsAt } from "../order/order-delivery";
+import { recordOrderEvent, returnWindowEndsAt, returnWindowLabel } from "../order/order-delivery";
+import { CreateReturnRequestInput } from "./return-request.validation";
+
+export const RETURN_REASON_LABEL: Record<ReturnReason, string> = {
+  DAMAGED: "Damaged",
+  SPOILED: "Spoiled or expired",
+  WRONG_ITEM: "Wrong item",
+  NOT_AS_DESCRIBED: "Not as described",
+  FAULTY: "Faulty",
+  NOT_RECEIVED: "Not received",
+};
 import { notifyProblemReported, notifyReturnStatusChanged } from "../order/order-notifications";
 
 const ALLOWED_TRANSITIONS: Record<
@@ -25,14 +36,12 @@ const ALLOWED_TRANSITIONS: Record<
   REFUNDED: [],
 };
 
-export const createReturnRequestService = async (
-  userId: string,
-  orderItemId: string,
-  reason: string
-) => {
+export const createReturnRequestService = async (userId: string, input: CreateReturnRequestInput) => {
+  const { orderItemId, reasonType, reason } = input;
+  const photos = input.photos ?? [];
   const item = await prisma.orderItem.findUnique({
     where: { id: orderItemId },
-    include: { order: true },
+    include: { order: true, product: { select: { category: { select: { isPerishable: true } } } } },
   });
 
   if (!item || item.order.userId !== userId) {
@@ -46,13 +55,21 @@ export const createReturnRequestService = async (
     );
   }
 
-  // The window opens when delivery is confirmed. Delivered-but-unconfirmed
-  // items can always be reported - that is how a buyer disputes delivery.
-  if (item.deliveryConfirmedAt && new Date() > returnWindowEndsAt(item.deliveryConfirmedAt)) {
+  const perishable = item.product.category.isPerishable;
+
+  // The window opens when delivery is confirmed: 3 days, or 24 hours for
+  // perishables. Delivered-but-unconfirmed items can always be reported -
+  // that is how a buyer disputes delivery.
+  if (item.deliveryConfirmedAt && new Date() > returnWindowEndsAt(item.deliveryConfirmedAt, perishable)) {
     throw new AppError(
-      `The return window for this item closed ${RETURN_WINDOW_DAYS} days after delivery.`,
+      `Problems with this item had to be reported within ${returnWindowLabel(item.deliveryConfirmedAt, perishable)} of delivery.`,
       400
     );
+  }
+
+  // Perishables aren't sent back, so a photo is the evidence.
+  if (perishable && reasonType !== ReturnReason.NOT_RECEIVED && photos.length === 0) {
+    throw new AppError("Add at least one photo showing the problem - food and other perishables aren't sent back.", 400);
   }
 
   const existing = await prisma.returnRequest.findFirst({
@@ -80,7 +97,9 @@ export const createReturnRequestService = async (
         orderId: item.orderId,
         orderItemId,
         userId,
+        reasonType,
         reason,
+        photos,
       },
     });
 
@@ -89,13 +108,13 @@ export const createReturnRequestService = async (
       orderItemId,
       type: OrderEventType.PROBLEM_REPORTED,
       actor: OrderEventActor.BUYER,
-      note: reason.slice(0, 200),
+      note: `${RETURN_REASON_LABEL[reasonType]}: ${reason}`.slice(0, 200),
     });
 
     return created;
   });
 
-  notifyProblemReported(orderItemId, reason);
+  notifyProblemReported(orderItemId, `${RETURN_REASON_LABEL[reasonType]} - ${reason}${photos.length ? ` (${photos.length} photo${photos.length === 1 ? "" : "s"})` : ""}`);
 
   return returnRequest;
 };

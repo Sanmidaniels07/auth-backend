@@ -490,6 +490,16 @@ model Report {
   createdAt DateTime @default(now())
 }
 
+// Why a buyer reports a problem. No change-of-mind returns on Nestly.
+enum ReturnReason {
+  DAMAGED // broken or damaged when it arrived
+  SPOILED // perishable that arrived spoiled or expired
+  WRONG_ITEM // not what was ordered
+  NOT_AS_DESCRIBED // significantly different from the listing
+  FAULTY // doesn't work
+  NOT_RECEIVED // marked delivered but never received
+}
+
 model ReturnRequest {
   id String @id @default(cuid())
 
@@ -502,7 +512,15 @@ model ReturnRequest {
   userId String
   user   User   @relation(fields: [userId], references: [id])
 
+  // What went wrong - only these qualify under Nestly's returns policy.
+  // Null on requests made before reasons were required.
+  reasonType ReturnReason?
+
+  // The buyer's description.
   reason String
+
+  // Evidence (required for perishables, which aren't sent back).
+  photos String[] @default([])
 
   status ReturnRequestStatus @default(REQUESTED)
 
@@ -1114,6 +1132,11 @@ model Category {
   // OrderItem.commissionRate) so later changes here don't retroactively
   // change already-placed orders.
   commissionRate Float @default(10)
+
+  // Food, cakes, groceries...: problems must be reported within 24 hours of
+  // delivery (with a photo) and the item isn't sent back. Other categories
+  // get the standard 3-day window.
+  isPerishable Boolean @default(false)
 
   products Product[]
 

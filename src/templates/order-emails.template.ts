@@ -173,7 +173,8 @@ export const orderDeliveredEmail = (opts: {
   lines: EmailOrderLine[];
   confirmed: boolean;
   autoConfirmDays: number;
-  returnWindowDays: number;
+  // "3 days", or "24 hours" for perishables.
+  returnWindow: string;
   orderUrl: string;
 }) =>
   renderEmailLayout({
@@ -184,7 +185,7 @@ export const orderDeliveredEmail = (opts: {
       ? `
       <p style="margin:0;">Hi ${escapeHtml(opts.name)}, your items from <strong>${escapeHtml(opts.storeName)}</strong> (order <strong>${opts.orderNumber}</strong>) were delivered and confirmed with your delivery code.</p>
       ${itemsTable(opts.lines)}
-      ${emailNotice(`Something wrong? You can request a return within ${opts.returnWindowDays} days from your order page.`)}
+      ${emailNotice(`Something wrong - damaged, spoiled, wrong or not as described? Report it from your order page within ${opts.returnWindow}.`)}
       ${emailButton("View order", opts.orderUrl)}
     `
       : `

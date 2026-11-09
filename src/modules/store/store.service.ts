@@ -327,6 +327,9 @@ export const getPublicStoreService = async (
   // never send bank details or the Paystack subaccount to the public.
   const { _count, ...rest } = store;
   for (const field of PRIVATE_STORE_FIELDS) delete rest[field];
+  // Stores no longer write their own return policy - Nestly's policy applies
+  // to every order. Old text stays in the database but isn't shown.
+  delete (rest as { returnPolicy?: string | null }).returnPolicy;
   if (!viewerIsAdmin && viewerId !== store.seller.user.id) for (const field of CONTACT_STORE_FIELDS) delete rest[field];
 
   return {

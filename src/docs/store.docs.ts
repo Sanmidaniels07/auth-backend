@@ -45,8 +45,6 @@
  *                 type: string
  *               country:
  *                 type: string
- *               returnPolicy:
- *                 type: string
  *               shippingPolicy:
  *                 type: string
  *               warrantyPolicy:
@@ -545,8 +543,6 @@
  *               state:
  *                 type: string
  *               country:
- *                 type: string
- *               returnPolicy:
  *                 type: string
  *               shippingPolicy:
  *                 type: string

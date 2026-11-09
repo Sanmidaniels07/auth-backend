@@ -44,7 +44,6 @@ const storeFields = {
   city: z.string().trim().optional(),
   state: z.string().trim().optional(),
   country: z.string().trim().optional(),
-  returnPolicy: z.string().trim().optional(),
   shippingPolicy: z.string().trim().optional(),
   warrantyPolicy: z.string().trim().optional(),
   ...socialFields,
