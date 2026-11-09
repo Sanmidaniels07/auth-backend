@@ -18,3 +18,21 @@ export const getWishlistSchema = z.object({
     limit: z.string().optional(),
   }),
 });
+
+export const updateWishlistVisibilitySchema = z.object({
+  body: z.object({
+    visibility: z.enum(["PRIVATE", "FOLLOWERS", "EVERYONE"], {
+      message: "Visibility must be PRIVATE, FOLLOWERS or EVERYONE.",
+    }),
+  }),
+});
+
+export const getUserWishlistSchema = z.object({
+  params: z.object({
+    identifier: z.string().min(1),
+  }),
+  query: z.object({
+    page: z.string().optional(),
+    limit: z.string().optional(),
+  }),
+});

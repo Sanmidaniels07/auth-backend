@@ -6,11 +6,13 @@ import {
   addToWishlistSchema,
   removeFromWishlistSchema,
   getWishlistSchema,
+  updateWishlistVisibilitySchema,
 } from "./wishlist.validation";
 import {
   addToWishlist,
   getWishlist,
   removeFromWishlist,
+  updateWishlistVisibility,
 } from "./wishlist.controller";
 
 const router = Router();
@@ -24,6 +26,13 @@ router.post(
 );
 
 router.get("/", validate(getWishlistSchema), getWishlist);
+
+// Who can see your wishlist (gift ideas): PRIVATE, FOLLOWERS or EVERYONE.
+router.patch(
+  "/visibility",
+  validate(updateWishlistVisibilitySchema),
+  updateWishlistVisibility
+);
 
 router.delete(
   "/:productId",

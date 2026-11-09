@@ -48,6 +48,25 @@ enum ProductStatus {
 // link's fixed fee, the buyer collects it, or the buyer chooses one of the
 // store's delivery zones / pickup points (for when the seller doesn't know
 // where the buyer is yet).
+// Gift links: one person pays, the person they're gifting adds their own
+// address. The money stays in Nestly's account (no Paystack split) until
+// the gift is claimed; declined or unclaimed gifts are refunded in full.
+enum GiftStatus {
+  UNPAID // order created, payment not finished
+  SENT // paid - waiting for the recipient to claim it
+  CLAIMED
+  DECLINED
+  EXPIRED
+  CANCELLED // the sender cancelled it before it was claimed
+}
+
+// Who can see someone's wishlist - followers see it for gift ideas.
+enum WishlistVisibility {
+  PRIVATE
+  FOLLOWERS
+  EVERYONE
+}
+
 enum PaymentLinkDelivery {
   DELIVERY
   PICKUP
@@ -168,7 +187,7 @@ model User {
   id String @id @default(cuid())
 
   name     String
-  email    String @unique
+  email    String  @unique
   // Null for people who signed up with Google and never set one.
   password String?
 
@@ -188,6 +207,9 @@ model User {
   company     String?
   education   String?
   dateOfBirth DateTime?
+
+  // Who can see this person's wishlist (gift ideas). Private until they share it.
+  wishlistVisibility WishlistVisibility @default(PRIVATE)
 
   skills    String[] @default([])
   interests String[] @default([])
@@ -233,7 +255,9 @@ model User {
   // Marketplace
   sellerProfile SellerProfile?
 
-  wishlist Wishlist[]
+  giftsSent     Gift[]     @relation("GiftsSent")
+  giftsReceived Gift[]     @relation("GiftsReceived")
+  wishlist      Wishlist[]
 
   stockAlerts StockAlert[]
 
@@ -1468,8 +1492,10 @@ model Order {
   userId String
   user   User   @relation(fields: [userId], references: [id])
 
-  addressId String
-  address   Address @relation(fields: [addressId], references: [id])
+  // Null only for a gift the recipient hasn't claimed yet (or a gift
+  // picked up from the store) - they add their own address when claiming.
+  addressId String?
+  address   Address? @relation(fields: [addressId], references: [id], onDelete: Restrict)
 
   status OrderStatus @default(PENDING)
 
@@ -1511,6 +1537,9 @@ model Order {
   // Paid through a seller's payment link rather than the cart.
   paymentLinkId String?
   paymentLink   PaymentLink? @relation(fields: [paymentLinkId], references: [id])
+
+  // Set when this order is a gift sent through a gift link.
+  gift Gift?
 
   // Set when Nestly itself cancels a paid order - e.g. the item sold out
   // to someone else just before this payment landed (utils/stockHold).
@@ -1719,4 +1748,46 @@ model Review {
   createdAt DateTime @default(now())
 
   @@unique([userId, productId])
+}
+
+model Gift {
+  id String @id @default(cuid())
+
+  // Short code in the link: nestlyapp.site/gift/{code}
+  code String @unique
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  senderId String
+  sender   User   @relation("GiftsSent", fields: [senderId], references: [id])
+
+  // Picked by the sender (someone on Nestly), or set by whoever claims the link.
+  recipientId String?
+  recipient   User?   @relation("GiftsReceived", fields: [recipientId], references: [id], onDelete: SetNull)
+
+  // How the gift page greets them ("Tolu").
+  recipientName String
+  message       String?
+  // The recipient doesn't see the price unless the sender chooses to show it.
+  showPrice     Boolean @default(false)
+
+  // The delivery zone the sender paid for - the recipient's address must be
+  // in it. Empty areas = anywhere in the state (or anywhere, if no state).
+  deliveryState String?
+  deliveryAreas String[] @default([])
+
+  status    GiftStatus @default(UNPAID)
+  // When an unclaimed gift is refunded - set when the payment goes through.
+  expiresAt DateTime?
+  claimedAt DateTime?
+  // When it was declined or expired.
+  closedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, expiresAt])
+  @@index([senderId, createdAt])
+  @@index([recipientId, createdAt])
 }

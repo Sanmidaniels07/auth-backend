@@ -9,6 +9,7 @@ import { startBirthdayRemindersJob } from "./jobs/birthday-reminders.job";
 import { startSellerRemindersJob } from "./jobs/seller-reminders.job";
 import { startShoppingAlertsJob } from "./jobs/shopping-alerts.job";
 import { startProfileRemindersJob } from "./jobs/profile-reminders.job";
+import { startGiftExpiryJob } from "./jobs/gift-expiry.job";
 
 const PORT = process.env.PORT || 5000;
 
@@ -26,4 +27,5 @@ server.listen(PORT, () => {
   startSellerRemindersJob();
   startShoppingAlertsJob();
   startProfileRemindersJob();
+  startGiftExpiryJob();
 });

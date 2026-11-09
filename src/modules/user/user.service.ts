@@ -1,5 +1,6 @@
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
+import { canViewWishlist } from "../wishlist/wishlist.service";
 
 const USER_SUMMARY_SELECT = {
   id: true,
@@ -110,8 +111,10 @@ export const getUserProfileService = async (
       interests: true,
       languages: true,
       createdAt: true,
+      wishlistVisibility: true,
       _count: {
         select: {
+          wishlist: true,
           followers: true,
           following: true,
           posts: true,
@@ -138,10 +141,17 @@ export const getUserProfileService = async (
     profileViews += 1;
   }
 
-  const { _count, ...rest } = user;
+  const { _count, wishlistVisibility, ...rest } = user;
+  // The profile's wishlist tab shows only when this viewer may see it.
+  const wishlistVisible = await canViewWishlist({ id: user.id, wishlistVisibility }, viewerId);
 
   return {
     ...rest,
+    wishlist: {
+      visibility: wishlistVisibility,
+      canView: wishlistVisible,
+      count: wishlistVisible ? _count.wishlist : null,
+    },
     followersCount: _count.followers,
     followingCount: _count.following,
     postsCount: _count.posts,

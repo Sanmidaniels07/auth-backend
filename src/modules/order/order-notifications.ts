@@ -22,7 +22,7 @@ import { AUTO_CONFIRM_DAYS, RETURN_WINDOW_DAYS, orderNumber } from "./order-deli
 // All notify* functions are fire-and-forget: a failed email must never
 // fail the order action that triggered it.
 
-interface Recipient {
+export interface Recipient {
   id: string;
   name: string;
   email: string;
@@ -32,17 +32,18 @@ interface Delivery {
   to: Recipient;
   title: string;
   message: string;
-  // ORDER opens the buyer's order page, SELLER_ORDER the seller's orders tab.
-  target: { type: "ORDER" | "SELLER_ORDER"; id: string };
+  // ORDER opens the buyer's order page, SELLER_ORDER the seller's orders
+  // tab, GIFT the gift's page (id = gift code).
+  target: { type: "ORDER" | "SELLER_ORDER" | "GIFT"; id: string };
   email?: { subject: string; html: string };
 }
 
-const frontend = () => process.env.FRONTEND_URL ?? "";
+export const frontend = () => process.env.FRONTEND_URL ?? "";
 const buyerOrderUrl = (orderId: string) => `${frontend()}/marketplace/orders/${orderId}`;
 const sellerOrdersUrl = () => `${frontend()}/settings/marketplace?tab=orders`;
 const sellerReturnsUrl = () => `${frontend()}/settings/marketplace?tab=returns`;
 
-const deliver = async ({ to, title, message, target, email }: Delivery) => {
+export const deliver = async ({ to, title, message, target, email }: Delivery) => {
   await Promise.allSettled([
     createNotificationService(to.id, title, message, NotificationType.ORDER, target),
     email ? sendEmail(to.email, email.subject, email.html) : Promise.resolve(),
@@ -53,11 +54,11 @@ const deliver = async ({ to, title, message, target, email }: Delivery) => {
   );
 };
 
-const safely = (label: string, fn: () => Promise<void>) => {
+export const safely = (label: string, fn: () => Promise<void>) => {
   fn().catch((error) => console.error(`${label} failed:`, error));
 };
 
-const USER_SELECT = { id: true, name: true, email: true } as const;
+export const USER_SELECT = { id: true, name: true, email: true } as const;
 
 const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
 
@@ -76,8 +77,9 @@ const lineOf = (item: {
 });
 
 // Buyer gets a confirmation (with their delivery codes); each seller in
-// the order gets told about just their part of it.
-export const notifyOrderPaid = (orderId: string) =>
+// the order gets told about just their part of it. For a gift, sellers are
+// told once it's claimed (buyer: false - the sender already knows).
+export const notifyOrderPaid = (orderId: string, { buyer = true }: { buyer?: boolean } = {}) =>
   safely("Order paid notifications", async () => {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -86,6 +88,7 @@ export const notifyOrderPaid = (orderId: string) =>
         address: { select: { fullName: true, address: true, city: true, state: true } },
         shipping: { include: { store: { select: { id: true, name: true } } } },
         sellerNotes: { select: { storeId: true, note: true } },
+        gift: { select: { id: true } },
         items: {
           include: {
             product: {
@@ -102,7 +105,7 @@ export const notifyOrderPaid = (orderId: string) =>
 
     const number = orderNumber(order.id);
 
-    await deliver({
+    if (buyer) await deliver({
       to: order.user,
       title: "Order confirmed",
       message: `Your payment for order ${number} went through. The seller is preparing it.`,
@@ -151,8 +154,8 @@ export const notifyOrderPaid = (orderId: string) =>
 
         return deliver({
           to: seller,
-          title: buyerNote ? "New order - with a note" : "New order",
-          message: `Order ${number}: ${count} item${count === 1 ? "" : "s"} from ${store.name}. ${
+          title: order.gift ? "New gift order 🎁" : buyerNote ? "New order - with a note" : "New order",
+          message: `${order.gift ? "🎁 Gift - please leave out any receipt or price. " : ""}Order ${number}: ${count} item${count === 1 ? "" : "s"} from ${store.name}. ${
             isPickup
               ? "The buyer will pick it up - get it ready."
               : `Prepare it for delivery${deliverTo ? ` to ${deliverTo.name}, ${deliverTo.address}${deliverTo.phone ? ` - call ${deliverTo.phone}` : ""}` : ""}.`
