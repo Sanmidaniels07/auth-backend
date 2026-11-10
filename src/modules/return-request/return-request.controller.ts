@@ -13,11 +13,7 @@ import {
 
 export const createReturnRequest = asyncHandler(
   async (req: Request, res: Response) => {
-    const returnRequest = await createReturnRequestService(
-      req.user.id,
-      req.body.orderItemId,
-      req.body.reason
-    );
+    const returnRequest = await createReturnRequestService(req.user.id, req.body);
 
     res.status(201).json(
       apiResponse(

@@ -13,6 +13,8 @@ import {
   getSuggestedUsers,
   getUserProfile,
 } from "./user.controller";
+import { getUserWishlistSchema } from "../wishlist/wishlist.validation";
+import { getUserWishlist } from "../wishlist/wishlist.controller";
 
 const router = Router();
 
@@ -35,6 +37,14 @@ router.get(
   optionalAuthMiddleware,
   validate(getUserProfileSchema),
   getUserProfile
+);
+
+// Someone else's wishlist (gift ideas) - only if they share it with the viewer.
+router.get(
+  "/:identifier/wishlist",
+  optionalAuthMiddleware,
+  validate(getUserWishlistSchema),
+  getUserWishlist
 );
 
 export default router;

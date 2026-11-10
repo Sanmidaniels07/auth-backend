@@ -53,7 +53,7 @@
  *           type: integer
  *     responses:
  *       200:
- *         description: Wishlist fetched successfully
+ *         description: Wishlist fetched successfully - includes visibility (PRIVATE, FOLLOWERS or EVERYONE)
  *       401:
  *         description: Unauthorized - no or invalid token
  */
@@ -81,6 +81,84 @@
  *         description: Unauthorized - no or invalid token
  *       404:
  *         description: Product not found in wishlist
+ */
+
+/**
+ * @swagger
+ * /api/wishlist/visibility:
+ *   patch:
+ *     summary: Choose who can see your wishlist
+ *     description: >
+ *       Requires authentication. PRIVATE (default) - only you; FOLLOWERS - people
+ *       who follow you (they get gift ideas in birthday reminders); EVERYONE -
+ *       anyone, including people who are not signed in. People you have blocked,
+ *       or who blocked you, never see it.
+ *     tags:
+ *       - Wishlist
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [visibility]
+ *             properties:
+ *               visibility:
+ *                 type: string
+ *                 enum: [PRIVATE, FOLLOWERS, EVERYONE]
+ *           example:
+ *             visibility: FOLLOWERS
+ *     responses:
+ *       200:
+ *         description: Wishlist visibility updated
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               message: Wishlist visibility updated
+ *               data: { wishlistVisibility: FOLLOWERS }
+ *       400:
+ *         description: Validation error - visibility must be PRIVATE, FOLLOWERS or EVERYONE
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ */
+
+/**
+ * @swagger
+ * /api/users/{identifier}/wishlist:
+ *   get:
+ *     summary: See someone else’s wishlist (gift ideas)
+ *     description: >
+ *       Optional authentication. Returned only when the owner shares it with the
+ *       viewer (FOLLOWERS - the viewer follows them; EVERYONE - anyone). Other
+ *       people only see items that can still be bought from an active store.
+ *     tags:
+ *       - Wishlist
+ *     parameters:
+ *       - in: path
+ *         name: identifier
+ *         required: true
+ *         description: User id or username
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           maximum: 50
+ *     responses:
+ *       200:
+ *         description: Wishlist fetched successfully (owner, visibility, items, paging)
+ *       403:
+ *         description: The wishlist is private, or only for followers ("Follow Ada to see their wishlist.")
+ *       404:
+ *         description: User not found
  */
 
 export {};

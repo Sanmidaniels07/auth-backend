@@ -1,4 +1,5 @@
 import {
+  GiftStatus,
   DeliveryConfirmation,
   OrderEventActor,
   OrderEventType,
@@ -11,6 +12,7 @@ import {
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
+import { SELLER_VISIBLE_ORDER } from "../../utils/giftOrders";
 import { asOrdered, listingChangedSince } from "../../utils/orderItemSnapshot";
 import { getSellerStore } from "../seller/seller.utils";
 import {
@@ -121,6 +123,8 @@ const CUSTOMER_ORDER_INCLUDE = {
           title: true,
           // PRIVATE = bought through a payment link (no product page).
           status: true,
+          // Perishables have a 24-hour window to report a problem.
+          category: { select: { isPerishable: true } },
           // Current listing - only compared with the order's copy (see
           // asOrderedForBuyer), then dropped from the response.
           description: true,
@@ -141,6 +145,9 @@ const CUSTOMER_ORDER_INCLUDE = {
   },
   address: true,
   paymentLink: { select: { code: true } },
+  gift: {
+    select: { code: true, status: true, recipientName: true, recipientId: true, expiresAt: true, claimedAt: true },
+  },
   // Includes the buyer's own delivery codes - this include is only ever
   // used for the order's owner.
   shipping: true,
@@ -150,6 +157,15 @@ const CUSTOMER_ORDER_INCLUDE = {
     select: { id: true, orderItemId: true, type: true, actor: true, note: true, createdAt: true },
   },
 };
+
+// A gift's sender doesn't get the recipient's address or the delivery code
+// (the recipient hands the code over) - only how the gift is getting on.
+const forGiftSender = <T extends { gift: unknown; address: unknown; shipping: { deliveryCode: string | null }[] }>(
+  order: T
+): T =>
+  order.gift
+    ? { ...order, address: null, shipping: order.shipping.map((row) => ({ ...row, deliveryCode: null })) }
+    : order;
 
 // The item as ordered, plus whether the seller has changed the listing since.
 const asOrderedForBuyer = <T extends Prisma.OrderItemGetPayload<{ include: typeof CUSTOMER_ORDER_INCLUDE.items.include }>>(
@@ -161,14 +177,23 @@ const asOrderedForBuyer = <T extends Prisma.OrderItemGetPayload<{ include: typeo
 };
 
 // Per-item delivery state the buyer's order page needs.
-const withDeliveryState = <T extends { status: OrderItemStatus; deliveredAt: Date | null; deliveryConfirmedAt: Date | null }>(
+const withDeliveryState = <
+  T extends {
+    status: OrderItemStatus;
+    deliveredAt: Date | null;
+    deliveryConfirmedAt: Date | null;
+    product: { category?: { isPerishable: boolean } | null };
+  },
+>(
   item: T
 ) => {
-  const windowEnds = item.deliveryConfirmedAt ? returnWindowEndsAt(item.deliveryConfirmedAt) : null;
+  const perishable = !!item.product.category?.isPerishable;
+  const windowEnds = item.deliveryConfirmedAt ? returnWindowEndsAt(item.deliveryConfirmedAt, perishable) : null;
 
   return {
     ...item,
     awaitingConfirmation: item.status === OrderItemStatus.DELIVERED && !item.deliveryConfirmedAt,
+    perishable,
     returnWindowEndsAt: windowEnds,
     // Unconfirmed deliveries can always be reported (that's the dispute path).
     returnWindowOpen: item.status === OrderItemStatus.DELIVERED && (!windowEnds || windowEnds > new Date()),
@@ -198,7 +223,7 @@ export const getCustomerOrdersService = async (
   ]);
 
   return {
-    orders: orders.map((order) => ({ ...order, items: order.items.map(asOrderedForBuyer) })),
+    orders: orders.map((order) => ({ ...forGiftSender(order), items: order.items.map(asOrderedForBuyer) })),
     total,
     page,
     limit,
@@ -220,7 +245,7 @@ export const getCustomerOrderByIdService = async (
   }
 
   return {
-    ...order,
+    ...forGiftSender(order),
     items: order.items.map(asOrderedForBuyer).map(withDeliveryState),
     timeline: buildOrderTimeline(order),
   };
@@ -232,11 +257,16 @@ export const cancelOrderService = async (
 ) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { items: true },
+    include: { items: true, gift: { select: { code: true } } },
   });
 
   if (!order || order.userId !== userId) {
     throw new AppError("Order not found.", 404);
+  }
+
+  // Gifts are cancelled from the gift itself, which refunds the payment.
+  if (order.gift) {
+    throw new AppError("This is a gift - use Cancel gift on the gift's page to get a refund.", 400);
   }
 
   if (order.status === OrderStatus.CANCELLED) {
@@ -328,6 +358,8 @@ export const getSellerOrdersService = async (
     // Cancelled by Nestly before the seller ever saw it (sold out).
     cancelReason: null,
     items: { some: itemFilter },
+    // Gifts appear once the recipient has claimed them.
+    ...SELLER_VISIBLE_ORDER,
   };
 
   const [orders, total] = await Promise.all([
@@ -412,6 +444,7 @@ export const getSellerOrderByIdService = async (
     where: {
       id: orderId,
       items: { some: { product: { storeId: store.id } } },
+      ...SELLER_VISIBLE_ORDER,
     },
     include: {
       user: { select: { id: true, name: true } }, // no email (Privacy Policy)
@@ -461,7 +494,7 @@ export const updateOrderItemStatusService = async (
 
   const item = await prisma.orderItem.findUnique({
     where: { id: orderItemId },
-    include: { product: true, order: true },
+    include: { product: true, order: { include: { gift: { select: { status: true } } } } },
   });
 
   if (!item) {
@@ -473,6 +506,10 @@ export const updateOrderItemStatusService = async (
       "You are not authorized to update this item.",
       403
     );
+  }
+
+  if (item.order.gift && item.order.gift.status !== GiftStatus.CLAIMED) {
+    throw new AppError("This gift hasn't been claimed yet - there's no delivery address.", 400);
   }
 
   if (item.order.status === OrderStatus.PENDING) {
@@ -604,10 +641,11 @@ export const confirmDeliveryService = async (
 ) => {
   const item = await prisma.orderItem.findUnique({
     where: { id: orderItemId },
-    include: { order: { select: { userId: true } } },
+    include: { order: { select: { userId: true, gift: { select: { recipientId: true } } } } },
   });
 
-  if (!item || item.order.userId !== userId) {
+  // A gift's recipient can confirm it arrived, as well as the buyer.
+  if (!item || (item.order.userId !== userId && item.order.gift?.recipientId !== userId)) {
     throw new AppError("Order item not found.", 404);
   }
 
@@ -629,6 +667,7 @@ export const confirmDeliveryService = async (
         deliveryConfirmedAt: new Date(),
         deliveryConfirmedBy: DeliveryConfirmation.BUYER,
       },
+      include: { product: { select: { category: { select: { isPerishable: true } } } } },
     });
 
     await recordOrderEvent(tx, {
@@ -698,6 +737,7 @@ export const updateOrderTrackingNumberService = async (
     where: {
       id: orderId,
       items: { some: { product: { storeId: store.id } } },
+      ...SELLER_VISIBLE_ORDER,
     },
   });
 

@@ -8,6 +8,7 @@ import {
   ShippingOptionType,
   DeliveryVehicle,
   TrafficSource,
+  GiftStatus,
 } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
@@ -35,6 +36,8 @@ import { referralCommission, referralRewardApplies } from "../../utils/referral"
 import { hideContacts } from "../../utils/contactFilter";
 import { STOCK_HOLD_TX, SoldOutError, assertStockAvailable } from "../../utils/stockHold";
 import { cancelSoldOutOrder } from "./sold-out-refund";
+import { GIFT_CLAIM_DAYS } from "../../utils/giftOrders";
+import { notifyGiftSent } from "../gift/gift-notifications";
 
 const NAIRA_TO_KOBO = 100;
 const LOW_STOCK_THRESHOLD = 5;
@@ -420,6 +423,10 @@ export const finalizeOrderPayment = async (order: {
   // Sent only once the order has really gone through.
   const lowStock: { sellerUserId: string; productId: string; title: string; stock: number }[] = [];
 
+  // A gift link's order: the sender's cart is untouched, and the seller
+  // only hears about it once the recipient claims it.
+  const gift = await prisma.gift.findUnique({ where: { orderId: order.id }, select: { id: true } });
+
   let updatedOrder;
   try {
     updatedOrder = await prisma.$transaction(async (tx) => {
@@ -477,10 +484,21 @@ export const finalizeOrderPayment = async (order: {
         }
       }
 
-      // Bought through a payment link - the buyer's cart is untouched.
-      const cart = order.paymentLinkId
+      // Bought through a payment link or sent as a gift - the buyer's cart
+      // is untouched.
+      const cart = order.paymentLinkId || gift
         ? null
         : await tx.cart.findUnique({ where: { userId: order.userId } });
+
+      if (gift) {
+        await tx.gift.update({
+          where: { id: gift.id },
+          data: {
+            status: GiftStatus.SENT,
+            expiresAt: new Date(Date.now() + GIFT_CLAIM_DAYS * 24 * 60 * 60 * 1000),
+          },
+        });
+      }
 
       if (cart) {
         await tx.cartItem.deleteMany({
@@ -508,8 +526,10 @@ export const finalizeOrderPayment = async (order: {
   lowStock.forEach((alert) => notifyLowStock(alert.sellerUserId, alert.productId, alert.title, alert.stock));
 
   // Runs once per order (callers claim the order first), so the buyer and
-  // sellers are told exactly once.
-  notifyOrderPaid(order.id);
+  // sellers are told exactly once. Gifts: the sender gets their link and the
+  // recipient is told; sellers hear when it's claimed.
+  if (gift) notifyGiftSent(order.id);
+  else notifyOrderPaid(order.id);
 
   if (order.couponCode) {
     const coupon = await prisma.coupon.findUnique({

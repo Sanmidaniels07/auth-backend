@@ -6,6 +6,8 @@ export const createCategorySchema = z.object({
     icon: z.string().trim().optional(),
     isFeatured: z.boolean().optional(),
     commissionRate: z.number().min(0).max(100).optional(),
+    // Food, cakes, groceries: 24 hours to report a problem, nothing sent back.
+    isPerishable: z.boolean().optional(),
   }),
 });
 
@@ -18,6 +20,7 @@ export const updateCategorySchema = z.object({
     icon: z.string().trim().optional(),
     isFeatured: z.boolean().optional(),
     commissionRate: z.number().min(0).max(100).optional(),
+    isPerishable: z.boolean().optional(),
   }),
 });
 

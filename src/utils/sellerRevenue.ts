@@ -1,6 +1,7 @@
 import { OrderStatus } from "@prisma/client";
 
 import prisma from "../prisma/prisma";
+import { SELLER_VISIBLE_ORDER } from "./giftOrders";
 
 // Orders only count toward revenue once payment has actually happened.
 export const REVENUE_STATUSES: OrderStatus[] = [
@@ -17,7 +18,8 @@ export const getStoreAvailableBalance = async (
     prisma.orderItem.findMany({
       where: {
         product: { storeId },
-        order: { status: { in: REVENUE_STATUSES } },
+        // Unclaimed gifts are still refundable - not the seller's yet.
+        order: { status: { in: REVENUE_STATUSES }, ...SELLER_VISIBLE_ORDER },
         // Items already routed straight to the seller via a Paystack split
         // at checkout aren't part of this manual ledger - that money never
         // touched the platform's main account.
@@ -31,7 +33,7 @@ export const getStoreAvailableBalance = async (
     prisma.orderShipping.aggregate({
       where: {
         storeId,
-        order: { status: { in: REVENUE_STATUSES } },
+        order: { status: { in: REVENUE_STATUSES }, ...SELLER_VISIBLE_ORDER },
         paidViaSplit: false,
       },
       _sum: { fee: true },

@@ -123,7 +123,8 @@ export const getCustomerMapService = async (userId: string, days: number) => {
 
   // One place per order (an order can have several of the store's items).
   const orders = new Map<string, Place>();
-  for (const item of items) orders.set(item.orderId, locate(item.order.address));
+  // Gifts not claimed yet have no address.
+  for (const item of items) if (item.order.address) orders.set(item.orderId, locate(item.order.address));
 
   // One place per person; the seller's own visits don't count.
   const interestedIds = new Set(

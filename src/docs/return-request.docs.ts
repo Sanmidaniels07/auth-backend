@@ -10,7 +10,13 @@
  * /api/returns:
  *   post:
  *     summary: Submit a return request
- *     description: Requires authentication. Only allowed for order items with status DELIVERED, and only one active request (REQUESTED or APPROVED) per item at a time.
+ *     description: >
+ *       Requires authentication. Only for order items with status DELIVERED, one active request (REQUESTED or APPROVED)
+ *       per item. Nestly's returns policy - no change-of-mind returns; reasonType must be DAMAGED, SPOILED, WRONG_ITEM,
+ *       NOT_AS_DESCRIBED, FAULTY or NOT_RECEIVED. Must be reported within 3 days of delivery being confirmed, or 24 hours
+ *       for perishable categories (Category.isPerishable) - deliveries confirmed before 10 Nov 2026 keep 7 days.
+ *       Unconfirmed deliveries can always be reported. Perishables need at least one photo (they aren't sent back),
+ *       except NOT_RECEIVED.
  *     tags:
  *       - Return
  *     security:
@@ -23,17 +29,34 @@
  *             type: object
  *             required:
  *               - orderItemId
+ *               - reasonType
  *               - reason
  *             properties:
  *               orderItemId:
  *                 type: string
+ *               reasonType:
+ *                 type: string
+ *                 enum: [DAMAGED, SPOILED, WRONG_ITEM, NOT_AS_DESCRIBED, FAULTY, NOT_RECEIVED]
  *               reason:
  *                 type: string
+ *                 description: What happened (3-1000 characters)
+ *               photos:
+ *                 type: array
+ *                 maxItems: 5
+ *                 items:
+ *                   type: string
+ *                   format: uri
+ *                 description: Uploaded image URLs (https). Required (at least one) for perishables.
+ *           example:
+ *             orderItemId: cmw...
+ *             reasonType: SPOILED
+ *             reason: The cake arrived squashed and smelled off.
+ *             photos: ["https://res.cloudinary.com/.../cake.jpg"]
  *     responses:
  *       201:
  *         description: Return request submitted successfully
  *       400:
- *         description: Item not delivered yet, or a request is already in progress
+ *         description: Item not delivered yet, a request already in progress, reporting window closed, or a perishable without a photo
  *       401:
  *         description: Unauthorized - no or invalid token
  *       404:
