@@ -1071,6 +1071,101 @@ const CITY_DATA: Record<string, Pick<StateLocations, "popularAreas" | "suggested
   },
 };
 
+export interface City {
+  name: string;
+  // Other ways people write it ("PH", "Benin").
+  aliases?: string[];
+  // The LGAs / neighbourhoods (from the state's areas) that make up the city.
+  areas: string[];
+}
+
+// Major cities and the areas they cover, so buyers can shop by city
+// ("Port Harcourt", "Ibadan") as well as by area or state. Lagos and Abuja
+// are left out: buyers there think in areas, and "Lagos" / "Abuja" already
+// mean the whole state. Area names must match the state's LGAs or popular
+// areas exactly (checked by scripts/check-nearby.ts).
+export const CITIES: Record<string, City[]> = {
+  Rivers: [
+    {
+      name: "Port Harcourt",
+      aliases: ["PH", "Port-Harcourt"],
+      areas: [
+        "Port Harcourt", "Obio/Akpor", "GRA Port Harcourt", "D-Line", "Diobu", "Rumuola", "Rumuokoro", "Ada George",
+        "Rumuigbo", "Trans-Amadi", "Woji", "Elelenwo", "Rumuibekwe", "Choba", "Aluu",
+      ],
+    },
+  ],
+  Oyo: [
+    {
+      name: "Ibadan",
+      areas: [
+        "Ibadan North", "Ibadan North-East", "Ibadan North-West", "Ibadan South-East", "Ibadan South-West", "Akinyele",
+        "Egbeda", "Lagelu", "Oluyole", "Ido", "Ona Ara", "Agbowo", "Agodi", "Akobo", "Apata", "Bodija", "Challenge", "Dugbe",
+        "Eleyele", "Iwo Road", "Mokola", "Moniya", "Ojoo", "Oke-Ado", "Ring Road", "Sango", "UI",
+      ],
+    },
+    { name: "Ogbomosho", aliases: ["Ogbomoso"], areas: ["Ogbomosho North", "Ogbomosho South"] },
+    { name: "Oyo", aliases: ["Oyo Town"], areas: ["Oyo East", "Oyo West", "Atiba"] },
+  ],
+  Ogun: [
+    { name: "Abeokuta", areas: ["Abeokuta", "Abeokuta North", "Abeokuta South", "Odeda"] },
+    { name: "Ota", aliases: ["Sango Ota"], areas: ["Ado-Odo/Ota", "Sango-Ota", "Ijoko", "Ifo", "Akute"] },
+    { name: "Ijebu-Ode", areas: ["Ijebu-Ode", "Ijebu Ode"] },
+    { name: "Sagamu", aliases: ["Shagamu"], areas: ["Sagamu", "Shaga/Shagamu"] },
+    { name: "Mowe / Ibafo", aliases: ["Mowe", "Ibafo"], areas: ["Mowe", "Ibafo", "Magboro", "Arepo", "Warewa", "Obafemi/Obafemi Owode"] },
+  ],
+  Edo: [{ name: "Benin City", aliases: ["Benin"], areas: ["Oredo", "Egor", "Ikpoba Okha"] }],
+  Enugu: [
+    { name: "Enugu", areas: ["Enugu East", "Enugu North", "Enugu South"] },
+    { name: "Nsukka", areas: ["Nsukka"] },
+  ],
+  Kano: [
+    {
+      name: "Kano",
+      aliases: ["Kano City"],
+      areas: ["Kano Municipal", "Fagge", "Dala", "Gwale", "Tarauni", "Nasarawa", "Kumbotso", "Ungogo"],
+    },
+  ],
+  Kaduna: [
+    { name: "Kaduna", aliases: ["Kaduna City"], areas: ["Kaduna North", "Kaduna South", "Chikun", "Igabi"] },
+    { name: "Zaria", areas: ["Zaria", "Sabon Gari"] },
+  ],
+  Delta: [
+    { name: "Warri", areas: ["Warri South", "Warri North", "Warri South West", "Uvwie", "Udu"] },
+    { name: "Asaba", areas: ["Oshimili South", "Oshimili North"] },
+    { name: "Sapele", areas: ["Sapele"] },
+  ],
+  Anambra: [
+    { name: "Onitsha", areas: ["Onitsha North", "Onitsha South"] },
+    { name: "Awka", areas: ["Awka North", "Awka South"] },
+    { name: "Nnewi", areas: ["Nnewi North", "Nnewi South"] },
+  ],
+  "Akwa Ibom": [{ name: "Uyo", areas: ["Uyo"] }],
+  "Cross River": [{ name: "Calabar", areas: ["Calabar Municipal", "Calabar South"] }],
+  Kwara: [{ name: "Ilorin", areas: ["Ilorin East", "Ilorin South", "Ilorin West"] }],
+  Osun: [
+    { name: "Osogbo", aliases: ["Oshogbo"], areas: ["Osogbo", "Olorunda"] },
+    { name: "Ile-Ife", aliases: ["Ife"], areas: ["Ife Central", "Ife East", "Ife North", "Ife South"] },
+    { name: "Ilesa", aliases: ["Ilesha"], areas: ["Ilesa East", "Ilesa West"] },
+  ],
+  Ondo: [{ name: "Akure", areas: ["Akure North", "Akure South"] }],
+  Ekiti: [{ name: "Ado-Ekiti", aliases: ["Ado Ekiti"], areas: ["Ado Ekiti"] }],
+  Plateau: [{ name: "Jos", areas: ["Jos North", "Jos South", "Jos East"] }],
+  Imo: [{ name: "Owerri", areas: ["Owerri Municipal", "Owerri North", "Owerri West"] }],
+  Abia: [
+    { name: "Aba", areas: ["Aba North", "Aba South", "Osisioma"] },
+    { name: "Umuahia", areas: ["Umuahia North", "Umuahia South"] },
+  ],
+  Benue: [{ name: "Makurdi", areas: ["Makurdi"] }],
+  Kogi: [{ name: "Lokoja", areas: ["Lokoja"] }],
+  Borno: [{ name: "Maiduguri", areas: ["Maiduguri", "Jere"] }],
+  Ebonyi: [{ name: "Abakaliki", areas: ["Abakaliki"] }],
+  Bayelsa: [{ name: "Yenagoa", areas: ["Yenagoa"] }],
+  Niger: [{ name: "Minna", areas: ["Chanchaga", "Bosso"] }],
+  Bauchi: [{ name: "Bauchi", aliases: ["Bauchi City"], areas: ["Bauchi"] }],
+  Sokoto: [{ name: "Sokoto", aliases: ["Sokoto City"], areas: ["Sokoto North", "Sokoto South"] }],
+};
+
 export const NIGERIA_LOCATIONS: StateLocations[] = STATES_AND_LGAS.map((state) => ({
   ...state,
   ...CITY_DATA[state.name],

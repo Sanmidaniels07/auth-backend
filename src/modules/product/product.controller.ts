@@ -12,7 +12,6 @@ import {
   getProductsService,
   getPublicProductByIdService,
   getFeaturedProductsService,
-  getNearbyProductsService,
   getRelatedProductsService,
   getSellerProductsService,
   getSellerProductByIdService,
@@ -20,6 +19,7 @@ import {
   bulkDeleteProductsService,
   exportSellerProductsCsvService,
 } from "./product.service";
+import { getNearbyProductsService } from "./nearby.service";
 
 export const createProduct = asyncHandler(
   async (req: Request, res: Response) => {
@@ -93,17 +93,16 @@ export const getFeaturedProducts = asyncHandler(
 
 export const getNearbyProducts = asyncHandler(
   async (req: Request, res: Response) => {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 12;
-    const city = req.query.city as string;
-    const state = req.query.state as string;
+    const { state, city, area, category } = req.query as Record<string, string | undefined>;
 
-    const result = await getNearbyProductsService(
-      city,
-      state,
-      page,
-      limit
-    );
+    const result = await getNearbyProductsService({
+      state: state || undefined,
+      city: city || undefined,
+      area: area || undefined,
+      category: category || undefined,
+      page: Number(req.query.page) || 1,
+      limit: Math.min(Number(req.query.limit) || 12, 48),
+    });
 
     res.status(200).json(
       apiResponse(

@@ -471,61 +471,6 @@ export const getFeaturedProductsService = async (
   });
 };
 
-export const getNearbyProductsService = async (
-  city: string | undefined,
-  state: string | undefined,
-  page: number,
-  limit: number
-) => {
-  if (!city && !state) {
-    throw new AppError(
-      "Provide a city or state to find nearby products.",
-      400
-    );
-  }
-
-  const skip = (page - 1) * limit;
-
-  const storeFilter: any = { isSuspended: false };
-  if (city) storeFilter.city = { equals: city, mode: "insensitive" };
-  if (state) storeFilter.state = { equals: state, mode: "insensitive" };
-
-  const where = {
-    status: ProductStatus.PUBLISHED,
-    store: storeFilter,
-  };
-
-  const [products, total] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { createdAt: "desc" },
-      include: {
-        ...PRIMARY_IMAGE_INCLUDE,
-        store: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            city: true,
-            state: true,
-          },
-        },
-      },
-    }),
-    prisma.product.count({ where }),
-  ]);
-
-  return {
-    products,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-  };
-};
-
 export const getRelatedProductsService = async (
   productId: string,
   limit: number

@@ -107,8 +107,10 @@ export const listProductsSchema = z.object({
 
 export const nearbyProductsSchema = z.object({
   query: z.object({
-    city: z.string().optional(),
-    state: z.string().optional(),
+    state: z.string().trim().max(80).optional(),
+    city: z.string().trim().max(80).optional(),
+    area: z.string().trim().max(80).optional(),
+    category: z.string().trim().max(80).optional(),
     page: z.string().optional(),
     limit: z.string().optional(),
   }),

@@ -71,7 +71,7 @@
  * /api/locations/reverse:
  *   get:
  *     summary: Detect the Nigerian state for a set of coordinates
- *     description: Requires authentication. Used by "Detect my location" - the browser supplies coordinates and the server looks up the state with OpenStreetMap. Only the state (and city, if known) is returned; coordinates are not stored.
+ *     description: Requires authentication. Used by "Detect my location" and "Use my current location" - the browser supplies coordinates and the server looks up the place with OpenStreetMap. Returns the state, plus the area and city when the neighbourhood is a known one; coordinates are not stored.
  *     tags:
  *       - Locations
  *     security:
@@ -97,7 +97,7 @@
  *             example:
  *               success: true
  *               message: Location detected successfully
- *               data: { state: "Lagos", city: "Ikeja" }
+ *               data: { state: "Lagos", city: null, area: "Ikeja", label: "Ikeja, Lagos" }
  *       400:
  *         description: Missing or invalid coordinates
  *       401:
@@ -106,6 +106,44 @@
  *         description: Location is outside Nigeria
  *       502:
  *         description: The location service couldn't be reached
+ */
+
+/**
+ * @swagger
+ * /api/locations/search:
+ *   get:
+ *     summary: Search areas, cities and states to shop near
+ *     description: Public. Powers the location search on "Shop near you". Matches area (LGA / neighbourhood), city and state names and common spellings ("PH", "FCT"). Each result has how many live sellers are based in or deliver to it; places with sellers come first. Without q, returns the places with the most sellers.
+ *     tags:
+ *       - Locations
+ *     security: []
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         schema:
+ *           type: string
+ *           maxLength: 60
+ *         example: bod
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 20
+ *           default: 8
+ *     responses:
+ *       200:
+ *         description: Places fetched successfully
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               message: Places fetched successfully
+ *               data:
+ *                 - { type: "area", state: "Oyo", city: "Ibadan", area: "Bodija", label: "Bodija, Ibadan, Oyo", storeCount: 3 }
+ *                 - { type: "city", state: "Rivers", city: "Port Harcourt", area: null, label: "Port Harcourt, Rivers", storeCount: 5 }
+ *       400:
+ *         description: Invalid query
  */
 
 export {};

@@ -206,18 +206,30 @@
  * @swagger
  * /api/products/nearby:
  *   get:
- *     summary: Get nearby products
- *     description: Returns published products whose store matches the given city and/or state (text match, not geo-distance). Requires at least one of `city` or `state`. Public endpoint.
+ *     summary: Get products from sellers near a place
+ *     description: Public. "Shop near you" - pass an area, city and/or state (free text, e.g. from /api/locations/search or a saved address; at least one is required). Products come closest first - nearby.tier is AREA (seller based in the area), DELIVERS (seller has a delivery zone covering the area, or any area of the city), CITY (based elsewhere in the city) or STATE (based elsewhere in the state). nearby.deliveryFee is the cheapest zone fee to that area that can carry the product, or null. The response also has the resolved location and the product count per tier.
  *     tags:
  *       - Product
  *     security: []
  *     parameters:
  *       - in: query
+ *         name: area
+ *         schema:
+ *           type: string
+ *         example: Festac
+ *       - in: query
  *         name: city
  *         schema:
  *           type: string
+ *         example: Port Harcourt
  *       - in: query
  *         name: state
+ *         schema:
+ *           type: string
+ *         example: Lagos
+ *       - in: query
+ *         name: category
+ *         description: Category slug
  *         schema:
  *           type: string
  *       - in: query
@@ -231,8 +243,23 @@
  *     responses:
  *       200:
  *         description: Nearby products fetched successfully
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               message: Nearby products fetched successfully
+ *               data:
+ *                 products: [{ id: "clx...", title: "Red velvet cake", price: 15000, nearby: { tier: "DELIVERS", deliveryFee: 2500 } }]
+ *                 total: 14
+ *                 page: 1
+ *                 limit: 12
+ *                 totalPages: 2
+ *                 location: { state: "Lagos", city: null, area: "Festac", label: "Festac, Lagos" }
+ *                 tierCounts: { AREA: 3, DELIVERS: 6, CITY: 0, STATE: 5 }
  *       400:
- *         description: Neither city nor state provided
+ *         description: No area, city or state provided
+ *       404:
+ *         description: The location couldn't be matched to a known place
  */
 
 /**
