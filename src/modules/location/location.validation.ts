@@ -6,6 +6,13 @@ export const stateLocationsSchema = z.object({
   }),
 });
 
+export const searchPlacesSchema = z.object({
+  query: z.object({
+    q: z.string().trim().max(60).optional(),
+    limit: z.coerce.number().int().min(1).max(20).optional(),
+  }),
+});
+
 export const reverseGeocodeSchema = z.object({
   query: z.object({
     lat: z.coerce.number().min(-90).max(90),
