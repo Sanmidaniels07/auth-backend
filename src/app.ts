@@ -11,6 +11,7 @@ import sessionRoutes from "./modules/session/session.route";
 import verificationRoutes from "./modules/verification/verification.routes";
 import notificationRoutes from "./modules/notification/notification.routes";
 import sellerRoutes from "./modules/seller/seller.routes";
+import sellerPayoutRoutes from "./modules/payout/seller-payout.routes";
 import storeRoutes from "./modules/store/store.routes";
 import categoryRoutes from "./modules/category/category.routes";
 import productRoutes from "./modules/product/product.routes";
@@ -167,6 +168,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
 
 app.use("/api/seller/dashboard", dashboardRoutes);
+app.use("/api/seller/payouts", sellerPayoutRoutes);
 app.use("/api/dashboard", userDashboardRoutes);
 app.use("/api/locations", locationRoutes);
 

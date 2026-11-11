@@ -2,16 +2,33 @@ import {
   OrderEventActor,
   OrderEventType,
   OrderItemStatus,
+  OrderRefundStatus,
+  Prisma,
   ReturnReason,
   ReturnRequestStatus,
 } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
+import { refundPaystackTransaction } from "../../utils/paystack";
 import { getSellerStore } from "../seller/seller.utils";
 import { asOrdered } from "../../utils/orderItemSnapshot";
 import { recordOrderEvent, returnWindowEndsAt, returnWindowLabel } from "../order/order-delivery";
-import { CreateReturnRequestInput } from "./return-request.validation";
+import { OPEN_RETURN_STATUSES } from "../../utils/returnStatuses";
+import { notifyReturnEvent } from "./return-notifications";
+import { BuyerReturnActionInput, CreateReturnRequestInput, DecideReturnInput, SellerReturnResponseInput } from "./return-request.validation";
+
+// Nestly's returns process - kept simple on purpose:
+//   1. The buyer reports a problem within the return window (3 days, 24
+//      hours for perishables). The seller's payout for that order is held.
+//   2. The seller answers by a deadline (48 hours, 24 for perishables):
+//      refund the buyer, send a replacement, or disagree.
+//   3. No answer in time, a disagreement, or a problem with the
+//      replacement goes to Nestly, who decides: refund, or close in the
+//      seller's favour.
+//   The buyer can choose to keep the item at any point before it's decided.
+//   No partial refunds - a refund is the item's full price (what the buyer
+//   paid for it), plus the delivery fee when nothing from that seller was kept.
 
 export const RETURN_REASON_LABEL: Record<ReturnReason, string> = {
   DAMAGED: "Damaged",
@@ -21,20 +38,30 @@ export const RETURN_REASON_LABEL: Record<ReturnReason, string> = {
   FAULTY: "Faulty",
   NOT_RECEIVED: "Not received",
 };
-import { notifyProblemReported, notifyReturnStatusChanged } from "../order/order-notifications";
 
-const ALLOWED_TRANSITIONS: Record<
-  ReturnRequestStatus,
-  ReturnRequestStatus[]
-> = {
-  REQUESTED: [
-    ReturnRequestStatus.APPROVED,
-    ReturnRequestStatus.REJECTED,
-  ],
-  APPROVED: [ReturnRequestStatus.REFUNDED],
-  REJECTED: [],
-  REFUNDED: [],
-};
+/** How long the seller has to answer a report. */
+export const SELLER_RESPONSE_HOURS = 48;
+export const PERISHABLE_SELLER_RESPONSE_HOURS = 24;
+/** A replacement nobody confirms or complains about is taken as received after this. */
+export const REPLACEMENT_CONFIRM_DAYS = 7;
+
+const HOUR_MS = 60 * 60 * 1000;
+const kobo = (naira: number) => Math.round(naira * 100);
+
+const REQUEST_INCLUDE = {
+  orderItem: {
+    include: {
+      product: { select: { id: true, title: true, category: { select: { isPerishable: true } } } },
+    },
+  },
+} satisfies Prisma.ReturnRequestInclude;
+
+const view = <T extends { orderItem: Parameters<typeof asOrdered>[0] | null }>(entry: T) => ({
+  ...entry,
+  orderItem: entry.orderItem && asOrdered(entry.orderItem),
+});
+
+// ---- Opening a report ------------------------------------------------------
 
 export const createReturnRequestService = async (userId: string, input: CreateReturnRequestInput) => {
   const { orderItemId, reasonType, reason } = input;
@@ -49,10 +76,7 @@ export const createReturnRequestService = async (userId: string, input: CreateRe
   }
 
   if (item.status !== OrderItemStatus.DELIVERED) {
-    throw new AppError(
-      "You can only request a return for delivered items.",
-      400
-    );
+    throw new AppError("You can only report a problem with delivered items.", 400);
   }
 
   const perishable = item.product.category.isPerishable;
@@ -72,35 +96,22 @@ export const createReturnRequestService = async (userId: string, input: CreateRe
     throw new AppError("Add at least one photo showing the problem - food and other perishables aren't sent back.", 400);
   }
 
-  const existing = await prisma.returnRequest.findFirst({
-    where: {
-      orderItemId,
-      status: {
-        in: [
-          ReturnRequestStatus.REQUESTED,
-          ReturnRequestStatus.APPROVED,
-        ],
-      },
-    },
+  const earlier = await prisma.returnRequest.findFirst({
+    where: { orderItemId, status: { in: [...OPEN_RETURN_STATUSES, ReturnRequestStatus.REFUNDED] } },
+    select: { status: true },
   });
-
-  if (existing) {
-    throw new AppError(
-      "A return request is already in progress for this item.",
-      400
-    );
+  if (earlier?.status === ReturnRequestStatus.REFUNDED) {
+    throw new AppError("This item has already been refunded.", 400);
   }
+  if (earlier) {
+    throw new AppError("A report is already in progress for this item.", 400);
+  }
+
+  const sellerRespondBy = new Date(Date.now() + (perishable ? PERISHABLE_SELLER_RESPONSE_HOURS : SELLER_RESPONSE_HOURS) * HOUR_MS);
 
   const returnRequest = await prisma.$transaction(async (tx) => {
     const created = await tx.returnRequest.create({
-      data: {
-        orderId: item.orderId,
-        orderItemId,
-        userId,
-        reasonType,
-        reason,
-        photos,
-      },
+      data: { orderId: item.orderId, orderItemId, userId, reasonType, reason, photos, sellerRespondBy },
     });
 
     await recordOrderEvent(tx, {
@@ -114,133 +125,330 @@ export const createReturnRequestService = async (userId: string, input: CreateRe
     return created;
   });
 
-  notifyProblemReported(orderItemId, `${RETURN_REASON_LABEL[reasonType]} - ${reason}${photos.length ? ` (${photos.length} photo${photos.length === 1 ? "" : "s"})` : ""}`);
-
+  notifyReturnEvent(returnRequest.id, "OPENED");
   return returnRequest;
 };
 
-export const getCustomerReturnRequestsService = async (
-  userId: string,
-  page: number,
-  limit: number,
-  status?: ReturnRequestStatus
-) => {
-  const skip = (page - 1) * limit;
+// ---- Refunds -----------------------------------------------------------------
 
-  const where: any = { userId };
-  if (status) where.status = status;
-
-  const [returns, total] = await Promise.all([
-    prisma.returnRequest.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { createdAt: "desc" },
-      include: {
-        orderItem: {
-          include: {
-            product: { select: { id: true, title: true } },
-          },
-        },
-      },
-    }),
-    prisma.returnRequest.count({ where }),
-  ]);
-
-  return {
-    returns: returns.map((entry) => ({ ...entry, orderItem: entry.orderItem && asOrdered(entry.orderItem) })),
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-  };
-};
-
-export const getSellerReturnRequestsService = async (
-  userId: string,
-  page: number,
-  limit: number,
-  status?: ReturnRequestStatus
-) => {
-  const store = await getSellerStore(userId);
-  const skip = (page - 1) * limit;
-
-  const where: any = {
-    orderItem: { product: { storeId: store.id } },
-  };
-  if (status) where.status = status;
-
-  const [returns, total] = await Promise.all([
-    prisma.returnRequest.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { createdAt: "desc" },
-      include: {
-        user: {
-          select: { id: true, name: true }, // no email (Privacy Policy)
-        },
-        orderItem: {
-          include: {
-            product: { select: { id: true, title: true } },
-          },
-        },
-      },
-    }),
-    prisma.returnRequest.count({ where }),
-  ]);
-
-  return {
-    returns: returns.map((entry) => ({ ...entry, orderItem: entry.orderItem && asOrdered(entry.orderItem) })),
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-  };
-};
-
-export const updateReturnRequestStatusService = async (
-  userId: string,
+/**
+ * Moves a report to REFUNDED (only from one of `from`, so two clicks can't
+ * refund twice) and sends the refund. The amount is what the buyer paid
+ * for the item (its share of any coupon taken off), plus the delivery fee
+ * when this was the last item they kept from that seller. When the money
+ * is still with Nestly (held or manual-ledger orders) it goes back through
+ * Paystack; for split orders the seller already has it, so admins are asked
+ * to refund by hand.
+ */
+const refundRequest = async (
   returnRequestId: string,
-  status: ReturnRequestStatus
+  from: ReturnRequestStatus[],
+  data: Prisma.ReturnRequestUpdateManyMutationInput
 ) => {
-  const store = await getSellerStore(userId);
-
-  const returnRequest = await prisma.returnRequest.findUnique({
+  const request = await prisma.returnRequest.findUnique({
     where: { id: returnRequestId },
-    include: {
-      orderItem: { include: { product: true } },
+    select: {
+      orderItem: {
+        select: {
+          id: true,
+          totalPrice: true,
+          autoPaidViaSplit: true,
+          product: { select: { storeId: true } },
+          order: {
+            select: {
+              paymentReference: true,
+              subtotal: true,
+              discountAmount: true,
+              items: {
+                select: {
+                  id: true,
+                  status: true,
+                  product: { select: { storeId: true } },
+                  returnRequests: { select: { status: true } },
+                },
+              },
+              shipping: { select: { storeId: true, fee: true, paidViaSplit: true, heldForPayout: true, payoutId: true } },
+            },
+          },
+        },
+      },
     },
   });
+  const item = request?.orderItem;
+  if (!item) throw new AppError("Return request not found.", 404);
 
-  if (!returnRequest || !returnRequest.orderItem) {
+  const { order } = item;
+  const storeId = item.product.storeId;
+  const unit = order.shipping.find((s) => s.storeId === storeId);
+
+  const couponShare = order.subtotal > 0 ? 1 - order.discountAmount / order.subtotal : 1;
+  const othersKept = order.items.filter(
+    (other) =>
+      other.id !== item.id &&
+      other.product.storeId === storeId &&
+      other.status !== OrderItemStatus.CANCELLED &&
+      !other.returnRequests.some((r) => r.status === ReturnRequestStatus.REFUNDED)
+  );
+  const refundAmount = Math.round((item.totalPrice * couponShare + (othersKept.length === 0 ? unit?.fee ?? 0 : 0)) * 100) / 100;
+
+  // Still with Nestly: not split at checkout, and (for held orders) not paid out yet.
+  const nestlyHasIt = !!order.paymentReference && !item.autoPaidViaSplit && !unit?.paidViaSplit && !(unit?.heldForPayout && unit.payoutId);
+
+  const moved = await prisma.returnRequest.updateMany({
+    where: { id: returnRequestId, status: { in: from } },
+    data: {
+      ...data,
+      status: ReturnRequestStatus.REFUNDED,
+      refundAmount,
+      refundStatus: nestlyHasIt ? OrderRefundStatus.REQUESTED : OrderRefundStatus.FAILED,
+    },
+  });
+  if (moved.count === 0) throw new AppError("This report was already answered.", 409);
+
+  if (!nestlyHasIt) {
+    notifyReturnEvent(returnRequestId, "REFUND_MANUAL");
+    return;
+  }
+
+  try {
+    await refundPaystackTransaction(order.paymentReference!, kobo(refundAmount));
+    notifyReturnEvent(returnRequestId, "REFUNDED");
+  } catch (error) {
+    console.error(`Refund for return request ${returnRequestId} failed:`, error);
+    await prisma.returnRequest.update({ where: { id: returnRequestId }, data: { refundStatus: OrderRefundStatus.FAILED } });
+    notifyReturnEvent(returnRequestId, "REFUND_MANUAL");
+  }
+};
+
+// ---- Seller ------------------------------------------------------------------
+
+const sellerRequest = async (userId: string, returnRequestId: string) => {
+  const store = await getSellerStore(userId);
+  const request = await prisma.returnRequest.findUnique({
+    where: { id: returnRequestId },
+    include: { orderItem: { select: { product: { select: { storeId: true } } } } },
+  });
+  if (!request || request.orderItem?.product.storeId !== store.id) {
     throw new AppError("Return request not found.", 404);
   }
+  return request;
+};
 
-  if (returnRequest.orderItem.product.storeId !== store.id) {
-    throw new AppError(
-      "You are not authorized to manage this return request.",
-      403
-    );
+/** The seller's answer: refund the buyer, send a replacement, or disagree (Nestly then decides). */
+export const respondToReturnRequestService = async (userId: string, returnRequestId: string, input: SellerReturnResponseInput) => {
+  await sellerRequest(userId, returnRequestId);
+  const answerable = [ReturnRequestStatus.REQUESTED, ReturnRequestStatus.APPROVED];
+  const note = input.note?.trim() || null;
+  const answered = { sellerResponse: note, sellerRespondedAt: new Date() };
+
+  if (input.action === "REFUND") {
+    await refundRequest(returnRequestId, answerable, { ...answered, resolvedAt: new Date() });
+  } else {
+    const replacement = input.action === "REPLACE";
+    const moved = await prisma.returnRequest.updateMany({
+      where: { id: returnRequestId, status: { in: answerable } },
+      data: replacement
+        ? { ...answered, status: ReturnRequestStatus.REPLACEMENT }
+        : { ...answered, status: ReturnRequestStatus.DISPUTED, escalatedAt: new Date() },
+    });
+    if (moved.count === 0) throw new AppError("This report was already answered.", 409);
+    notifyReturnEvent(returnRequestId, replacement ? "REPLACEMENT" : "SELLER_DISAGREED");
   }
 
-  if (
-    !ALLOWED_TRANSITIONS[returnRequest.status].includes(
-      status
-    )
-  ) {
-    throw new AppError(
-      `Cannot move a return request from ${returnRequest.status} to ${status}.`,
-      400
-    );
+  return prisma.returnRequest.findUnique({ where: { id: returnRequestId } });
+};
+
+// ---- Buyer -------------------------------------------------------------------
+
+/** The buyer keeps the item, confirms the replacement, or reports a problem with it. */
+export const buyerReturnActionService = async (userId: string, returnRequestId: string, input: BuyerReturnActionInput) => {
+  const request = await prisma.returnRequest.findUnique({ where: { id: returnRequestId }, select: { userId: true } });
+  if (!request || request.userId !== userId) throw new AppError("Return request not found.", 404);
+
+  const now = new Date();
+  const transitions = {
+    KEEP: {
+      from: [ReturnRequestStatus.REQUESTED, ReturnRequestStatus.APPROVED, ReturnRequestStatus.DISPUTED],
+      data: { status: ReturnRequestStatus.WITHDRAWN, resolvedAt: now },
+      event: "KEPT" as const,
+    },
+    REPLACEMENT_RECEIVED: {
+      from: [ReturnRequestStatus.REPLACEMENT],
+      data: { status: ReturnRequestStatus.REPLACED, resolvedAt: now },
+      event: "REPLACED" as const,
+    },
+    REPLACEMENT_PROBLEM: {
+      from: [ReturnRequestStatus.REPLACEMENT],
+      data: {
+        status: ReturnRequestStatus.DISPUTED,
+        escalatedAt: now,
+        // Keep the original report; add what's wrong with the replacement.
+        reason: undefined as string | undefined,
+      },
+      event: "REPLACEMENT_PROBLEM" as const,
+    },
+  }[input.action];
+
+  if (input.action === "REPLACEMENT_PROBLEM") {
+    const current = await prisma.returnRequest.findUnique({ where: { id: returnRequestId }, select: { reason: true } });
+    transitions.data.reason = `${current?.reason ?? ""}\n\nReplacement: ${input.note?.trim()}`.trim().slice(0, 2000);
   }
 
-  const updated = await prisma.returnRequest.update({
-    where: { id: returnRequestId },
-    data: { status },
+  const moved = await prisma.returnRequest.updateMany({
+    where: { id: returnRequestId, status: { in: transitions.from } },
+    data: transitions.data,
   });
+  if (moved.count === 0) throw new AppError("This report can't be changed now.", 409);
 
-  notifyReturnStatusChanged(returnRequest.orderItemId as string, status);
+  notifyReturnEvent(returnRequestId, transitions.event);
+  return prisma.returnRequest.findUnique({ where: { id: returnRequestId } });
+};
 
-  return updated;
+// ---- Nestly (admin) --------------------------------------------------------------
+
+/** Nestly's decision on a report: refund the buyer, or close it in the seller's favour. */
+export const decideReturnRequestService = async (adminUserId: string, returnRequestId: string, input: DecideReturnInput) => {
+  const exists = await prisma.returnRequest.findUnique({ where: { id: returnRequestId }, select: { id: true } });
+  if (!exists) throw new AppError("Return request not found.", 404);
+
+  const decided = { resolvedAt: new Date(), resolvedById: adminUserId, resolutionNote: input.note?.trim() || null };
+
+  if (input.decision === "REFUND") {
+    await refundRequest(returnRequestId, OPEN_RETURN_STATUSES, decided);
+  } else {
+    const moved = await prisma.returnRequest.updateMany({
+      where: { id: returnRequestId, status: { in: OPEN_RETURN_STATUSES } },
+      data: { ...decided, status: ReturnRequestStatus.REJECTED },
+    });
+    if (moved.count === 0) throw new AppError("This report is already closed.", 409);
+    notifyReturnEvent(returnRequestId, "REJECTED");
+  }
+
+  return prisma.returnRequest.findUnique({ where: { id: returnRequestId } });
+};
+
+/** Admin: reports waiting on Nestly (disputed), then open ones, oldest first. Includes refunds to send by hand. */
+export const listAdminReturnRequestsService = async (page: number, limit: number, status?: ReturnRequestStatus) => {
+  const where: Prisma.ReturnRequestWhereInput = status
+    ? { status }
+    : {
+        OR: [
+          { status: { in: OPEN_RETURN_STATUSES } },
+          { status: ReturnRequestStatus.REFUNDED, refundStatus: OrderRefundStatus.FAILED },
+        ],
+      };
+
+  const [returns, total] = await Promise.all([
+    prisma.returnRequest.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: [{ escalatedAt: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        orderItem: {
+          include: {
+            product: { select: { id: true, title: true, store: { select: { id: true, name: true, slug: true } } } },
+          },
+        },
+        order: { select: { paymentReference: true } },
+      },
+    }),
+    prisma.returnRequest.count({ where }),
+  ]);
+
+  return { returns: returns.map(view), total, page, limit, totalPages: Math.ceil(total / limit) };
+};
+
+// ---- Deadlines (job) ----------------------------------------------------------
+
+/**
+ * Sellers who didn't answer in time: the report goes to Nestly. Replacements
+ * nobody confirmed or complained about in REPLACEMENT_CONFIRM_DAYS: taken as
+ * received. Guarded updates, so it's safe to run anywhere.
+ */
+export const processReturnDeadlinesService = async () => {
+  const now = new Date();
+
+  const overdue = await prisma.returnRequest.findMany({
+    where: { status: ReturnRequestStatus.REQUESTED, sellerRespondBy: { lt: now } },
+    select: { id: true },
+    take: 200,
+  });
+  let escalated = 0;
+  for (const { id } of overdue) {
+    const moved = await prisma.returnRequest.updateMany({
+      where: { id, status: ReturnRequestStatus.REQUESTED },
+      data: { status: ReturnRequestStatus.DISPUTED, escalatedAt: now },
+    });
+    if (moved.count > 0) {
+      escalated += 1;
+      notifyReturnEvent(id, "ESCALATED");
+    }
+  }
+
+  const settled = await prisma.returnRequest.findMany({
+    where: {
+      status: ReturnRequestStatus.REPLACEMENT,
+      sellerRespondedAt: { lt: new Date(now.getTime() - REPLACEMENT_CONFIRM_DAYS * 24 * HOUR_MS) },
+    },
+    select: { id: true },
+    take: 200,
+  });
+  let replaced = 0;
+  for (const { id } of settled) {
+    const moved = await prisma.returnRequest.updateMany({
+      where: { id, status: ReturnRequestStatus.REPLACEMENT },
+      data: { status: ReturnRequestStatus.REPLACED, resolvedAt: now },
+    });
+    if (moved.count > 0) {
+      replaced += 1;
+      notifyReturnEvent(id, "REPLACED");
+    }
+  }
+
+  return { escalated, replaced };
+};
+
+// ---- Lists ---------------------------------------------------------------------
+
+export const getCustomerReturnRequestsService = async (userId: string, page: number, limit: number, status?: ReturnRequestStatus) => {
+  const where: Prisma.ReturnRequestWhereInput = { userId, ...(status ? { status } : {}) };
+
+  const [returns, total] = await Promise.all([
+    prisma.returnRequest.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: { ...REQUEST_INCLUDE, orderItem: { include: { product: { select: { id: true, title: true, store: { select: { name: true } } } } } } },
+    }),
+    prisma.returnRequest.count({ where }),
+  ]);
+
+  return { returns: returns.map(view), total, page, limit, totalPages: Math.ceil(total / limit) };
+};
+
+export const getSellerReturnRequestsService = async (userId: string, page: number, limit: number, status?: ReturnRequestStatus) => {
+  const store = await getSellerStore(userId);
+  const where: Prisma.ReturnRequestWhereInput = {
+    orderItem: { product: { storeId: store.id } },
+    ...(status ? { status } : {}),
+  };
+
+  const [returns, total] = await Promise.all([
+    prisma.returnRequest.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        user: { select: { id: true, name: true } }, // no email (Privacy Policy)
+        ...REQUEST_INCLUDE,
+      },
+    }),
+    prisma.returnRequest.count({ where }),
+  ]);
+
+  return { returns: returns.map(view), total, page, limit, totalPages: Math.ceil(total / limit) };
 };

@@ -29,11 +29,46 @@ export const listReturnRequestsSchema = z.object({
   }),
 });
 
-export const updateReturnRequestStatusSchema = z.object({
-  params: z.object({
-    id: z.string(),
-  }),
+const idParams = z.object({ id: z.string() });
+
+// The seller's answer. Disagreeing needs a reason - Nestly reads it to decide.
+export const sellerReturnResponseSchema = z.object({
+  params: idParams,
+  body: z
+    .object({
+      action: z.enum(["REFUND", "REPLACE", "DISAGREE"], { message: "Choose refund, replacement or disagree." }),
+      note: z.string().trim().max(1000).optional(),
+    })
+    .refine((body) => body.action !== "DISAGREE" || (body.note?.length ?? 0) >= 10, {
+      message: "Tell us why you disagree (at least 10 characters) - Nestly reads it to decide.",
+      path: ["note"],
+    }),
+});
+
+export type SellerReturnResponseInput = z.infer<typeof sellerReturnResponseSchema>["body"];
+
+export const buyerReturnActionSchema = z.object({
+  params: idParams,
+  body: z
+    .object({
+      action: z.enum(["KEEP", "REPLACEMENT_RECEIVED", "REPLACEMENT_PROBLEM"]),
+      note: z.string().trim().max(1000).optional(),
+    })
+    .refine((body) => body.action !== "REPLACEMENT_PROBLEM" || (body.note?.length ?? 0) >= 3, {
+      message: "Tell us what's wrong with the replacement.",
+      path: ["note"],
+    }),
+});
+
+export type BuyerReturnActionInput = z.infer<typeof buyerReturnActionSchema>["body"];
+
+export const decideReturnSchema = z.object({
+  params: idParams,
   body: z.object({
-    status: z.nativeEnum(ReturnRequestStatus),
+    decision: z.enum(["REFUND", "REJECT"]),
+    // Shown to the buyer and seller.
+    note: z.string().trim().max(1000).optional(),
   }),
 });
+
+export type DecideReturnInput = z.infer<typeof decideReturnSchema>["body"];

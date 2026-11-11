@@ -10,6 +10,7 @@ import {
   verifyCheckoutService,
   confirmPaymentByReferenceService,
 } from "./checkout.service";
+import { handleTransferWebhookService } from "../payout/held-payout.service";
 
 export const initiateCheckout = asyncHandler(
   async (req: Request, res: Response) => {
@@ -91,6 +92,13 @@ export const paystackWebhook = asyncHandler(
           "Webhook payment confirmation failed:",
           error
         );
+      });
+    }
+
+    // Automatic seller payouts (hold-then-pay) landing, failing or bouncing back.
+    if (typeof event.event === "string" && event.event.startsWith("transfer.")) {
+      await handleTransferWebhookService(event.event, event.data).catch((error) => {
+        console.error("Webhook transfer update failed:", error);
       });
     }
 

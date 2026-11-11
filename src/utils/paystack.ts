@@ -118,13 +118,66 @@ export const verifyPaystackTransaction = async (
  * Paystack queues it and processes it within a few business days; it
  * comes out of the main account's balance.
  */
-export const refundPaystackTransaction = async (reference: string) => {
+export const refundPaystackTransaction = async (reference: string, amountKobo?: number) => {
   const json = await paystackFetch("/refund", {
     method: "POST",
-    body: JSON.stringify({ transaction: reference }),
+    // Without an amount Paystack refunds the whole payment; with one, just
+    // that part of it (one item of a bigger order).
+    body: JSON.stringify(amountKobo ? { transaction: reference, amount: amountKobo } : { transaction: reference }),
   });
 
   return json.data as { status: string; transaction?: { reference: string } };
+};
+
+// ---- Transfers (automatic seller payouts) ------------------------------
+// Needs Transfers enabled on the Paystack business, OTP for transfers
+// turned off (Settings > Preferences), and money in the Paystack balance.
+
+/** A bank account Paystack can send money to. Returns its recipient code. */
+export const createTransferRecipient = async (params: { name: string; accountNumber: string; bankCode: string }) => {
+  const json = await paystackFetch("/transferrecipient", {
+    method: "POST",
+    body: JSON.stringify({
+      type: "nuban",
+      name: params.name,
+      account_number: params.accountNumber,
+      bank_code: params.bankCode,
+      currency: "NGN",
+    }),
+  });
+  return json.data.recipient_code as string;
+};
+
+export interface TransferResult {
+  // success: sent. pending / received: Paystack is processing it (a webhook
+  // follows). otp: transfer OTP is still on, so nothing was sent. failed /
+  // reversed: didn't go through.
+  status: "success" | "pending" | "received" | "otp" | "failed" | "reversed" | "abandoned" | "blocked" | "rejected";
+  transfer_code: string;
+  reference: string;
+  reason?: string;
+}
+
+/** Sends money from the Paystack balance to a recipient. `reference` makes retries safe. */
+export const initiateTransfer = async (params: { amountKobo: number; recipient: string; reference: string; reason: string }) => {
+  const json = await paystackFetch("/transfer", {
+    method: "POST",
+    body: JSON.stringify({
+      source: "balance",
+      amount: params.amountKobo,
+      recipient: params.recipient,
+      reference: params.reference,
+      reason: params.reason,
+      currency: "NGN",
+    }),
+  });
+  return json.data as TransferResult;
+};
+
+/** Where a transfer stands now (for ones still pending). */
+export const verifyTransfer = async (reference: string) => {
+  const json = await paystackFetch(`/transfer/verify/${encodeURIComponent(reference)}`, { method: "GET" });
+  return json.data as TransferResult;
 };
 
 interface ChargeAuthorizationParams {

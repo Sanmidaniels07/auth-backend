@@ -18,7 +18,8 @@ import { referralCommission, referralRewardApplies } from "../../utils/referral"
 import { hideContacts } from "../../utils/contactFilter";
 import { STOCK_HOLD_TX, assertStockAvailable } from "../../utils/stockHold";
 import { getSellerStore } from "../seller/seller.utils";
-import { isPayoutAccountEligibleForSplit, storePickupAddress } from "../store/store.service";
+import { storePickupAddress } from "../store/store.service";
+import { holdPayoutsEnabled, routeViaSplit } from "../../utils/payoutMode";
 import { generateDeliveryCode } from "../order/order-delivery";
 import { paystackSplitFor } from "../checkout/checkout.service";
 import { VEHICLE_LABEL, canCarry } from "../../utils/deliveryVehicle";
@@ -428,8 +429,9 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
   const totalKobo = Math.round(total * NAIRA_TO_KOBO);
 
   // Seller's share (less commission, plus the delivery fee) goes straight
-  // to their Paystack subaccount when they have one - same as cart orders.
-  const paidViaSplit = isPayoutAccountEligibleForSplit(store);
+  // to their Paystack subaccount when they have one - same as cart orders -
+  // unless hold-then-pay is on (utils/payoutMode).
+  const paidViaSplit = routeViaSplit(store);
   const split = paidViaSplit
     ? paystackSplitFor(totalKobo, [
         {
@@ -482,6 +484,7 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
             ...shipping,
             deliveryCode: generateDeliveryCode(),
             paidViaSplit,
+            heldForPayout: holdPayoutsEnabled(),
           },
         },
         sellerNotes: note ? { create: { storeId: store.id, note } } : undefined,

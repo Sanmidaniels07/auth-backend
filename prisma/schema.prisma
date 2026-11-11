@@ -160,11 +160,32 @@ enum ReportStatus {
   ACTION_TAKEN
 }
 
+// A buyer's report of a problem with a delivered item. The seller answers
+// within a deadline (48h, 24h for perishables) - refund, send a
+// replacement, or disagree (then Nestly decides). The seller's payout for
+// that order waits until the report is closed. No partial refunds.
 enum ReturnRequestStatus {
-  REQUESTED
-  APPROVED
-  REJECTED
-  REFUNDED
+  REQUESTED // waiting for the seller (until sellerRespondBy)
+  APPROVED // older requests only: seller accepted before the current flow
+  REJECTED // closed in the seller's favour (Nestly decided) - seller is paid
+  REFUNDED // buyer refunded the item's price
+  REPLACEMENT // seller is sending a replacement - buyer confirms when it arrives
+  REPLACED // replacement received - seller is paid
+  DISPUTED // seller disagreed, didn't answer in time, or the replacement had a problem - Nestly decides
+  WITHDRAWN // buyer chose to keep the item - seller is paid
+}
+
+// How a seller was paid: by hand (recorded by an admin) or by an automatic
+// Paystack transfer once the return window closed.
+enum PayoutMethod {
+  MANUAL
+  TRANSFER
+}
+
+enum PayoutStatus {
+  PENDING // transfer sent to Paystack, waiting for it to land
+  PAID
+  FAILED // transfer failed or was reversed - the orders are paid in the next run
 }
 
 enum CouponType {
@@ -524,8 +545,28 @@ model ReturnRequest {
 
   status ReturnRequestStatus @default(REQUESTED)
 
+  // When the seller must answer by (48h, 24h for perishables); after that
+  // the report goes to Nestly. Null on requests made before deadlines.
+  sellerRespondBy   DateTime?
+  // The seller's answer and note (why they disagree, replacement details).
+  sellerResponse    String?
+  sellerRespondedAt DateTime?
+  // When Nestly took the decision over, and the outcome.
+  escalatedAt       DateTime?
+  resolvedAt        DateTime?
+  resolvedById      String?
+  resolutionNote    String?
+
+  // What was refunded (item price, plus the delivery fee when nothing from
+  // that seller was kept). REQUESTED = sent to Paystack; FAILED = Nestly
+  // must refund by hand (admins are told).
+  refundAmount Float?
+  refundStatus OrderRefundStatus?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([status, sellerRespondBy])
 }
 
 model Coupon {
@@ -1003,6 +1044,11 @@ model Store {
   // catch and reverse a fraudulent change before real money moves.
   payoutAccountUpdatedAt DateTime?
 
+  // Paystack transfer recipient for automatic payouts, and the bank account
+  // it was made for ("bankCode:accountNumber") - remade when that changes.
+  paystackRecipientCode String?
+  paystackRecipientFor  String?
+
   payoutAccountChanges PayoutAccountChange[]
 
   products Product[]
@@ -1041,9 +1087,27 @@ model Payout {
 
   note String?
 
+  // Admin's user id, or "SYSTEM" for automatic transfers.
   createdBy String
 
+  method PayoutMethod @default(MANUAL)
+  status PayoutStatus @default(PAID)
+
+  // Paystack transfer (automatic payouts only).
+  transferReference String? @unique
+  transferCode      String?
+  failureReason     String?
+  // Bank account it went to, for the seller's records ("GTBank ••••1234").
+  bankLabel         String?
+
+  // The orders this payout covers (held orders only - see OrderShipping).
+  shipping OrderShipping[]
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([storeId, createdAt])
+  @@index([status, createdAt])
 }
 
 // Audit trail for payout bank-account changes - admin's window into a
@@ -1640,9 +1704,20 @@ model OrderShipping {
   // including every order placed before delivery fees were split.
   paidViaSplit Boolean @default(false)
 
+  // Hold-then-pay: Nestly received this seller's money for the order and
+  // pays it out once every item is delivered, the return window has closed
+  // and no report is open. False for split and older orders (manual ledger).
+  heldForPayout Boolean   @default(false)
+  // The payout that paid it (null until then; cleared if a transfer fails).
+  payoutId      String?
+  payout        Payout?   @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  // Closed for payout: paid, or nothing left to pay (everything refunded).
+  settledAt     DateTime?
+
   createdAt DateTime @default(now())
 
   @@unique([orderId, storeId])
+  @@index([heldForPayout, settledAt])
 }
 
 // Optional note the buyer leaves one seller at checkout (extras, sizes,

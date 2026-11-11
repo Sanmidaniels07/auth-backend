@@ -1,4 +1,4 @@
-import { OrderStatus } from "@prisma/client";
+import { OrderStatus, PayoutStatus } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { getSellerStore } from "../seller/seller.utils";
@@ -463,14 +463,19 @@ export const getSellerPayoutsService = async (
   const store = await getSellerStore(userId);
   const skip = (page - 1) * limit;
 
+  // A failed automatic transfer's orders are paid again in a new one, so
+  // sellers never see the failed attempt.
+  const where = { storeId: store.id, status: { not: PayoutStatus.FAILED } };
+
   const [payouts, total] = await Promise.all([
     prisma.payout.findMany({
-      where: { storeId: store.id },
+      where,
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
+      select: { id: true, amount: true, note: true, method: true, status: true, bankLabel: true, createdAt: true },
     }),
-    prisma.payout.count({ where: { storeId: store.id } }),
+    prisma.payout.count({ where }),
   ]);
 
   return {

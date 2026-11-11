@@ -10,7 +10,6 @@ import {
   orderConfirmedEmail,
   orderDeliveredEmail,
   orderShippedEmail,
-  problemReportedEmail,
   soldOutRefundEmail,
 } from "../../templates/order-emails.template";
 import { AUTO_CONFIRM_DAYS, orderNumber, returnWindowLabel } from "./order-delivery";
@@ -33,15 +32,19 @@ interface Delivery {
   title: string;
   message: string;
   // ORDER opens the buyer's order page, SELLER_ORDER the seller's orders
-  // tab, GIFT the gift's page (id = gift code).
-  target: { type: "ORDER" | "SELLER_ORDER" | "GIFT"; id: string };
+  // tab, GIFT the gift's page (id = gift code), SELLER_RETURNS and
+  // SELLER_EARNINGS the seller's returns and earnings tabs, MY_RETURNS the
+  // buyer's problem reports.
+  target: { type: "ORDER" | "SELLER_ORDER" | "GIFT" | "SELLER_RETURNS" | "SELLER_EARNINGS" | "MY_RETURNS"; id: string };
   email?: { subject: string; html: string };
 }
 
 export const frontend = () => process.env.FRONTEND_URL ?? "";
-const buyerOrderUrl = (orderId: string) => `${frontend()}/marketplace/orders/${orderId}`;
+export const buyerOrderUrl = (orderId: string) => `${frontend()}/marketplace/orders/${orderId}`;
 const sellerOrdersUrl = () => `${frontend()}/settings/marketplace?tab=orders`;
-const sellerReturnsUrl = () => `${frontend()}/settings/marketplace?tab=returns`;
+export const sellerReturnsUrl = () => `${frontend()}/settings/marketplace?tab=returns`;
+export const buyerReturnsUrl = () => `${frontend()}/marketplace/returns`;
+export const sellerEarningsUrl = () => `${frontend()}/settings/marketplace?tab=earnings`;
 
 export const deliver = async ({ to, title, message, target, email }: Delivery) => {
   await Promise.allSettled([
@@ -62,7 +65,7 @@ export const USER_SELECT = { id: true, name: true, email: true } as const;
 
 const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
 
-const titleOf = (item: { productTitle: string | null; product: { title: string } }) => item.productTitle ?? item.product.title;
+export const titleOf = (item: { productTitle: string | null; product: { title: string } }) => item.productTitle ?? item.product.title;
 
 const lineOf = (item: {
   quantity: number;
@@ -350,37 +353,7 @@ export const notifyOrderCancelledByBuyer = (orderId: string) =>
     );
   });
 
-export const notifyProblemReported = (orderItemId: string, reason: string) =>
-  safely("Problem reported notification", async () => {
-    const item = await sellerOfItem(orderItemId);
-    if (!item) return;
-    const seller = item.product.store.seller.user;
-    const number = orderNumber(item.order.id);
-
-    await deliver({
-      to: seller,
-      title: "Buyer reported a problem",
-      message: `A return request was opened for "${titleOf(item)}" (order ${number}).`,
-      target: { type: "SELLER_ORDER", id: item.order.id },
-      email: {
-        subject: `Problem reported on order ${number}`,
-        html: problemReportedEmail({ sellerName: seller.name, orderNumber: number, itemTitle: titleOf(item), reason, returnsUrl: sellerReturnsUrl() }),
-      },
-    });
-  });
-
-export const notifyReturnStatusChanged = (orderItemId: string, status: string) =>
-  safely("Return status notification", async () => {
-    const item = await sellerOfItem(orderItemId);
-    if (!item) return;
-
-    await deliver({
-      to: item.order.user,
-      title: `Return ${status.toLowerCase()}`,
-      message: `Your return request for "${titleOf(item)}" (order ${orderNumber(item.order.id)}) was ${status.toLowerCase()}.`,
-      target: { type: "ORDER", id: item.order.id },
-    });
-  });
+// Problem reports (returns) have their own notifications: return-request/return-notifications.
 
 // The item sold out to someone else just before this payment landed, so the
 // order was cancelled (checkout/sold-out-refund). The buyer hears it was
