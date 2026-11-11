@@ -16,7 +16,7 @@ import { READINESS_SELECT, READINESS_STEPS, missingSetup } from "../../utils/sel
 import { closeLiveRoom, createJoinToken, liveVideoConfigured } from "../../utils/livekit";
 import { initializePaystackTransaction } from "../../utils/paystack";
 import { snapshotOf } from "../../utils/orderItemSnapshot";
-import { referralCommission, referralRewardApplies } from "../../utils/referral";
+import { generateReferralCode, referralCommission, referralRewardApplies } from "../../utils/referral";
 import { STOCK_HOLD_TX, assertStockAvailable } from "../../utils/stockHold";
 import { holdPayoutsEnabled, routeViaSplit } from "../../utils/payoutMode";
 import { OPTIONS_INCLUDE, unitPriceOf, variationLabel } from "../../utils/productOptions";
@@ -238,33 +238,57 @@ const resolveStart = (scheduledAt: Date, now = new Date()) => {
   return scheduledAt.getTime() < now.getTime() ? now : scheduledAt;
 };
 
-const sellerView = async (live: LiveWithDetails) => {
-  const sales = await prisma.order.aggregate({
-    where: { liveSessionId: live.id, status: { in: PAID_ORDER_STATUSES } },
-    _count: true,
-    _sum: { subtotal: true },
-  });
-  // referralCode: so links the seller shares count sign-ups for their store.
-  return { ...baseView(live), referralCode: live.store.referralCode, orders: sales._count, revenue: sales._sum.subtotal ?? 0 };
+// Paid orders and sales per live - one query for any number of lives.
+const salesFor = async (liveIds: string[]) => {
+  const rows = liveIds.length
+    ? await prisma.order.groupBy({
+        by: ["liveSessionId"],
+        where: { liveSessionId: { in: liveIds }, status: { in: PAID_ORDER_STATUSES } },
+        _count: { _all: true },
+        _sum: { subtotal: true },
+      })
+    : [];
+  return new Map(rows.map((row) => [row.liveSessionId as string, { orders: row._count._all, revenue: row._sum.subtotal ?? 0 }]));
+};
+
+const sellerViewWith = (live: LiveWithDetails, sales?: { orders: number; revenue: number }) => ({
+  ...baseView(live),
+  // So links the seller shares count sign-ups for their store.
+  referralCode: live.store.referralCode,
+  orders: sales?.orders ?? 0,
+  revenue: sales?.revenue ?? 0,
+});
+
+const sellerView = async (live: LiveWithDetails) => sellerViewWith(live, (await salesFor([live.id])).get(live.id));
+
+// Live links carry the store's referral code. Stores created before
+// referrals existed get theirs here (as the share kit does).
+const ensureReferralCode = async (store: { id: string; referralCode: string | null }) => {
+  if (!store.referralCode) {
+    await prisma.store.update({ where: { id: store.id }, data: { referralCode: await generateReferralCode() } });
+  }
 };
 
 export const getMyLivesService = async (userId: string) => {
   const store = await getSellerStore(userId);
+  await ensureReferralCode(store);
   const [lives, blockers] = await Promise.all([
     prisma.liveSession.findMany({ where: { storeId: store.id }, orderBy: { scheduledAt: "desc" }, take: 50, include: LIVE_INCLUDE }),
     liveBlockers(userId),
   ]);
+  const sales = await salesFor(lives.map((live) => live.id));
   return {
     canGoLive: blockers.length === 0 && !store.isSuspended,
     blockers,
     videoReady: liveVideoConfigured(),
     maxMinutes: LIVE_MAX_MINUTES,
-    lives: await Promise.all(lives.map(sellerView)),
+    lives: lives.map((live) => sellerViewWith(live, sales.get(live.id))),
   };
 };
 
 export const createLiveService = async (userId: string, data: CreateLiveInput) => {
   const store = await getEligibleStore(userId);
+  await ensureReferralCode(store);
   const scheduledAt = resolveStart(data.scheduledAt);
 
   const upcoming = await prisma.liveSession.count({ where: { storeId: store.id, status: LiveStatus.SCHEDULED } });
