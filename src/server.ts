@@ -13,6 +13,7 @@ import { startGiftExpiryJob } from "./jobs/gift-expiry.job";
 import { startSellerAgreementUpdateJob } from "./jobs/seller-agreement-update.job";
 import { startPayoutsJob } from "./jobs/payouts.job";
 import { startPayoutTermsUpdateJob } from "./jobs/payout-terms-update.job";
+import { startLiveJob } from "./jobs/live.job";
 
 const PORT = process.env.PORT || 5000;
 
@@ -34,4 +35,5 @@ server.listen(PORT, () => {
   startSellerAgreementUpdateJob();
   startPayoutsJob();
   startPayoutTermsUpdateJob();
+  startLiveJob();
 });

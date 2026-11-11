@@ -45,6 +45,7 @@ import referralRoutes from "./modules/referral/referral.routes";
 import stockAlertRoutes from "./modules/stock-alert/stock-alert.routes";
 import recommendationRoutes from "./modules/recommendation/recommendation.routes";
 import paymentLinkRoutes from "./modules/payment-link/payment-link.routes";
+import liveRoutes from "./modules/live/live.routes";
 import giftRoutes from "./modules/gift/gift.routes";
 import pushRoutes from "./modules/push/push.routes";
 import payoutRoutes from "./modules/payout/payout.routes";
@@ -223,6 +224,7 @@ app.use("/api/stock-alerts", stockAlertRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 
 app.use("/api/payment-links", paymentLinkRoutes);
+app.use("/api/lives", liveRoutes);
 app.use("/api/gifts", giftRoutes);
 app.use("/api/push", pushRoutes);
 

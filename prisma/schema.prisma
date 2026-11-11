@@ -202,6 +202,8 @@ enum NotificationType {
   SYSTEM
   // New products from followed stores, cart reminders, back in stock.
   SHOPPING
+  // Live selling: a store you follow announced a live, reminders, "live now".
+  LIVE
 }
 
 model User {
@@ -339,6 +341,10 @@ model User {
   eventComments EventComment[]
 
   storeViews StoreView[]
+
+  liveInterests LiveInterest[]
+  liveMessages  LiveMessage[]
+  liveBans      LiveBan[]
 
   createdAt DateTime @default(now())
 }
@@ -1074,6 +1080,8 @@ model Store {
 
   storeViews StoreView[]
 
+  lives LiveSession[]
+
   createdAt DateTime @default(now())
 }
 
@@ -1291,6 +1299,8 @@ model Product {
 
   // Set for PRIVATE products - the link they're sold through.
   paymentLink PaymentLink?
+
+  liveProducts LiveProduct[]
 }
 
 // A protected payment link a seller shares in DMs, WhatsApp or their bio.
@@ -1625,6 +1635,11 @@ model Order {
   paymentLinkId String?
   paymentLink   PaymentLink? @relation(fields: [paymentLinkId], references: [id])
 
+  // Bought during (or just after) a live - for the seller's live summary
+  // and the live-only discount.
+  liveSessionId String?
+  liveSession   LiveSession? @relation(fields: [liveSessionId], references: [id], onDelete: SetNull)
+
   // Set when this order is a gift sent through a gift link.
   gift Gift?
 
@@ -1888,4 +1903,135 @@ model Gift {
   @@index([status, expiresAt])
   @@index([senderId, createdAt])
   @@index([recipientId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Live selling: a seller schedules a live, shares its link (/live/{code}),
+// people tap "Remind me", and during the live they watch, chat and buy the
+// featured products (optionally at a live-only discount). Video runs on
+// LiveKit Cloud; chat, pins and viewer counts go over Socket.IO.
+// ---------------------------------------------------------------------------
+
+enum LiveStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+model LiveSession {
+  id String @id @default(cuid())
+
+  // Public share code - /live/{code}.
+  code String @unique
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  coverImage  String?
+
+  scheduledAt DateTime
+  startedAt   DateTime?
+  endedAt     DateTime?
+
+  status LiveStatus @default(SCHEDULED)
+
+  // Product shown to everyone right now (null = none).
+  pinnedProductId String?
+
+  // Most people watching at once, and distinct signed-in viewers.
+  peakViewers Int @default(0)
+
+  // Why it ended early / was cancelled (seller, admin, time limit, no-show).
+  endReason String?
+
+  // Reminder bookkeeping - each is claimed once so overlapping job runs
+  // never send twice.
+  followersNotifiedAt DateTime?
+  dayReminderSentAt   DateTime?
+  soonReminderSentAt  DateTime?
+  liveNoticeSentAt    DateTime?
+  hostReminderSentAt  DateTime?
+  timeWarningSentAt   DateTime?
+
+  products  LiveProduct[]
+  interests LiveInterest[]
+  messages  LiveMessage[]
+  bans      LiveBan[]
+  orders    Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, scheduledAt])
+  @@index([storeId, status])
+}
+
+model LiveProduct {
+  id String @id @default(cuid())
+
+  liveSessionId String
+  liveSession   LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // Live-only discount (percent off every option of the product), applied
+  // to orders placed during the live and for a short while after it.
+  discountPercent Int?
+
+  position Int @default(0)
+
+  @@unique([liveSessionId, productId])
+}
+
+// "Remind me" - also the list notified when the live starts.
+model LiveInterest {
+  id String @id @default(cuid())
+
+  liveSessionId String
+  liveSession   LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([liveSessionId, userId])
+}
+
+model LiveMessage {
+  id String @id @default(cuid())
+
+  liveSessionId String
+  liveSession   LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  text String
+
+  // Removed by the seller - hidden from everyone.
+  isRemoved Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([liveSessionId, createdAt])
+}
+
+// Blocked from chatting in one live by the seller.
+model LiveBan {
+  id String @id @default(cuid())
+
+  liveSessionId String
+  liveSession   LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([liveSessionId, userId])
 }

@@ -30,6 +30,7 @@ import { storePickupAddress } from "../store/store.service";
 import { holdPayoutsEnabled, routeViaSplit } from "../../utils/payoutMode";
 import { generateDeliveryCode, recordOrderEvent } from "../order/order-delivery";
 import { notifyOrderPaid } from "../order/order-notifications";
+import { announceLivePurchase } from "../live/live.service";
 import { snapshotOf } from "../../utils/orderItemSnapshot";
 import { unitPriceOf, variationLabel } from "../../utils/productOptions";
 import { VEHICLE_LABEL, canCarry, requiredVehicle } from "../../utils/deliveryVehicle";
@@ -423,6 +424,8 @@ export const finalizeOrderPayment = async (order: {
   userId: string;
   couponCode: string | null;
   paymentLinkId: string | null;
+  // Bought during a live - like a payment link, the buyer's cart is untouched.
+  liveSessionId?: string | null;
   items: { productId: string; variationId: string | null; quantity: number }[];
 }) => {
   // Sent only once the order has really gone through.
@@ -489,9 +492,9 @@ export const finalizeOrderPayment = async (order: {
         }
       }
 
-      // Bought through a payment link or sent as a gift - the buyer's cart
-      // is untouched.
-      const cart = order.paymentLinkId || gift
+      // Bought through a payment link or a live, or sent as a gift - the
+      // buyer's cart is untouched.
+      const cart = order.paymentLinkId || order.liveSessionId || gift
         ? null
         : await tx.cart.findUnique({ where: { userId: order.userId } });
 
@@ -535,6 +538,11 @@ export const finalizeOrderPayment = async (order: {
   // recipient is told; sellers hear when it's claimed.
   if (gift) notifyGiftSent(order.id);
   else notifyOrderPaid(order.id);
+
+  // "Tolu just bought ..." for everyone still watching the live.
+  if (order.liveSessionId) {
+    announceLivePurchase(order.id).catch((error) => console.error("Live purchase announcement failed:", error));
+  }
 
   if (order.couponCode) {
     const coupon = await prisma.coupon.findUnique({
