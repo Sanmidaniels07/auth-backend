@@ -244,7 +244,8 @@ const sellerView = async (live: LiveWithDetails) => {
     _count: true,
     _sum: { subtotal: true },
   });
-  return { ...baseView(live), orders: sales._count, revenue: sales._sum.subtotal ?? 0 };
+  // referralCode: so links the seller shares count sign-ups for their store.
+  return { ...baseView(live), referralCode: live.store.referralCode, orders: sales._count, revenue: sales._sum.subtotal ?? 0 };
 };
 
 export const getMyLivesService = async (userId: string) => {
@@ -486,7 +487,7 @@ export const getPublicLiveService = async (code: string, viewerId?: string) => {
   const sellerUserId = live.store.seller.userId;
   const showChat = live.status === LiveStatus.LIVE || live.status === LiveStatus.ENDED;
 
-  const [interest, ban, messages] = await Promise.all([
+  const [interest, ban, messages, shippingOptions] = await Promise.all([
     viewerId
       ? prisma.liveInterest.findUnique({ where: { liveSessionId_userId: { liveSessionId: live.id, userId: viewerId } }, select: { id: true } })
       : null,
@@ -501,10 +502,18 @@ export const getPublicLiveService = async (code: string, viewerId?: string) => {
           include: { user: { select: { id: true, name: true, avatar: true } } },
         })
       : [],
+    // What buyers choose from when buying during the live.
+    prisma.shippingOption.findMany({
+      where: { storeId: live.storeId, isArchived: false },
+      orderBy: { fee: "asc" },
+      select: { id: true, name: true, fee: true, eta: true, type: true, areas: true, state: true, pickupAddress: true, vehicle: true },
+    }),
   ]);
 
   return {
     ...baseView(live),
+    storeAddress: storePickupAddress(live.store),
+    shippingOptions,
     // Share links carry the store's referral code, so sign-ups count for the seller.
     referralCode: live.store.referralCode,
     isOwner: !!viewerId && viewerId === sellerUserId,
