@@ -26,9 +26,11 @@ import {
 } from "../coupon/coupon.service";
 import { createNotificationService } from "../notification/notification.service";
 import { saveCardFromAuthorization } from "../payment-method/payment-method.service";
-import { isPayoutAccountEligibleForSplit, storePickupAddress } from "../store/store.service";
+import { storePickupAddress } from "../store/store.service";
+import { holdPayoutsEnabled, routeViaSplit } from "../../utils/payoutMode";
 import { generateDeliveryCode, recordOrderEvent } from "../order/order-delivery";
 import { notifyOrderPaid } from "../order/order-notifications";
+import { announceLivePurchase } from "../live/live.service";
 import { snapshotOf } from "../../utils/orderItemSnapshot";
 import { unitPriceOf, variationLabel } from "../../utils/productOptions";
 import { VEHICLE_LABEL, canCarry, requiredVehicle } from "../../utils/deliveryVehicle";
@@ -190,6 +192,7 @@ const buildPendingOrder = async (
     vehicle: DeliveryVehicle | null;
     deliveryCode: string;
     paidViaSplit: boolean;
+    heldForPayout: boolean;
   }[] = [];
 
   let deliveryFee = 0;
@@ -257,7 +260,9 @@ const buildPendingOrder = async (
       deliveryCode: generateDeliveryCode(),
       // The seller does the delivery, so the fee is theirs - it rides along
       // in their split share below when they're eligible for one.
-      paidViaSplit: isPayoutAccountEligibleForSplit(store),
+      paidViaSplit: routeViaSplit(store),
+      // Hold-then-pay: Nestly pays this seller once the return window closes.
+      heldForPayout: holdPayoutsEnabled(),
     });
 
     deliveryFee += option.fee;
@@ -267,7 +272,8 @@ const buildPendingOrder = async (
   // (plus their delivery fee, which carries no commission) routed straight
   // to them via a dynamic split, built fresh for this
   // order - unless that subaccount's bank details changed too recently
-  // (see isPayoutAccountEligibleForSplit), in which case they fall back to
+  // (see isPayoutAccountEligibleForSplit) or hold-then-pay is on (see
+  // utils/payoutMode), in which case they fall back to
   // the manual Payout ledger for now, same as a store with no subaccount
   // at all. This is what lets both flows coexist.
   const storeById = new Map(stores.map((store) => [store.id, store]));
@@ -275,7 +281,7 @@ const buildPendingOrder = async (
 
   for (const item of cart.items) {
     const store = storeById.get(item.product.storeId);
-    if (!store || !isPayoutAccountEligibleForSplit(store)) continue;
+    if (!store || !routeViaSplit(store)) continue;
 
     const net =
       priceOf(item) *
@@ -380,7 +386,7 @@ const buildPendingOrder = async (
             variantLabel: item.variation ? variationLabel(item.product.options, item.variation) : null,
             autoPaidViaSplit: (() => {
               const itemStore = storeById.get(item.product.storeId);
-              return !!itemStore && isPayoutAccountEligibleForSplit(itemStore);
+              return !!itemStore && routeViaSplit(itemStore);
             })(),
           })),
         },
@@ -418,6 +424,8 @@ export const finalizeOrderPayment = async (order: {
   userId: string;
   couponCode: string | null;
   paymentLinkId: string | null;
+  // Bought during a live - like a payment link, the buyer's cart is untouched.
+  liveSessionId?: string | null;
   items: { productId: string; variationId: string | null; quantity: number }[];
 }) => {
   // Sent only once the order has really gone through.
@@ -484,9 +492,9 @@ export const finalizeOrderPayment = async (order: {
         }
       }
 
-      // Bought through a payment link or sent as a gift - the buyer's cart
-      // is untouched.
-      const cart = order.paymentLinkId || gift
+      // Bought through a payment link or a live, or sent as a gift - the
+      // buyer's cart is untouched.
+      const cart = order.paymentLinkId || order.liveSessionId || gift
         ? null
         : await tx.cart.findUnique({ where: { userId: order.userId } });
 
@@ -530,6 +538,11 @@ export const finalizeOrderPayment = async (order: {
   // recipient is told; sellers hear when it's claimed.
   if (gift) notifyGiftSent(order.id);
   else notifyOrderPaid(order.id);
+
+  // "Tolu just bought ..." for everyone still watching the live.
+  if (order.liveSessionId) {
+    announceLivePurchase(order.id).catch((error) => console.error("Live purchase announcement failed:", error));
+  }
 
   if (order.couponCode) {
     const coupon = await prisma.coupon.findUnique({

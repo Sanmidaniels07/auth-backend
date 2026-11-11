@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import prisma from "../prisma/prisma";
 import { JwtPayload } from "../middleware/auth-middleware";
 import { userConnected, userDisconnected } from "./presence";
+import { initLiveNamespace } from "./live";
 
 let io: Server;
 
@@ -48,6 +49,9 @@ export const initSocket = (
   });
 
   io.use(authenticateSocket);
+
+  // Live selling - its own namespace, where a login is optional (guests watch).
+  initLiveNamespace(io);
 
   io.on("connection", (socket) => {
     const userId = socket.data.userId as string;

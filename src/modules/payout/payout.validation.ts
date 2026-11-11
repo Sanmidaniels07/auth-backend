@@ -15,3 +15,8 @@ export const listPayoutsSchema = z.object({
     storeId: z.string().optional(),
   }),
 });
+
+export const payHeldManuallySchema = z.object({
+  params: z.object({ storeId: z.string() }),
+  body: z.object({ note: z.string().trim().max(300).optional() }).optional(),
+});

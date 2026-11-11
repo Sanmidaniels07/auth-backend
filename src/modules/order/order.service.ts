@@ -7,7 +7,6 @@ import {
   OrderStatus,
   Prisma,
   ProductStatus,
-  ReturnRequestStatus,
 } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
@@ -26,6 +25,7 @@ import {
   notifyItemStatusChanged,
   notifyOrderCancelledByBuyer,
 } from "./order-notifications";
+import { OPEN_RETURN_STATUSES } from "../../utils/returnStatuses";
 
 const ITEM_STATUS_RANK: Record<OrderItemStatus, number> = {
   PENDING: 0,
@@ -694,11 +694,7 @@ export const autoConfirmDeliveriesService = async () => {
       status: OrderItemStatus.DELIVERED,
       deliveryConfirmedAt: null,
       deliveredAt: { lte: autoConfirmCutoff() },
-      returnRequests: {
-        none: {
-          status: { in: [ReturnRequestStatus.REQUESTED, ReturnRequestStatus.APPROVED] },
-        },
-      },
+      returnRequests: { none: { status: { in: OPEN_RETURN_STATUSES } } },
     },
     select: { id: true, orderId: true },
     take: 200,

@@ -11,6 +11,7 @@ import sessionRoutes from "./modules/session/session.route";
 import verificationRoutes from "./modules/verification/verification.routes";
 import notificationRoutes from "./modules/notification/notification.routes";
 import sellerRoutes from "./modules/seller/seller.routes";
+import sellerPayoutRoutes from "./modules/payout/seller-payout.routes";
 import storeRoutes from "./modules/store/store.routes";
 import categoryRoutes from "./modules/category/category.routes";
 import productRoutes from "./modules/product/product.routes";
@@ -44,6 +45,7 @@ import referralRoutes from "./modules/referral/referral.routes";
 import stockAlertRoutes from "./modules/stock-alert/stock-alert.routes";
 import recommendationRoutes from "./modules/recommendation/recommendation.routes";
 import paymentLinkRoutes from "./modules/payment-link/payment-link.routes";
+import liveRoutes from "./modules/live/live.routes";
 import giftRoutes from "./modules/gift/gift.routes";
 import pushRoutes from "./modules/push/push.routes";
 import payoutRoutes from "./modules/payout/payout.routes";
@@ -167,6 +169,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
 
 app.use("/api/seller/dashboard", dashboardRoutes);
+app.use("/api/seller/payouts", sellerPayoutRoutes);
 app.use("/api/dashboard", userDashboardRoutes);
 app.use("/api/locations", locationRoutes);
 
@@ -221,6 +224,7 @@ app.use("/api/stock-alerts", stockAlertRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 
 app.use("/api/payment-links", paymentLinkRoutes);
+app.use("/api/lives", liveRoutes);
 app.use("/api/gifts", giftRoutes);
 app.use("/api/push", pushRoutes);
 

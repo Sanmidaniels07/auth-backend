@@ -1,45 +1,40 @@
 import { Router } from "express";
 
 import { authMiddleware } from "../../middleware/auth-middleware";
+import { authorize } from "../../middleware/role.middleware";
 import { validate } from "../../middleware/validate.middleware";
 import {
+  buyerReturnActionSchema,
   createReturnRequestSchema,
+  decideReturnSchema,
   listReturnRequestsSchema,
-  updateReturnRequestStatusSchema,
+  sellerReturnResponseSchema,
 } from "./return-request.validation";
 import {
+  buyerReturnAction,
   createReturnRequest,
+  decideReturnRequest,
   getCustomerReturnRequests,
   getSellerReturnRequests,
-  updateReturnRequestStatus,
+  listAdminReturnRequests,
+  respondToReturnRequest,
 } from "./return-request.controller";
 
 const router = Router();
 
 router.use(authMiddleware);
 
-router.post(
-  "/",
-  validate(createReturnRequestSchema),
-  createReturnRequest
-);
+// Buyer
+router.post("/", validate(createReturnRequestSchema), createReturnRequest);
+router.get("/", validate(listReturnRequestsSchema), getCustomerReturnRequests);
+router.post("/:id/buyer-action", validate(buyerReturnActionSchema), buyerReturnAction);
 
-router.get(
-  "/seller",
-  validate(listReturnRequestsSchema),
-  getSellerReturnRequests
-);
+// Seller
+router.get("/seller", validate(listReturnRequestsSchema), getSellerReturnRequests);
+router.post("/:id/respond", validate(sellerReturnResponseSchema), respondToReturnRequest);
 
-router.patch(
-  "/:id/status",
-  validate(updateReturnRequestStatusSchema),
-  updateReturnRequestStatus
-);
-
-router.get(
-  "/",
-  validate(listReturnRequestsSchema),
-  getCustomerReturnRequests
-);
+// Nestly
+router.get("/admin", authorize("ADMIN"), validate(listReturnRequestsSchema), listAdminReturnRequests);
+router.post("/:id/decide", authorize("ADMIN"), validate(decideReturnSchema), decideReturnRequest);
 
 export default router;

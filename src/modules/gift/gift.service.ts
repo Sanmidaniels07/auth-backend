@@ -24,6 +24,7 @@ import { storePickupAddress } from "../store/store.service";
 import { generateDeliveryCode, recordOrderEvent } from "../order/order-delivery";
 import { notifyGiftClaimed, notifyGiftClosed } from "./gift-notifications";
 import { ClaimGiftInput, SendGiftInput } from "./gift.validation";
+import { holdPayoutsEnabled } from "../../utils/payoutMode";
 
 // Gift links. The sender pays for one item and picks the seller's delivery
 // zone the recipient lives in (or a pickup point) - not their street
@@ -183,6 +184,8 @@ export const sendGiftService = async (userId: string, data: SendGiftInput) => {
             vehicle: isPickup ? null : option.vehicle,
             deliveryCode: generateDeliveryCode(),
             paidViaSplit: false,
+            // Paid out after delivery and the return window, like any held order.
+            heldForPayout: holdPayoutsEnabled(),
           },
         },
         gift: {
