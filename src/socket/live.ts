@@ -15,6 +15,16 @@ import { recordViewerPeak, sendLiveChatService } from "../modules/live/live.serv
 const CHAT_GAP_MS = 1500;
 const HEART_GAP_MS = 250;
 const VIEWER_UPDATE_DELAY_MS = 1500;
+const CARD_GAP_MS = 40;
+
+// Where the seller has put the product card on the screen, per live: x/y are
+// 0-1 across the free space (so it lands in the same spot on any screen
+// size), scale is the card's size. Kept in memory - after a restart the card
+// goes back to its usual corner.
+type CardLayout = { x: number; y: number; scale: number };
+const cardLayouts = new Map<string, CardLayout>();
+const clamp = (value: unknown, min: number, max: number) =>
+  typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : null;
 
 const optionalAuth = (socket: Socket, next: (err?: Error) => void) => {
   const token = socket.handshake.auth?.token as string | undefined;
@@ -54,6 +64,9 @@ export const initLiveNamespace = (io: Server) => {
   namespace.on("connection", (socket) => {
     const userId = socket.data.userId as string | undefined;
     const joined = new Set<string>();
+    // Lives this socket is the seller of.
+    const hosting = new Set<string>();
+    let lastCard = 0;
     let lastChat = 0;
     let lastHeart = 0;
 
@@ -68,10 +81,13 @@ export const initLiveNamespace = (io: Server) => {
         if (!live || live.store.isSuspended) return reply({ ok: false, error: "Live not found." });
 
         socket.join(liveRoom(liveId));
-        if (userId && userId === live.store.seller.userId) socket.join(liveHostRoom(liveId));
+        if (userId && userId === live.store.seller.userId) {
+          socket.join(liveHostRoom(liveId));
+          hosting.add(liveId);
+        }
         joined.add(liveId);
         scheduleViewerUpdate(namespace, liveId);
-        reply({ ok: true, viewers: liveViewerCount(liveId) });
+        reply({ ok: true, viewers: liveViewerCount(liveId), card: cardLayouts.get(liveId) ?? null });
       } catch (error) {
         console.error("Live join failed:", error);
         reply({ ok: false, error: "Couldn't join the live." });
@@ -84,6 +100,7 @@ export const initLiveNamespace = (io: Server) => {
       socket.leave(liveRoom(liveId));
       socket.leave(liveHostRoom(liveId));
       joined.delete(liveId);
+      hosting.delete(liveId);
       scheduleViewerUpdate(namespace, liveId);
     });
 
@@ -113,6 +130,22 @@ export const initLiveNamespace = (io: Server) => {
       if (!joined.has(liveId) || now - lastHeart < HEART_GAP_MS) return;
       lastHeart = now;
       socket.to(liveRoom(liveId)).emit("live:heart", {});
+    });
+
+    // The seller moved or resized the product card: everyone else follows.
+    socket.on("live:card", (payload: { liveId?: string; x?: unknown; y?: unknown; scale?: unknown }) => {
+      const liveId = payload?.liveId ?? "";
+      if (!hosting.has(liveId)) return;
+      const now = Date.now();
+      if (now - lastCard < CARD_GAP_MS) return;
+      lastCard = now;
+      const x = clamp(payload.x, 0, 1);
+      const y = clamp(payload.y, 0, 1);
+      const scale = clamp(payload.scale, 0.6, 1.8);
+      if (x === null || y === null || scale === null) return;
+      const layout = { x, y, scale };
+      cardLayouts.set(liveId, layout);
+      socket.to(liveRoom(liveId)).emit("live:card", layout);
     });
 
     socket.on("disconnect", () => {

@@ -27,7 +27,7 @@ import { storePickupAddress } from "../store/store.service";
 import { generateDeliveryCode } from "../order/order-delivery";
 import { paystackSplitFor } from "../checkout/checkout.service";
 import { notifyLiveCancelled, notifyLiveRescheduled, notifyLiveStarted } from "./live-notifications";
-import { BuyFromLiveInput, CreateLiveInput, LIVE_CHAT_MAX, LIVE_SCHEDULE_MAX_DAYS, UpdateLiveInput } from "./live.validation";
+import { BuyFromLiveInput, CreateLiveInput, LIVE_CHAT_MAX, LIVE_MAX_PRODUCTS, LIVE_SCHEDULE_MAX_DAYS, UpdateLiveInput } from "./live.validation";
 
 // Live selling. A seller with a fully set-up store schedules a live (or
 // goes live now) and shares /live/{code}. Anyone can open the link; people
@@ -446,12 +446,25 @@ export const endLiveService = async (userId: string, id: string) => {
 export const pinProductService = async (userId: string, id: string, productId: string | null) => {
   const live = await getOwnedLive(userId, id);
   if (live.status !== LiveStatus.LIVE) throw new AppError("You can pin products while you're live.", 400);
+  // Showing something from the store that wasn't picked for this live:
+  // add it (at its normal price) so everyone can see and buy it.
+  let added = false;
   if (productId && !live.products.some((item) => item.productId === productId)) {
-    throw new AppError("That product isn't featured in this live.", 400);
+    if (live.products.length >= LIVE_MAX_PRODUCTS) throw new AppError(`A live can show up to ${LIVE_MAX_PRODUCTS} products.`, 400);
+    const product = await prisma.product.findFirst({ where: { id: productId, storeId: live.storeId, status: ProductStatus.PUBLISHED }, select: { id: true } });
+    if (!product) throw new AppError("That product isn't available in your store.", 400);
+    const position = live.products.reduce((max, item) => Math.max(max, item.position), -1) + 1;
+    await prisma.liveProduct.create({ data: { liveSessionId: id, productId, position } });
+    added = true;
   }
   await prisma.liveSession.update({ where: { id }, data: { pinnedProductId: productId } });
+  if (added) {
+    const updated = await getOwnedLive(userId, id);
+    const discounted = discountActive(updated);
+    emitToLive(id, "live:products", { products: updated.products.map((item) => productView(item, discounted)) });
+  }
   emitToLive(id, "live:pinned", { productId });
-  return { pinnedProductId: productId };
+  return { pinnedProductId: productId, added };
 };
 
 export const removeMessageService = async (userId: string, id: string, messageId: string) => {
