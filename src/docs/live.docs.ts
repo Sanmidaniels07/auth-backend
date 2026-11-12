@@ -9,7 +9,7 @@
  *     Lives end by themselves after 60 minutes. Discounts still apply for 30 minutes after a live ends.
  *
  *     Socket.IO `/live` (auth token optional): emit `live:join {liveId}` (ack `{ok, viewers}`), `live:leave`, `live:chat {liveId, text}` (signed in; ack `{ok, message}`), `live:heart {liveId}`.
- *     Receive `live:chat`, `live:message-removed`, `live:heart`, `live:viewers`, `live:pinned`, `live:status`, `live:purchase`, `live:stock`, `live:banned`, and `live:time-warning` (seller only).
+ *     Receive `live:chat`, `live:message-removed`, `live:heart`, `live:viewers`, `live:pinned`, `live:products` (a product the seller added mid-live; full list), `live:status`, `live:purchase`, `live:stock`, `live:banned`, and `live:time-warning` (seller only).
  */
 
 /**
