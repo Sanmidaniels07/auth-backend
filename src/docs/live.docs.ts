@@ -8,8 +8,8 @@
  *     During the live, viewers watch (LiveKit), chat (Socket.IO namespace `/live`) and buy featured products at an optional live-only discount.
  *     Lives end by themselves after 60 minutes. Discounts still apply for 30 minutes after a live ends.
  *
- *     Socket.IO `/live` (auth token optional): emit `live:join {liveId}` (ack `{ok, viewers, card}`), `live:leave`, `live:chat {liveId, text}` (signed in; ack `{ok, message}`), `live:heart {liveId}`, `live:card {liveId, x, y, scale}` (seller only: product card position 0-1 and size 0.6-1.8).
- *     Receive `live:chat`, `live:message-removed`, `live:heart`, `live:viewers`, `live:pinned`, `live:card`, `live:products` (a product the seller added mid-live; full list), `live:status`, `live:purchase`, `live:stock`, `live:banned`, and `live:time-warning` (seller only).
+ *     Socket.IO `/live` (auth token optional): emit `live:join {liveId}` (ack `{ok, viewers, card, stage}`), `live:leave`, `live:chat {liveId, text}` (signed in; ack `{ok, message}`), `live:heart {liveId}`, `live:card {liveId, x, y, scale}` (seller only: product card position 0-1 and size 0.6-1.8).
+ *     Receive `live:chat`, `live:message-removed`, `live:heart`, `live:viewers`, `live:pinned`, `live:card`, `live:stage` (buyers' mic / camera rules), `live:products` (a product the seller added mid-live; full list), `live:status`, `live:purchase`, `live:stock`, `live:banned`, and `live:time-warning` (seller only).
  */
 
 /**

@@ -75,6 +75,18 @@ export const banViewerSchema = z.object({
   body: z.object({ userId: z.string().min(1) }),
 });
 
+export const buyerMediaSchema = z.object({
+  params: z.object({ id: z.string().min(1), userId: z.string().min(1) }),
+  body: z.object({ source: z.enum(["microphone", "camera"]), action: z.enum(["off", "block", "allow"]) }),
+});
+
+export const stageSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  body: z
+    .object({ muteAll: z.boolean().optional(), mics: z.enum(["on", "off"]).optional(), cams: z.enum(["on", "off"]).optional() })
+    .refine((body) => body.muteAll || body.mics || body.cams, "Nothing to change."),
+});
+
 export const buyFromLiveSchema = z.object({
   params: z.object({ code: z.string().trim().min(4).max(20) }),
   body: z.object({

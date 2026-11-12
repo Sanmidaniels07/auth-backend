@@ -5,6 +5,8 @@ import { optionalAuthMiddleware } from "../../middleware/optional-auth-middlewar
 import { validate } from "../../middleware/validate.middleware";
 import {
   banViewerSchema,
+  buyerMediaSchema,
+  stageSchema,
   buyFromLiveSchema,
   createLiveSchema,
   liveCodeSchema,
@@ -17,6 +19,8 @@ import {
 import {
   addInterest,
   banViewer,
+  setBuyerMedia,
+  setStage,
   buyFromLive,
   cancelLive,
   createLive,
@@ -51,6 +55,8 @@ router.post("/:id/end", authMiddleware, validate(liveIdSchema), endLive);
 router.post("/:id/pin", authMiddleware, validate(pinProductSchema), pinProduct);
 router.delete("/:id/messages/:messageId", authMiddleware, validate(removeMessageSchema), removeMessage);
 router.post("/:id/bans", authMiddleware, validate(banViewerSchema), banViewer);
+router.post("/:id/participants/:userId/media", authMiddleware, validate(buyerMediaSchema), setBuyerMedia);
+router.post("/:id/stage", authMiddleware, validate(stageSchema), setStage);
 router.get("/:id/summary", authMiddleware, validate(liveIdSchema), getLiveSummary);
 
 // Public - by share code (/live/{code})
