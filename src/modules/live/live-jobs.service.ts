@@ -27,7 +27,6 @@ const SOON_MS = 15 * MINUTE;
 const DAY_MS = 24 * HOUR;
 // A scheduled live that hasn't started this long after its time is called off.
 const NO_SHOW_MS = 2 * HOUR;
-const WARN_BEFORE_END_MS = 5 * MINUTE;
 
 const claim = async (id: string, field: "followersNotifiedAt" | "dayReminderSentAt" | "soonReminderSentAt" | "hostReminderSentAt" | "timeWarningSentAt", now: Date) =>
   (await prisma.liveSession.updateMany({ where: { id, [field]: null }, data: { [field]: now } })).count > 0;
@@ -90,9 +89,10 @@ export const sendLiveRemindersService = async (now = new Date()) => {
   return sent;
 };
 
-/** Warns the seller 5 minutes before the time limit, then ends the live. */
+/** Warns the seller before the time limit (5 minutes, or 2 for short lives), then ends the live - a backup for the on-time timer. */
 export const enforceLiveTimeLimitService = async (now = new Date()) => {
   const limit = LIVE_MAX_MINUTES * MINUTE;
+  const WARN_BEFORE_END_MS = (LIVE_MAX_MINUTES > 10 ? 5 : 2) * MINUTE;
   const running = await prisma.liveSession.findMany({
     where: { status: LiveStatus.LIVE, startedAt: { lte: new Date(now.getTime() - (limit - WARN_BEFORE_END_MS)) } },
     select: { id: true, startedAt: true, timeWarningSentAt: true },
