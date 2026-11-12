@@ -6,6 +6,7 @@ import { JwtPayload } from "../middleware/auth-middleware";
 import { AppError } from "../utils/appError";
 import { liveHostRoom, liveRoom, liveViewerCount, setLiveNamespace } from "./live-emitter";
 import { recordViewerPeak, sendLiveChatService } from "../modules/live/live.service";
+import { stageView } from "../modules/live/live-stage";
 
 // The /live namespace: everyone on a live page (guests included) joins the
 // live's room to get chat, hearts, pins, purchases and the viewer count.
@@ -87,7 +88,7 @@ export const initLiveNamespace = (io: Server) => {
         }
         joined.add(liveId);
         scheduleViewerUpdate(namespace, liveId);
-        reply({ ok: true, viewers: liveViewerCount(liveId), card: cardLayouts.get(liveId) ?? null });
+        reply({ ok: true, viewers: liveViewerCount(liveId), card: cardLayouts.get(liveId) ?? null, stage: stageView(liveId) });
       } catch (error) {
         console.error("Live join failed:", error);
         reply({ ok: false, error: "Couldn't join the live." });

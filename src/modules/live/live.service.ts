@@ -28,6 +28,7 @@ import { generateDeliveryCode } from "../order/order-delivery";
 import { paystackSplitFor } from "../checkout/checkout.service";
 import { notifyLiveCancelled, notifyLiveRescheduled, notifyLiveStarted } from "./live-notifications";
 import { BuyFromLiveInput, CreateLiveInput, LIVE_CHAT_MAX, LIVE_MAX_PRODUCTS, LIVE_SCHEDULE_MAX_DAYS, UpdateLiveInput } from "./live.validation";
+import { allowedSources, clearStage, silenceBuyer, stageView } from "./live-stage";
 
 // Live selling. A seller with a fully set-up store schedules a live (or
 // goes live now) and shares /live/{code}. Anyone can open the link; people
@@ -376,7 +377,7 @@ export const cancelLiveService = async (userId: string, id: string) => {
 // ---------------------------------------------------------------------------
 
 const hostToken = (live: LiveWithDetails) =>
-  createJoinToken({ liveId: live.id, identity: `seller_${live.store.seller.userId}`, name: live.store.name, canPublish: true });
+  createJoinToken({ liveId: live.id, identity: `seller_${live.store.seller.userId}`, name: live.store.name, host: true, metadata: JSON.stringify({ avatar: live.store.logo, host: true }) });
 
 export const startLiveService = async (userId: string, id: string) => {
   const live = await getOwnedLive(userId, id);
@@ -424,6 +425,7 @@ export const endLive = async (id: string, reason: string) => {
   if (ended.count) {
     emitToLive(id, "live:status", { status: LiveStatus.ENDED, reason });
     await closeLiveRoom(id);
+    clearStage(id);
   }
   return ended.count > 0;
 };
@@ -476,7 +478,7 @@ export const removeMessageService = async (userId: string, id: string, messageId
 };
 
 export const banViewerService = async (userId: string, id: string, bannedUserId: string) => {
-  await getOwnedLive(userId, id);
+  const live = await getOwnedLive(userId, id);
   if (bannedUserId === userId) throw new AppError("You can't block yourself.", 400);
   await prisma.liveBan.upsert({
     where: { liveSessionId_userId: { liveSessionId: id, userId: bannedUserId } },
@@ -488,6 +490,7 @@ export const banViewerService = async (userId: string, id: string, bannedUserId:
   await prisma.liveMessage.updateMany({ where: { liveSessionId: id, userId: bannedUserId }, data: { isRemoved: true } });
   messages.forEach((message) => emitToLive(id, "live:message-removed", { id: message.id }));
   emitToLive(id, "live:banned", { userId: bannedUserId });
+  if (live.status === LiveStatus.LIVE) await silenceBuyer(id, bannedUserId).catch(() => {});
   return { userId: bannedUserId };
 };
 
@@ -606,10 +609,22 @@ export const getWatchTokenService = async (code: string, viewerId?: string) => {
   const live = await findLiveByCode(code);
   if (live.status !== LiveStatus.LIVE) throw new AppError("This live isn't on right now.", 400);
 
-  const user = viewerId ? await prisma.user.findUnique({ where: { id: viewerId }, select: { id: true, name: true } }) : null;
-  const identity = user ? `user_${user.id}` : `guest_${crypto.randomBytes(8).toString("hex")}`;
-  const video = await createJoinToken({ liveId: live.id, identity, name: user?.name ?? "Guest", canPublish: false });
-  return { ...video, guest: !user };
+  const user = viewerId ? await prisma.user.findUnique({ where: { id: viewerId }, select: { id: true, name: true, avatar: true } }) : null;
+  if (!user) {
+    const video = await createJoinToken({ liveId: live.id, identity: `guest_${crypto.randomBytes(8).toString("hex")}`, name: "Guest", hidden: true });
+    return { ...video, guest: true };
+  }
+  // Signed-in buyers can speak / show their camera unless the seller has turned
+  // that off (for everyone or for them), or blocked them from the live's chat.
+  const banned = await prisma.liveBan.findUnique({ where: { liveSessionId_userId: { liveSessionId: live.id, userId: user.id } }, select: { id: true } });
+  const video = await createJoinToken({
+    liveId: live.id,
+    identity: `user_${user.id}`,
+    name: user.name,
+    sources: banned || user.id === live.store.seller.userId ? [] : allowedSources(live.id, user.id),
+    metadata: JSON.stringify({ avatar: user.avatar }),
+  });
+  return { ...video, guest: false, stage: stageView(live.id) };
 };
 
 const icsDate = (date: Date) => date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");

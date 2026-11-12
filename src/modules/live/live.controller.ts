@@ -21,10 +21,23 @@ import {
   startLiveService,
   updateLiveService,
 } from "./live.service";
+import { setBuyerMediaService, setStageService } from "./live-stage";
 
 const param = (req: Request, name: string) => req.params[name] as string;
 
 // Seller
+
+/** Turn off / block / allow one buyer's mic or camera. */
+export const setBuyerMedia = asyncHandler(async (req: Request, res: Response) => {
+  const data = await setBuyerMediaService(req.user.id, param(req, "id"), param(req, "userId"), req.body.source, req.body.action);
+  res.status(200).json(apiResponse(data, "Updated"));
+});
+
+/** Mute everyone / switch buyers' mics or cameras off or on for everyone. */
+export const setStage = asyncHandler(async (req: Request, res: Response) => {
+  const data = await setStageService(req.user.id, param(req, "id"), req.body);
+  res.status(200).json(apiResponse(data, "Updated"));
+});
 
 export const createLive = asyncHandler(async (req: Request, res: Response) => {
   const live = await createLiveService(req.user.id, req.body);
