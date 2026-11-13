@@ -14,6 +14,7 @@ import {
   setProductFeaturedAdminService,
   updateSellerStatusService,
   setSellerVerifiedService,
+  recheckSellerCacService,
 } from "./admin.service";
 import { getAdminOverviewService } from "./admin-overview.service";
 
@@ -30,6 +31,14 @@ export const setSellerVerified = asyncHandler(
         req.body.isVerified ? "Seller business verified" : "Seller business verification removed"
       )
     );
+  }
+);
+
+export const recheckSellerCac = asyncHandler(
+  async (req: Request<IdParams>, res: Response) => {
+    const seller = await recheckSellerCacService(req.params.id);
+
+    res.status(200).json(apiResponse(seller, "CAC number checked"));
   }
 );
 

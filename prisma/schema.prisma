@@ -966,6 +966,18 @@ model SellerProfile {
 
   cacNumber String?
 
+  // Which CAC register the number is on (business name, company...). Needed
+  // for the automatic lookup; inferred from the number's prefix if not given.
+  cacCompanyType CacCompanyType?
+
+  // Last automatic CAC lookup (Dojah): what the register says and what we
+  // made of it. The registered name is kept so a later store name can be
+  // compared without another (paid) lookup.
+  cacCheckResult   CacCheckResult?
+  cacCheckedName   String?
+  cacCheckedStatus String?
+  cacCheckedAt     DateTime?
+
   isVerified Boolean @default(false)
 
   // Reminders to add a CAC number (sellers who joined without one): how
@@ -1911,6 +1923,24 @@ model Gift {
 // featured products (optionally at a live-only discount). Video runs on
 // LiveKit Cloud; chat, pins and viewer counts go over Socket.IO.
 // ---------------------------------------------------------------------------
+
+// The CAC registers a business can be on (Dojah's company_type values).
+enum CacCompanyType {
+  BUSINESS_NAME
+  COMPANY
+  INCORPORATED_TRUSTEES
+  LIMITED_PARTNERSHIP
+  LIMITED_LIABILITY_PARTNERSHIP
+}
+
+enum CacCheckResult {
+  VERIFIED // active and the name matches the store: verified automatically
+  AWAITING_STORE // found and active; compared once the seller creates a store
+  NAME_MISMATCH // found and active, but the name doesn't match the store
+  INACTIVE // found, but not active on the register
+  NOT_FOUND // no such number on that register
+  FAILED // the lookup couldn't run (service down or not configured)
+}
 
 enum LiveStatus {
   SCHEDULED

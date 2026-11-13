@@ -1,9 +1,11 @@
-import { Role, SellerStatus } from "@prisma/client";
+import { CacCompanyType, Role, SellerStatus } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { createNotificationService } from "../notification/notification.service";
 import { READINESS_SELECT, READINESS_STEPS, missingSetup } from "../../utils/sellerReadiness";
+import { isDojahConfigured } from "../../utils/dojah";
+import { checkSellerCac } from "./cac-check.service";
 
 export const SELLER_REAPPLY_COOLDOWN_DAYS = 3;
 
@@ -68,8 +70,12 @@ const notifyAdminsOfNewSellerApplication = async (
 
 export const becomeSellerService = async (
   userId: string,
-  cacNumber?: string
+  cacNumber?: string,
+  cacCompanyType?: CacCompanyType
 ) => {
+  cacNumber = cacNumber || undefined;
+  cacCompanyType = cacNumber ? cacCompanyType : undefined;
+
   const existingSeller =
     await prisma.sellerProfile.findUnique({
       where: {
@@ -84,6 +90,7 @@ export const becomeSellerService = async (
       data: {
         userId,
         cacNumber,
+        cacCompanyType,
       },
     });
   } else if (existingSeller.status === SellerStatus.PENDING) {
@@ -113,13 +120,25 @@ export const becomeSellerService = async (
         status: SellerStatus.PENDING,
         statusReason: null,
         statusUpdatedAt: new Date(),
-        cacNumber,
+        cacNumber: cacNumber ?? null,
+        cacCompanyType: cacCompanyType ?? null,
       },
     });
 
-    if (cacNumberChanged(existingSeller.cacNumber, cacNumber)) {
+    if (
+      cacNumberChanged(existingSeller.cacNumber, cacNumber) ||
+      (existingSeller.cacCompanyType ?? null) !== (cacCompanyType ?? null)
+    ) {
       await clearBusinessVerification(seller.id);
     }
+  }
+
+  // Look the number up on the CAC register straight away, so the admins
+  // reviewing the application see what it says. (Without Dojah the
+  // application notice is enough - no separate CAC notice.)
+  if (cacNumber && isDojahConfigured()) {
+    await checkSellerCac(seller.id);
+    seller = (await prisma.sellerProfile.findUnique({ where: { id: seller.id } })) ?? seller;
   }
 
   notifyAdminsOfNewSellerApplication(userId, seller.id).catch((error) => {
@@ -152,26 +171,6 @@ export const getSellerProfileService = async (
   return withReapplyInfo(seller);
 };
 
-const notifyAdminsOfCacNumber = async (sellerProfileId: string, userId: string) => {
-  const [user, admins] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
-    prisma.user.findMany({ where: { role: Role.ADMIN }, select: { id: true } }),
-  ]);
-  if (!user) return;
-
-  for (const admin of admins) {
-    createNotificationService(
-      admin.id,
-      "CAC number to check",
-      `${user.name} added a CAC number - check it on the CAC register and verify their store.`,
-      undefined,
-      { type: "ADMIN_CAC_SUBMITTED", id: sellerProfileId }
-    ).catch((error) => {
-      console.error("Notification failed:", error);
-    });
-  }
-};
-
 /**
  * What's left before buyers can order from this seller: store, payout
  * account, delivery zones (or pickup), a published product. Drives the
@@ -196,7 +195,7 @@ export const getSellerReadinessService = async (userId: string) => {
 
 export const updateSellerService = async (
   userId: string,
-  data: { cacNumber?: string }
+  data: { cacNumber?: string; cacCompanyType?: CacCompanyType }
 ) => {
   const seller =
     await prisma.sellerProfile.findUnique({
@@ -212,24 +211,36 @@ export const updateSellerService = async (
     );
   }
 
+  const nextNumber = data.cacNumber !== undefined ? data.cacNumber || null : seller.cacNumber;
+  // The register belongs to the number: removing the number removes it.
+  const nextType = !nextNumber
+    ? null
+    : data.cacCompanyType !== undefined
+      ? data.cacCompanyType
+      : data.cacNumber !== undefined && cacNumberChanged(seller.cacNumber, data.cacNumber)
+        ? null
+        : seller.cacCompanyType;
+
   const updated = await prisma.sellerProfile.update({
     where: {
       userId,
     },
-    data,
+    data: { cacNumber: nextNumber, cacCompanyType: nextType },
   });
 
-  if (data.cacNumber !== undefined && cacNumberChanged(seller.cacNumber, data.cacNumber)) {
-    await clearBusinessVerification(seller.id);
-    if (data.cacNumber) {
-      notifyAdminsOfCacNumber(seller.id, userId).catch((error) => {
-        console.error("Failed to notify admins of CAC number:", error);
-      });
-    }
-    return { ...updated, isVerified: false };
-  }
+  // Filling in the business type for a number that was verified before
+  // types existed isn't a change worth dropping the badge over.
+  const typeChanged =
+    (seller.cacCompanyType ?? null) !== nextType && (seller.cacCompanyType !== null || !seller.isVerified);
+  const changed = cacNumberChanged(seller.cacNumber, nextNumber) || typeChanged;
 
-  return updated;
+  if (!changed) return updated;
+
+  // A new number (or register) needs checking afresh: drop the old
+  // verification, then look the new one up (or clear the old result).
+  await clearBusinessVerification(seller.id);
+  await checkSellerCac(seller.id);
+  return prisma.sellerProfile.findUniqueOrThrow({ where: { id: seller.id } });
 };
 
 const normaliseCac = (value?: string | null) => (value ?? "").replace(/\s+/g, "").toUpperCase();
@@ -241,7 +252,11 @@ const cacNumberChanged = (previous?: string | null, next?: string | null) =>
 // a new CAC number drops it (and the store's public badge) until re-checked.
 const clearBusinessVerification = async (sellerProfileId: string) => {
   await prisma.$transaction([
-    prisma.sellerProfile.update({ where: { id: sellerProfileId }, data: { isVerified: false } }),
+    prisma.sellerProfile.update({
+      where: { id: sellerProfileId },
+      // The last automatic check was for the old number too.
+      data: { isVerified: false, cacCheckResult: null, cacCheckedName: null, cacCheckedStatus: null, cacCheckedAt: null },
+    }),
     prisma.store.updateMany({ where: { sellerId: sellerProfileId }, data: { isVerified: false } }),
   ]);
 };

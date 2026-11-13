@@ -25,11 +25,16 @@
  *               cacNumber:
  *                 type: string
  *                 example: RC1234567
+ *               cacCompanyType:
+ *                 type: string
+ *                 enum: [BUSINESS_NAME, COMPANY, INCORPORATED_TRUSTEES, LIMITED_PARTNERSHIP, LIMITED_LIABILITY_PARTNERSHIP]
+ *                 description: Which CAC register the number is on. Optional - inferred from the number's prefix (BN, RC, IT, LP, LLP), otherwise COMPANY.
+ *                 example: COMPANY
  *     responses:
  *       201:
- *         description: Seller profile created successfully
+ *         description: Seller profile created successfully. When automatic CAC checks are on, the response already carries the lookup result (cacCheckResult, cacCheckedName, cacCheckedStatus, cacCheckedAt).
  *       400:
- *         description: Seller profile already exists (PENDING or APPROVED)
+ *         description: Seller profile already exists (PENDING or APPROVED), or the CAC number / business type is invalid
  *       401:
  *         description: Unauthorized - no or invalid token
  *       403:
@@ -55,7 +60,7 @@
  *         description: Seller profile not found
  *   patch:
  *     summary: Update the authenticated user's seller profile
- *     description: Updates seller profile fields for the authenticated user. Requires authentication and an existing seller profile. `cacNumber` can be added or changed at any time (letters and numbers, stored uppercase without spaces; "" removes it). A new or changed number clears the business verification and the store's verified badge until an admin checks it, and notifies admins. Approved sellers without a CAC number (with or without a store) get reminders in-app and by email: 3 days after approval, then every 14 days until they add one.
+ *     description: Updates seller profile fields for the authenticated user. Requires authentication and an existing seller profile. `cacNumber` can be added or changed at any time (letters and numbers, stored uppercase without spaces; "" removes it). A new or changed number (or `cacCompanyType`) clears the business verification and the store's verified badge, then the number is looked up on the CAC register (Dojah) before the response returns. An active business whose registered name matches the store name is verified automatically (seller notified; `cacCheckResult` VERIFIED). Otherwise `cacCheckResult` is AWAITING_STORE (no store yet - compared when the store is created), NAME_MISMATCH, INACTIVE, NOT_FOUND or FAILED, and admins are notified with what the register said (not for AWAITING_STORE). Renaming the store compares the name again without a new lookup. Without Dojah keys, admins are notified to check by hand as before. Approved sellers without a CAC number (with or without a store) get reminders in-app and by email: 3 days after approval, then every 14 days until they add one.
  *     tags:
  *       - Seller
  *     security:
@@ -70,9 +75,16 @@
  *               cacNumber:
  *                 type: string
  *                 example: RC7654321
+ *               cacCompanyType:
+ *                 type: string
+ *                 enum: [BUSINESS_NAME, COMPANY, INCORPORATED_TRUSTEES, LIMITED_PARTNERSHIP, LIMITED_LIABILITY_PARTNERSHIP]
+ *                 description: Which CAC register the number is on. Optional - inferred from the number's prefix (BN, RC, IT, LP, LLP), otherwise COMPANY.
+ *                 example: BUSINESS_NAME
  *     responses:
  *       200:
- *         description: Seller profile updated successfully
+ *         description: Seller profile updated successfully, with the CAC check result
+ *       400:
+ *         description: Invalid CAC number or business type
  *       401:
  *         description: Unauthorized - no or invalid token
  *       404:

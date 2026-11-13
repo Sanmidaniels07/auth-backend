@@ -1,4 +1,4 @@
-import { Prisma, ProductStatus, Role } from "@prisma/client";
+import { CacCheckResult, Prisma, ProductStatus, Role } from "@prisma/client";
 
 import { DeliveryVehicle, ShippingOptionType } from "@prisma/client";
 import prisma from "../../prisma/prisma";
@@ -8,6 +8,7 @@ import { generateReferralCode } from "../../utils/referral";
 import { AppError } from "../../utils/appError";
 import { generateUniqueSlug } from "../../utils/slugify";
 import { getApprovedSellerProfile } from "../seller/seller.utils";
+import { recheckCacNameMatch } from "../seller/cac-check.service";
 import {
   resolveBankAccount,
   createOrUpdateSubaccount,
@@ -135,15 +136,24 @@ export const createStoreService = async (
     }
   );
 
-  return prisma.store.create({
+  const store = await prisma.store.create({
     data: {
       ...data,
       state: data.state ? findState(data.state)?.name ?? data.state.trim() : data.state,
       slug,
       sellerId: seller.id,
       referralCode: await generateReferralCode(),
+      // A business already verified (by hand, before the store existed)
+      // shows its badge from the start.
+      isVerified: seller.isVerified,
     },
   });
+
+  // Compare the new store name with the CAC-registered name, if it's been looked up.
+  if ((await recheckCacNameMatch(seller.id)) === CacCheckResult.VERIFIED && !store.isVerified) {
+    return { ...store, isVerified: true };
+  }
+  return store;
 };
 
 export const updateStoreService = async (
@@ -185,7 +195,7 @@ export const updateStoreService = async (
     );
   }
 
-  return prisma.store.update({
+  const updated = await prisma.store.update({
     where: { id: storeId },
     data: {
       ...data,
@@ -193,6 +203,13 @@ export const updateStoreService = async (
       slug,
     },
   });
+
+  // A new name is compared with the CAC-registered name again: it can earn
+  // the verified badge, or lose one that came from the old name matching.
+  if (data.name && data.name !== store.name && (await recheckCacNameMatch(seller.id))) {
+    return prisma.store.findUniqueOrThrow({ where: { id: storeId } });
+  }
+  return updated;
 };
 
 export const setupPayoutAccountService = async (
