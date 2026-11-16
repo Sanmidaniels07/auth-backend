@@ -5,6 +5,7 @@ import { validate } from "../../middleware/validate.middleware";
 import {
   followParamsSchema,
   listFollowSchema,
+  removeFollowerSchema,
 } from "./follow.validation";
 import {
   followUser,
@@ -12,9 +13,18 @@ import {
   getFollowers,
   getFollowing,
   getFollowStatus,
+  removeFollower,
 } from "./follow.controller";
 
 const router = Router();
+
+// Remove someone from your own followers.
+router.delete(
+  "/followers/:userId",
+  authMiddleware,
+  validate(removeFollowerSchema),
+  removeFollower
+);
 
 router.post(
   "/:userId",

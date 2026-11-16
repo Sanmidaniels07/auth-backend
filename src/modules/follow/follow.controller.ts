@@ -6,6 +6,7 @@ import { UserIdParams } from "../../types/request.types";
 import {
   followUserService,
   unfollowUserService,
+  removeFollowerService,
   getFollowersService,
   getFollowingService,
   getFollowStatusService,
@@ -34,6 +35,14 @@ export const unfollowUser = asyncHandler(
     res.status(200).json(
       apiResponse(null, "Unfollowed successfully")
     );
+  }
+);
+
+export const removeFollower = asyncHandler(
+  async (req: Request<UserIdParams>, res: Response) => {
+    await removeFollowerService(req.user.id, req.params.userId);
+
+    res.status(200).json(apiResponse(null, "Follower removed"));
   }
 );
 

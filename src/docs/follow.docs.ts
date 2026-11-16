@@ -132,3 +132,37 @@
  */
 
 export {};
+
+/**
+ * @swagger
+ * /api/follow/followers/{userId}:
+ *   delete:
+ *     summary: Remove someone from your followers
+ *     description: Requires authentication. Makes the given user stop following you (like Instagram's "Remove") without blocking them. They are not notified and can follow you again later. To stop following someone yourself, use DELETE /api/follow/{userId}.
+ *     tags:
+ *       - Follow
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         description: The follower to remove
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Follower removed
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               message: Follower removed
+ *               data: null
+ *       400:
+ *         description: Tried to remove yourself
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       404:
+ *         description: This person doesn't follow you
+ */
