@@ -4,6 +4,8 @@ import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { createNotificationService } from "../notification/notification.service";
 import { SELLER_REAPPLY_COOLDOWN_DAYS } from "../seller/seller.service";
+import { checkSellerCac } from "../seller/cac-check.service";
+import { isDojahConfigured } from "../../utils/dojah";
 
 const ADMIN_USER_SELECT = {
   id: true,
@@ -158,6 +160,12 @@ const ADMIN_SELLER_SELECT = {
   statusReason: true,
   statusUpdatedAt: true,
   cacNumber: true,
+  cacCompanyType: true,
+  // The automatic CAC lookup: result, registered name and status, when.
+  cacCheckResult: true,
+  cacCheckedName: true,
+  cacCheckedStatus: true,
+  cacCheckedAt: true,
   isVerified: true,
   createdAt: true,
   user: {
@@ -253,6 +261,35 @@ export const setSellerVerifiedService = async (
   }
 
   return updated;
+};
+
+/**
+ * Runs the automatic CAC lookup (Dojah) again for a seller - e.g. after a
+ * FAILED check or once the seller has fixed their details - and returns the
+ * seller with the new result. Each lookup is a paid call on the live keys.
+ */
+export const recheckSellerCacService = async (sellerId: string) => {
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { id: sellerId },
+    select: { id: true, cacNumber: true },
+  });
+
+  if (!seller) {
+    throw new AppError("Seller profile not found.", 404);
+  }
+  if (!seller.cacNumber?.trim()) {
+    throw new AppError("This seller hasn't provided a CAC number to check.", 400);
+  }
+  if (!isDojahConfigured()) {
+    throw new AppError("Automatic CAC checks aren't set up here (no Dojah keys). Check it by hand.", 503);
+  }
+
+  await checkSellerCac(sellerId);
+
+  return prisma.sellerProfile.findUniqueOrThrow({
+    where: { id: sellerId },
+    select: ADMIN_SELLER_SELECT,
+  });
 };
 
 export const updateSellerStatusService = async (

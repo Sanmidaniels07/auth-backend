@@ -307,6 +307,52 @@
 
 /**
  * @swagger
+ * /api/admin/sellers/{id}/cac-check:
+ *   post:
+ *     summary: Run the automatic CAC lookup again for a seller
+ *     description: Requires authentication and ADMIN role. Looks the seller's CAC number up on the CAC register through Dojah (a paid call on the live keys) and acts on it exactly like when the seller adds a number - an active business whose registered name matches the store is verified automatically and the seller notified; otherwise the result is saved and admins are notified. A verification an admin gave by hand is never removed by this. Returns the seller in the same shape as GET /api/admin/sellers, including cacCheckResult (VERIFIED, AWAITING_STORE, NAME_MISMATCH, INACTIVE, NOT_FOUND, FAILED), cacCheckedName, cacCheckedStatus and cacCheckedAt.
+ *     tags:
+ *       - Administration
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: SellerProfile id
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: CAC number checked
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               message: CAC number checked
+ *               data:
+ *                 id: clx123
+ *                 cacNumber: RC1261103
+ *                 cacCompanyType: COMPANY
+ *                 cacCheckResult: NAME_MISMATCH
+ *                 cacCheckedName: JOHN DOE LIMITED
+ *                 cacCheckedStatus: ACTIVE
+ *                 cacCheckedAt: "2026-11-13T10:00:00.000Z"
+ *                 isVerified: false
+ *       400:
+ *         description: Seller has no CAC number to check
+ *       401:
+ *         description: Unauthorized - no or invalid token
+ *       403:
+ *         description: Forbidden - admin role required
+ *       404:
+ *         description: Seller profile not found
+ *       503:
+ *         description: Automatic CAC checks aren't configured on this server (no Dojah keys)
+ */
+
+/**
+ * @swagger
  * /api/admin/products:
  *   get:
  *     summary: List products for admins

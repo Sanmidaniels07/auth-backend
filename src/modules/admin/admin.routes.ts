@@ -10,6 +10,7 @@ import {
   listSellersAdminSchema,
   updateSellerStatusSchema,
   setSellerVerifiedSchema,
+  recheckSellerCacSchema,
   listProductsAdminSchema,
   productHistoryAdminSchema,
   setProductFeaturedSchema,
@@ -22,6 +23,7 @@ import {
   listSellersAdmin,
   updateSellerStatus,
   setSellerVerified,
+  recheckSellerCac,
   listProductsAdmin,
   getProductHistoryAdmin,
   setProductFeatured,
@@ -72,6 +74,12 @@ router.patch(
   "/sellers/:id/verify",
   validate(setSellerVerifiedSchema),
   setSellerVerified
+);
+
+router.post(
+  "/sellers/:id/cac-check",
+  validate(recheckSellerCacSchema),
+  recheckSellerCac
 );
 
 router.get(

@@ -49,6 +49,12 @@ export const setSellerVerifiedSchema = z.object({
   }),
 });
 
+export const recheckSellerCacSchema = z.object({
+  params: z.object({
+    id: z.string(),
+  }),
+});
+
 export const updateSellerStatusSchema = z.object({
   params: z.object({
     id: z.string(),

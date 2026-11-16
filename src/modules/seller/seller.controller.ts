@@ -13,7 +13,8 @@ export const becomeSeller = asyncHandler(
 
     const seller = await becomeSellerService(
       req.user.id,
-      req.body.cacNumber
+      req.body.cacNumber,
+      req.body.cacCompanyType
     );
 
     res.status(201).json({

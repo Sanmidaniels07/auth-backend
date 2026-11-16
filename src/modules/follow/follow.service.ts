@@ -89,6 +89,28 @@ export const unfollowUserService = async (
   });
 };
 
+/**
+ * Removes someone from your followers (like Instagram's "Remove"): they stop
+ * following you, without you blocking them. They aren't notified and can
+ * follow you again later.
+ */
+export const removeFollowerService = async (
+  userId: string,
+  followerId: string
+) => {
+  if (userId === followerId) {
+    throw new AppError("You can't remove yourself.", 400);
+  }
+
+  const { count } = await prisma.follow.deleteMany({
+    where: { followerId, followingId: userId },
+  });
+
+  if (count === 0) {
+    throw new AppError("This person doesn't follow you.", 404);
+  }
+};
+
 export const getFollowersService = async (
   userId: string,
   page: number,
