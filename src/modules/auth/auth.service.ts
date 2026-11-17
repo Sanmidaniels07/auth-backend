@@ -78,6 +78,16 @@ export const signupService = async (data: SignupData) => {
     where: { email: { equals: email, mode: "insensitive" } },
   });
 
+  if (existingUser?.isGuest && !existingUser.deletedAt) {
+    // They checked out as a guest with this email. Setting a password
+    // through the emailed link proves it's theirs before they see orders.
+    await forgotPasswordService(existingUser.email);
+    throw new AppError(
+      "You've already ordered on Nestly with this email. We've emailed you a link to set your password.",
+      409
+    );
+  }
+
   if (existingUser) {
     throw new Error("User already exists");
   }
@@ -142,6 +152,13 @@ export const loginService = async (
   }
 
   assertCanSignIn(user);
+
+  if (!user.password && user.isGuest) {
+    throw new AppError(
+      "You checked out as a guest with this email. Tap Forgot password to set a password and see your orders.",
+      400
+    );
+  }
 
   if (!user.password) {
     throw new AppError(
@@ -231,11 +248,12 @@ export const googleAuthService = async (
     // person's address first) - so that password and its sessions go, and
     // the owner can add their own password later.
     let user = existing;
-    if (existing.googleId !== google.googleId || !existing.isVerified || (!existing.avatar && google.picture)) {
+    if (existing.googleId !== google.googleId || !existing.isVerified || existing.isGuest || (!existing.avatar && google.picture)) {
       const link = prisma.user.update({
         where: { id: existing.id },
         data: {
           googleId: google.googleId,
+          isGuest: false,
           ...(existing.isVerified
             ? {}
             : { isVerified: true, password: null, verificationToken: null, verificationTokenExpiry: null }),
@@ -306,7 +324,7 @@ export const forgotPasswordService = async (email: string) => {
 
   sendEmail(
     user.email,
-    "Reset your password",
+    user.isGuest ? "Set your Nestly password" : "Reset your password",
     resetTemplate(user.name, resetUrl)
   ).catch(console.error);
 
@@ -343,6 +361,8 @@ export const resetPasswordService = async (token: string, password: string) => {
       password: hashedPassword,
       resetToken: null,
       resetTokenExpiry: null,
+      // Guest checkout account: the emailed link proved the email is theirs.
+      ...(user.isGuest ? { isGuest: false, isVerified: true } : {}),
     },
   });
 

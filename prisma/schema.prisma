@@ -242,6 +242,12 @@ model User {
 
   isVerified Boolean @default(false)
 
+  // Made when someone paid through a payment link without an account
+  // (guest checkout): no password, no Google, kept out of search and
+  // suggestions. Becomes a normal account once they set a password or
+  // continue with Google.
+  isGuest Boolean @default(false)
+
   status       UserStatus @default(ACTIVE)
   statusReason String?
 
@@ -1664,6 +1670,11 @@ model Order {
 
   // Where the buyer came from before this order (admin overview).
   source TrafficSource?
+
+  // Guest checkout: the secret in the buyer's private tracking link
+  // (/orders/track/{token}) - how someone without a login sees the order,
+  // their delivery code, and confirms it arrived.
+  guestAccessToken String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

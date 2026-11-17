@@ -211,3 +211,178 @@
  *       404:
  *         description: Link or address not found
  */
+
+/**
+ * @swagger
+ * /api/payment-links/{code}/guest-pay:
+ *   post:
+ *     summary: Pay through a payment link without an account (guest checkout)
+ *     description: |
+ *       No login. For buyers arriving from a seller's Instagram or WhatsApp. Behind the scenes the buyer gets a guest account (`isGuest`, no password) so the order works like any other - stock hold, delivery code, seller notified, payout split, emails.
+ *       - An email that belongs to a full Nestly account gets **409** - log in and use POST /pay instead.
+ *       - An email already used for guest checkout reuses that guest account (no session is created).
+ *       - `address`, `city` and `state` are required unless the buyer collects it (PICKUP links, or a pickup point on STORE_OPTIONS links).
+ *       - `referralCode` (the store's ?ref= code) counts the new guest for that store, as at signup.
+ *       Returns `guestToken` - the secret for the buyer's private tracking page (/orders/track/{guestToken}), also linked from the order emails. Confirm the payment with POST /guest-orders/{token}/verify.
+ *       Rate limited: 8 per 10 minutes per IP (429).
+ *     tags:
+ *       - PaymentLink
+ *     parameters:
+ *       - in: path
+ *         name: code
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, email, phone]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Tola Adebayo
+ *               email:
+ *                 type: string
+ *                 example: tola@example.com
+ *               phone:
+ *                 type: string
+ *                 example: 0803 123 4567
+ *                 description: The seller calls this number to deliver.
+ *               address:
+ *                 type: string
+ *               city:
+ *                 type: string
+ *               state:
+ *                 type: string
+ *               quantity:
+ *                 type: integer
+ *                 minimum: 1
+ *               shippingOptionId:
+ *                 type: string
+ *                 description: Required for STORE_OPTIONS links.
+ *               note:
+ *                 type: string
+ *                 maxLength: 500
+ *               source:
+ *                 type: string
+ *               referralCode:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Payment started - `{ orderId, reference, accessCode, authorizationUrl, total, guestToken }`
+ *       400:
+ *         description: Paused, sold out, not enough left, missing address or delivery choice
+ *       404:
+ *         description: Link not found
+ *       409:
+ *         description: The email belongs to a Nestly account - log in to pay
+ *       429:
+ *         description: Too many attempts
+ */
+
+/**
+ * @swagger
+ * /api/payment-links/guest-orders/{token}:
+ *   get:
+ *     summary: A guest's order (private tracking page)
+ *     description: No login - the token from guest checkout is the access. Same shape as GET /api/orders/{id} (items with delivery state, shipping with delivery codes, timeline), plus `store`, `paymentLinkCode` and `buyer` - `{ name, email (masked), isGuest }`. `isGuest` false means they've set up their account, so the order is also under My orders.
+ *     tags:
+ *       - PaymentLink
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: The order
+ *       404:
+ *         description: No order for this link
+ */
+
+/**
+ * @swagger
+ * /api/payment-links/guest-orders/{token}/verify:
+ *   post:
+ *     summary: Confirm a guest's payment
+ *     description: Call after the Paystack popup succeeds (the webhook also confirms it). Idempotent. Returns the order as GET /guest-orders/{token}.
+ *     tags:
+ *       - PaymentLink
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Payment confirmed - the order
+ *       400:
+ *         description: Payment not successful or amount mismatch
+ */
+
+/**
+ * @swagger
+ * /api/payment-links/guest-orders/{token}/items/{orderItemId}/confirm-delivery:
+ *   post:
+ *     summary: A guest confirms their item arrived
+ *     description: Same rules as POST /api/orders/items/{orderItemId}/confirm-delivery - only for items the seller marked delivered. Returns the order.
+ *     tags:
+ *       - PaymentLink
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: orderItemId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Confirmed - the order
+ *       400:
+ *         description: Not marked delivered yet, or already confirmed
+ *       404:
+ *         description: Item not in this order
+ */
+
+/**
+ * @swagger
+ * /api/payment-links/guest-orders/{token}/claim:
+ *   post:
+ *     summary: Turn the guest account into a full account
+ *     description: |
+ *       Sets a password and signs the buyer in (returns `{ emailSent: false, accessToken, user }` and sets the refresh cookie, as at login). A verification email is sent, as at signup.
+ *       If the guest account has other orders, this link alone isn't enough proof (anyone can type an email at checkout): a set-password link is emailed instead and the response is `{ emailSent: true, email }` (masked).
+ *     tags:
+ *       - PaymentLink
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [password]
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 minLength: 6
+ *     responses:
+ *       200:
+ *         description: Account ready (signed in), or set-password link emailed
+ *       400:
+ *         description: The order already belongs to a full account - log in
+ */

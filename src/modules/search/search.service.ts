@@ -43,6 +43,8 @@ export const quickSearchService = async (
       prisma.user.findMany({
         where: {
           deletedAt: null,
+          // Guest-checkout accounts aren't profiles.
+          isGuest: false,
           id: blockedIds.length
             ? { notIn: blockedIds }
             : undefined,
@@ -134,6 +136,7 @@ export const searchByTypeService = async (
   if (type === "users") {
     const where: any = {
       deletedAt: null,
+      isGuest: false,
       id: blockedIds.length ? { notIn: blockedIds } : undefined,
       OR: [
         { name: { contains: q, mode: "insensitive" } },

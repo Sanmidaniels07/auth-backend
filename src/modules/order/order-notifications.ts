@@ -40,7 +40,17 @@ interface Delivery {
 }
 
 export const frontend = () => process.env.FRONTEND_URL ?? "";
-export const buyerOrderUrl = (orderId: string) => `${frontend()}/marketplace/orders/${orderId}`;
+/** A guest's private order page (guest checkout through a payment link). */
+export const guestOrderUrl = (token: string) => `${frontend()}/orders/track/${token}`;
+/**
+ * Where the buyer's emails send them: their order page, or - for someone
+ * who paid as a guest and hasn't set up their account yet - the private
+ * tracking link for that order.
+ */
+export const buyerOrderUrl = (order: { id: string; guestAccessToken?: string | null; user?: { isGuest?: boolean } }) =>
+  order.guestAccessToken && order.user?.isGuest
+    ? guestOrderUrl(order.guestAccessToken)
+    : `${frontend()}/marketplace/orders/${order.id}`;
 const sellerOrdersUrl = () => `${frontend()}/settings/marketplace?tab=orders`;
 export const sellerReturnsUrl = () => `${frontend()}/settings/marketplace?tab=returns`;
 export const buyerReturnsUrl = () => `${frontend()}/marketplace/returns`;
@@ -61,7 +71,7 @@ export const safely = (label: string, fn: () => Promise<void>) => {
   fn().catch((error) => console.error(`${label} failed:`, error));
 };
 
-export const USER_SELECT = { id: true, name: true, email: true } as const;
+export const USER_SELECT = { id: true, name: true, email: true, isGuest: true } as const;
 
 const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
 
@@ -123,7 +133,7 @@ export const notifyOrderPaid = (orderId: string, { buyer = true }: { buyer?: boo
           codes: order.shipping
             .filter((s) => s.deliveryCode)
             .map((s) => ({ storeName: s.store.name, code: s.deliveryCode as string, pickupAddress: s.pickupAddress })),
-          orderUrl: buyerOrderUrl(order.id),
+          orderUrl: buyerOrderUrl(order),
         }),
       },
     });
@@ -197,7 +207,7 @@ export const notifyItemStatusChanged = (orderItemId: string, status: OrderItemSt
       where: { id: orderItemId },
       include: {
         product: { select: { title: true, storeId: true, store: { select: { name: true } }, category: { select: { isPerishable: true } } } },
-        order: { select: { id: true, user: { select: USER_SELECT } } },
+        order: { select: { id: true, guestAccessToken: true, user: { select: USER_SELECT } } },
       },
     });
     if (!item) return;
@@ -229,7 +239,7 @@ export const notifyItemStatusChanged = (orderItemId: string, status: OrderItemSt
     const number = orderNumber(item.order.id);
     const storeName = item.product.store.name;
     const target = { type: "ORDER" as const, id: item.order.id };
-    const orderUrl = buyerOrderUrl(item.order.id);
+    const orderUrl = buyerOrderUrl(item.order);
 
     if (status === OrderItemStatus.PROCESSING) {
       await deliver({ to: buyer, title: "Order being prepared", message: `${storeName} is preparing your order ${number}.`, target });
@@ -293,7 +303,7 @@ const sellerOfItem = (orderItemId: string) =>
   prisma.orderItem.findUnique({
     where: { id: orderItemId },
     include: {
-      order: { select: { id: true, user: { select: USER_SELECT } } },
+      order: { select: { id: true, guestAccessToken: true, user: { select: USER_SELECT } } },
       product: {
         select: {
           title: true,
@@ -362,7 +372,7 @@ export const notifySoldOutRefund = (orderId: string, refunded: boolean) =>
   safely("Sold-out refund notifications", async () => {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, total: true, cancelReason: true, paymentReference: true, user: { select: USER_SELECT } },
+      select: { id: true, total: true, cancelReason: true, paymentReference: true, guestAccessToken: true, user: { select: USER_SELECT } },
     });
     if (!order) return;
 
@@ -384,7 +394,7 @@ export const notifySoldOutRefund = (orderId: string, refunded: boolean) =>
           reason,
           total: order.total,
           refunded,
-          orderUrl: buyerOrderUrl(order.id),
+          orderUrl: buyerOrderUrl(order),
         }),
       },
     });
