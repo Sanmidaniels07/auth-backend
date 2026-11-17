@@ -7,6 +7,7 @@ import {
   Prisma,
   ReturnRequestStatus,
   Role,
+  SellerStatus,
 } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
@@ -20,7 +21,7 @@ import { createTransferRecipient, initiateTransfer, TransferResult, verifyTransf
 import { createNotificationService } from "../notification/notification.service";
 import { deliver, safely, sellerEarningsUrl, USER_SELECT } from "../order/order-notifications";
 import { orderNumber, returnWindowEndsAt } from "../order/order-delivery";
-import { getSellerStore } from "../seller/seller.utils";
+import { getSellerStoreForOrders } from "../seller/seller.utils";
 import { PAYOUT_ACCOUNT_HOLD_HOURS } from "../store/store.service";
 import { naira, payoutSentEmail } from "../../templates/payout-emails.template";
 
@@ -93,6 +94,15 @@ export const evaluateUnit = (unit: Unit, now = new Date()) => {
     Math.max(...kept.map((item) => returnWindowEndsAt(item.deliveryConfirmedAt!, item.product.category.isPerishable).getTime()))
   );
   return { ...base, releaseAt, state: (releaseAt > now ? "IN_RETURN_WINDOW" : "READY") as UnitState };
+};
+
+/**
+ * What Nestly is holding for a store right now: every held part of a paid
+ * order not yet paid out, less refunds (naira).
+ */
+export const heldAmountForStore = async (storeId: string) => {
+  const units = await loadUnits({ storeId, payoutId: null });
+  return round(units.reduce((sum, unit) => sum + evaluateUnit(unit).amount, 0));
 };
 
 /** Held, unsettled payout units (paid orders the seller can see). */
@@ -398,9 +408,11 @@ export const payHeldManuallyService = async (adminUserId: string, storeId: strin
   const amount = round(ready.reduce((sum, unit) => sum + evaluateUnit(unit).amount, 0));
   const store = await prisma.store.findUnique({
     where: { id: storeId },
-    select: { payoutBankName: true, payoutAccountNumber: true, underReview: true },
+    select: { payoutBankName: true, payoutAccountNumber: true, underReview: true, seller: { select: { status: true } } },
   });
-  if (store?.underReview) {
+  // Not reviewed yet: review first. A rejected seller (money held after a
+  // fraud rejection) can be paid by hand - that's the admin's call.
+  if (store?.underReview && store.seller.status !== SellerStatus.REJECTED) {
     throw new AppError("This store hasn't been reviewed yet. Review the seller (Sellers → Mark reviewed) before paying them.", 400);
   }
 
@@ -447,7 +459,7 @@ const TOTAL_KEYS = ["AWAITING_DELIVERY", "IN_RETURN_WINDOW", "ON_HOLD", "READY",
 
 /** A seller's earnings under hold-then-pay: what's coming, when, and what's been paid. */
 export const getMyPayoutsService = async (userId: string) => {
-  const store = await getSellerStore(userId);
+  const store = await getSellerStoreForOrders(userId);
   const now = new Date();
 
   const [units, payouts, paid, legacy, bank] = await Promise.all([

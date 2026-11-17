@@ -49,3 +49,23 @@ export const getSellerStore = async (userId: string) => {
 
   return store;
 };
+
+/**
+ * The seller's store for working on orders already placed (orders, returns,
+ * earnings). Like getSellerStore, but a seller rejected with "stop new
+ * sales" (Store.salesStoppedAt) still gets in, so they can finish the
+ * orders buyers have already paid for.
+ */
+export const getSellerStoreForOrders = async (userId: string) => {
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { userId },
+    include: { store: true },
+  });
+
+  // (Also while a reapplication is pending.)
+  if (seller && seller.status !== SellerStatus.APPROVED && seller.store?.salesStoppedAt) {
+    return seller.store;
+  }
+
+  return getSellerStore(userId);
+};

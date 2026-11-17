@@ -236,3 +236,22 @@ export const soldOutRefundEmail = (opts: { name: string; orderNumber: string; re
       ${emailButton("View order", opts.orderUrl)}
     `,
   });
+
+// A seller was removed from Nestly (rejected as fraud): the items the buyer
+// hadn't received are cancelled and their money is coming back.
+export const sellerRemovedRefundEmail = (opts: { name: string; orderNumber: string; storeName: string; amount: number; refunded: boolean; orderUrl: string }) =>
+  renderEmailLayout({
+    preheader: opts.refunded ? `We're refunding ${naira(opts.amount)} for order ${opts.orderNumber}` : `About your payment for order ${opts.orderNumber}`,
+    eyebrow: "Order update",
+    heading: "We've cancelled your order",
+    bodyHtml: `
+      <p style="margin:0;">Hi ${escapeHtml(opts.name)}, <strong>${escapeHtml(opts.storeName)}</strong> has been removed from Nestly, so we've cancelled the items from order <strong>${opts.orderNumber}</strong> that you hadn't received yet. Nothing more will be sent by this seller.</p>
+      ${
+        opts.refunded
+          ? emailNotice(`Your ${naira(opts.amount)} is on its way back to the card or account you paid with. Refunds usually arrive within 5-10 business days, depending on your bank.`)
+          : emailNotice(`Our team will refund your ${naira(opts.amount)} by hand and email you once it's sent. You don't need to do anything.`, "warning")
+      }
+      ${emailNotice("Your payment was held by Nestly the whole time - this is why you pay through Nestly and not the seller directly.")}
+      ${emailButton("View order", opts.orderUrl)}
+    `,
+  });

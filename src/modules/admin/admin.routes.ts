@@ -24,6 +24,7 @@ import {
   updateSellerStatus,
   setSellerVerified,
   recheckSellerCac,
+  getSellerOpenOrders,
   listProductsAdmin,
   getProductHistoryAdmin,
   setProductFeatured,
@@ -80,6 +81,13 @@ router.post(
   "/sellers/:id/cac-check",
   validate(recheckSellerCacSchema),
   recheckSellerCac
+);
+
+// Before rejecting: open orders, what fraud mode would refund, money held.
+router.get(
+  "/sellers/:id/open-orders",
+  validate(recheckSellerCacSchema),
+  getSellerOpenOrders
 );
 
 router.get(

@@ -6,6 +6,7 @@ import { createNotificationService } from "../notification/notification.service"
 import { READINESS_SELECT, READINESS_STEPS, missingSetup } from "../../utils/sellerReadiness";
 import { isDojahConfigured } from "../../utils/dojah";
 import { newSellerOrderLimit } from "../../utils/sellerReview";
+import { heldAmountForStore } from "../payout/held-payout.service";
 import { checkSellerCac } from "./cac-check.service";
 import { createStoreService } from "../store/store.service";
 import { QuickStartSellerInput } from "./seller.validation";
@@ -272,10 +273,13 @@ export const getSellerProfileService = async (
     );
   }
 
+  const underReview = !!seller.store?.underReview;
   return {
     ...withReapplyInfo(seller),
     // A store still under review: the most one order from it can be (naira).
-    orderLimit: seller.store?.underReview ? newSellerOrderLimit() : null,
+    orderLimit: underReview ? newSellerOrderLimit() : null,
+    // ...and what Nestly is holding for it until the review (naira).
+    heldForReview: underReview && seller.store ? await heldAmountForStore(seller.store.id) : null,
   };
 };
 

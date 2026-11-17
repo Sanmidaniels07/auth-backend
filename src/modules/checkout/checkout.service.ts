@@ -199,6 +199,15 @@ const buildPendingOrder = async (
   let deliveryFee = 0;
 
   for (const store of stores) {
+    // A suspended (or rejected) store takes no new orders, even from carts
+    // filled before it was taken down.
+    if (store.isSuspended) {
+      throw new AppError(
+        `"${store.name}" isn't selling on Nestly right now. Remove its items from your cart to check out the rest.`,
+        400,
+      );
+    }
+
     // The buyer needs a way to get the order - at least one delivery zone
     // or a pickup point (pickup on its own is fine).
     if (store.shippingOptions.length === 0) {

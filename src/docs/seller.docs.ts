@@ -46,7 +46,8 @@
  * /api/seller/me:
  *   get:
  *     summary: Get the authenticated user's seller profile
- *     description: Returns the seller profile (including its store, if one exists) for the authenticated user. Requires authentication and an existing seller profile. Check the status field (PENDING, APPROVED, REJECTED) and statusReason to see approval state. When status is REJECTED, also returns reapplyEligibleAt (ISO datetime the 3-day cooldown ends) and canReapply (boolean) - use these to drive a reapply countdown on the frontend instead of guessing from statusUpdatedAt yourself. `orderLimit` (naira) is set while the store is underReview (quick start, not yet reviewed by an admin) - the most one order from the store can be; null otherwise.
+ *     description: >-
+ *       Returns the seller profile (including its store, if one exists) for the authenticated user. Requires authentication and an existing seller profile. Check the status field (PENDING, APPROVED, REJECTED) and statusReason to see approval state. When status is REJECTED, also returns reapplyEligibleAt (ISO datetime the 3-day cooldown ends) and canReapply (boolean) - use these to drive a reapply countdown on the frontend instead of guessing from statusUpdatedAt yourself. `orderLimit` (naira) is set while the store is underReview (quick start, not yet reviewed by an admin) - the most one order from the store can be; null otherwise. `heldForReview` (naira), also while under review: what Nestly is holding for the store until the review.
  *     tags:
  *       - Seller
  *     security:
@@ -60,7 +61,8 @@
  *         description: Seller profile not found
  *   patch:
  *     summary: Update the authenticated user's seller profile
- *     description: Updates seller profile fields for the authenticated user. Requires authentication and an existing seller profile. `cacNumber` can be added or changed at any time (letters and numbers, stored uppercase without spaces; "" removes it). A new or changed number (or `cacCompanyType`) clears the business verification and the store's verified badge, then the number is looked up on the CAC register (Dojah) before the response returns. An active business whose registered name matches the store name is verified automatically (seller notified; `cacCheckResult` VERIFIED). Otherwise `cacCheckResult` is AWAITING_STORE (no store yet - compared when the store is created), NAME_MISMATCH, INACTIVE, NOT_FOUND or FAILED, and admins are notified with what the register said (not for AWAITING_STORE). Renaming the store compares the name again without a new lookup. Without Dojah keys, admins are notified to check by hand as before. Approved sellers without a CAC number (with or without a store) get reminders in-app and by email: 3 days after approval, then every 14 days until they add one.
+ *     description: >-
+ *       Updates seller profile fields for the authenticated user. Requires authentication and an existing seller profile. `cacNumber` can be added or changed at any time (letters and numbers, stored uppercase without spaces; "" removes it). A new or changed number (or `cacCompanyType`) clears the business verification and the store's verified badge, then the number is looked up on the CAC register (Dojah) before the response returns. An active business whose registered name matches the store name is verified automatically (seller notified; `cacCheckResult` VERIFIED). Otherwise `cacCheckResult` is AWAITING_STORE (no store yet - compared when the store is created), NAME_MISMATCH, INACTIVE, NOT_FOUND or FAILED, and admins are notified with what the register said (not for AWAITING_STORE). Renaming the store compares the name again without a new lookup. Without Dojah keys, admins are notified to check by hand as before. Approved sellers without a CAC number (with or without a store) get reminders in-app and by email: 3 days after approval, then every 14 days until they add one.
  *     tags:
  *       - Seller
  *     security:
@@ -96,7 +98,8 @@
  * /api/seller/me/readiness:
  *   get:
  *     summary: What's left before buyers can order from this seller
- *     description: Requires authentication and a seller profile. For approved sellers, `missing` lists the steps still to do - STORE (set up the store), PAYOUT (payout bank account), DELIVERY (at least one active delivery zone or pickup), PRODUCT (at least one published product) - each with `title`, `why` and `path` (where to do it). `ready` is true when nothing is missing. Approved sellers who aren't ready also get reminders in-app and by email: 2 days after approval, then weekly until done.
+ *     description: >-
+ *       Requires authentication and a seller profile. For approved sellers, `missing` lists the steps still to do - STORE (set up the store), PAYOUT (payout bank account), DELIVERY (at least one active delivery zone or pickup), PRODUCT (at least one published product) - each with `title`, `why` and `path` (where to do it). `ready` is true when nothing is missing. Approved sellers who aren't ready also get reminders in-app and by email: 2 days after approval, then weekly until done.
  *     tags:
  *       - Seller
  *     security:

@@ -6,6 +6,7 @@ import { createNotificationService } from "../notification/notification.service"
 import { SELLER_REAPPLY_COOLDOWN_DAYS } from "../seller/seller.service";
 import { checkSellerCac } from "../seller/cac-check.service";
 import { isDojahConfigured } from "../../utils/dojah";
+import { openOrdersSummaryService, refundOpenOrdersForFraud } from "./seller-rejection.service";
 
 const ADMIN_USER_SELECT = {
   id: true,
@@ -297,10 +298,28 @@ export const recheckSellerCacService = async (sellerId: string) => {
   });
 };
 
+/**
+ * How a rejection treats orders already paid (admin/seller-rejection):
+ * STOP_SALES (default) - the store stops taking orders, the seller finishes
+ * the open ones and is paid for them as usual. FRAUD - undelivered orders
+ * are cancelled and refunded; what's held stays held for the admins.
+ */
+export type RejectMode = "STOP_SALES" | "FRAUD";
+
+/** Before rejecting: the seller's open orders and money held (all zero without a store). */
+export const getSellerOpenOrdersService = async (sellerId: string) => {
+  const store = await prisma.store.findUnique({ where: { sellerId }, select: { id: true } });
+  if (!store) {
+    return { openOrders: 0, openAmount: 0, refundableOrders: 0, refundableAmount: 0, manualOrders: 0, heldAmount: 0 };
+  }
+  return openOrdersSummaryService(store.id);
+};
+
 export const updateSellerStatusService = async (
   sellerId: string,
   status: SellerStatus,
-  reason?: string
+  reason?: string,
+  rejectMode: RejectMode = "STOP_SALES"
 ) => {
   const seller = await prisma.sellerProfile.findUnique({
     where: { id: sellerId },
@@ -313,10 +332,11 @@ export const updateSellerStatusService = async (
   const now = new Date();
   const store = await prisma.store.findUnique({
     where: { sellerId },
-    select: { id: true, name: true, underReview: true },
+    select: { id: true, name: true, underReview: true, salesStoppedAt: true },
   });
   // A quick-start seller already selling: approving is the review.
   const reviewing = status === SellerStatus.APPROVED && seller.status === SellerStatus.APPROVED && !!store?.underReview;
+  const fraud = status === SellerStatus.REJECTED && rejectMode === "FRAUD";
 
   await prisma.sellerProfile.update({
     where: { id: sellerId },
@@ -327,20 +347,33 @@ export const updateSellerStatusService = async (
     },
   });
 
-  if (store?.underReview) {
-    await prisma.store.update({
-      where: { id: store.id },
-      // Approved: the safeguards go and held payouts are paid as usual.
-      // Rejected: the store comes down at once (its links stop working);
-      // money still held stays held for the admins to refund or release.
-      data: status === SellerStatus.APPROVED ? { underReview: false } : { isSuspended: true },
-    });
+  if (store) {
+    const data =
+      status === SellerStatus.APPROVED
+        ? {
+            // The review: safeguards go and held payouts are paid as usual.
+            underReview: false,
+            // Approved again after "stop new sales": the store reopens.
+            ...(store.salesStoppedAt ? { isSuspended: false, salesStoppedAt: null } : {}),
+          }
+        : fraud
+          ? // Down at once; nothing held is paid out until an admin decides.
+            { isSuspended: true, salesStoppedAt: null, underReview: true }
+          : // No new orders; the open ones are finished and paid as usual.
+            { isSuspended: true, salesStoppedAt: now, underReview: false };
+    await prisma.store.update({ where: { id: store.id }, data });
   }
 
-  const updated = await prisma.sellerProfile.findUniqueOrThrow({
-    where: { id: sellerId },
-    select: ADMIN_SELLER_SELECT,
-  });
+  const refunds = fraud && store ? await refundOpenOrdersForFraud(store.id, store.name) : null;
+
+  const updated = {
+    ...(await prisma.sellerProfile.findUniqueOrThrow({
+      where: { id: sellerId },
+      select: ADMIN_SELLER_SELECT,
+    })),
+    // Fraud rejections: what was refunded automatically.
+    refunds,
+  };
 
   if (reviewing) {
     await createNotificationService(
@@ -355,7 +388,13 @@ export const updateSellerStatusService = async (
 
   const reapplyMessage =
     status === SellerStatus.REJECTED
-      ? ` You can reapply in ${SELLER_REAPPLY_COOLDOWN_DAYS} days.`
+      ? `${
+          !store
+            ? ""
+            : fraud
+              ? " Your store has been closed and orders not yet delivered were cancelled and refunded to the buyers."
+              : " Your store no longer takes new orders, but you can still finish the orders already paid: Seller Hub → Orders. You're paid for them as usual."
+        } You can reapply in ${SELLER_REAPPLY_COOLDOWN_DAYS} days.`
       : "";
 
   await createNotificationService(

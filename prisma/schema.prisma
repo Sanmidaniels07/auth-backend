@@ -1044,6 +1044,16 @@ model Store {
   // (utils/sellerReview).
   underReview Boolean @default(false)
 
+  // Admin reminders sent while this store waited for its review: 1 after a
+  // day, 2 when overdue (two days) - jobs/review-reminders.
+  reviewRemindersSent Int @default(0)
+
+  // Set when the seller was rejected with "stop new sales": the store is
+  // suspended (no new orders), but the seller can still fulfil and finish
+  // the orders already paid, and is paid for them as usual. Cleared if
+  // they're approved again.
+  salesStoppedAt DateTime?
+
   // Where buyers can also find the seller - shown as buttons on the store
   // page. Stored normalised: handles without "@" or URL, WhatsApp as an
   // international number (2348012345678).

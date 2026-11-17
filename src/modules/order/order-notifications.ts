@@ -10,6 +10,7 @@ import {
   orderConfirmedEmail,
   orderDeliveredEmail,
   orderShippedEmail,
+  sellerRemovedRefundEmail,
   soldOutRefundEmail,
 } from "../../templates/order-emails.template";
 import { AUTO_CONFIRM_DAYS, orderNumber, returnWindowLabel } from "./order-delivery";
@@ -413,4 +414,30 @@ export const notifySoldOutRefund = (orderId: string, refunded: boolean) =>
         )
       )
     );
+  });
+
+// The seller was rejected as fraud (admin/seller-rejection): the buyer hears
+// their undelivered items were cancelled and how much is coming back.
+export const notifySellerRemovedRefund = (orderId: string, storeName: string, amount: number, refunded: boolean) =>
+  safely("Seller removed refund notifications", async () => {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, guestAccessToken: true, user: { select: USER_SELECT } },
+    });
+    if (!order) return;
+    const number = orderNumber(order.id);
+    const money = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(amount);
+
+    await deliver({
+      to: order.user,
+      title: `Order cancelled - refund ${refunded ? "on its way" : "coming"}`,
+      message: `${storeName} was removed from Nestly. We cancelled what you hadn't received from order ${number} and ${
+        refunded ? `are refunding ${money}` : "our team will refund you shortly"
+      }.`,
+      target: { type: "ORDER", id: order.id },
+      email: {
+        subject: `Order ${number} cancelled - ${money} refund ${refunded ? "on its way" : "coming"}`,
+        html: sellerRemovedRefundEmail({ name: order.user.name, orderNumber: number, storeName, amount, refunded, orderUrl: buyerOrderUrl(order) }),
+      },
+    });
   });
