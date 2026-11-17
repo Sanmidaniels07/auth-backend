@@ -213,6 +213,8 @@ export const getConversationsService = async (
           include: {
             media: { orderBy: { order: "asc" as const } },
             product: { select: { title: true } },
+            // Chat list preview: "Offer: ₦15,000 for Red velvet cake".
+            offer: { select: { title: true, price: true } },
           },
         },
       },
