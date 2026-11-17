@@ -39,3 +39,70 @@
  *       200:
  *         description: "{ items, nextBefore, highlights }"
  */
+
+/**
+ * @swagger
+ * /api/feed/area:
+ *   get:
+ *     summary: The area "Near me" uses
+ *     description: >-
+ *       The one the viewer picked (source CHOSEN), else their default delivery address (ADDRESS), else their profile
+ *       location (PROFILE), else null. { state, area (null = the whole state), label e.g. "Lekki, Lagos", source }.
+ *       GET /api/feed?near=true shows only activity from stores based in or delivering to it (their new items, their
+ *       buyers' reviews, their product posts, their lives; reason NEAR) and adds `area` with `storeCount`; with no area
+ *       yet it returns no items and area null.
+ *     tags:
+ *       - Feed
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: The area, or null
+ *   put:
+ *     summary: Choose the area "Near me" uses
+ *     description: state (any spelling - "Lagos", "FCT"...) and optionally area (one of GET /area/options). 400 for unknown ones.
+ *     tags:
+ *       - Feed
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [state]
+ *             properties:
+ *               state:
+ *                 type: string
+ *                 example: Lagos
+ *               area:
+ *                 type: string
+ *                 nullable: true
+ *                 example: Lekki
+ *     responses:
+ *       200:
+ *         description: Saved - the area as GET returns it
+ *       400:
+ *         description: Unknown state or area
+ */
+
+/**
+ * @swagger
+ * /api/feed/area/options:
+ *   get:
+ *     summary: The areas of a state, for the "Near me" picker
+ *     tags:
+ *       - Feed
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: state
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: "{ state, areas }"
+ */

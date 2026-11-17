@@ -234,6 +234,12 @@ model User {
   location String?
   website  String?
 
+  // The area "Near me" in the feed uses (standard state and area names,
+  // utils/serviceAreas) - picked by them. Unset: their default address,
+  // then their profile location.
+  feedState String?
+  feedArea  String?
+
   socialLinks Json?
 
   occupation  String?

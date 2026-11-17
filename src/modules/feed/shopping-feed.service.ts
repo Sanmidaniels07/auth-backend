@@ -4,6 +4,7 @@ import prisma from "../../prisma/prisma";
 import { getBlockedUserIds } from "../block/block.service";
 import { POST_INCLUDE, withPostExtras } from "../posts/post.service";
 import { DAY_MS, nextBirthday, nigeriaToday } from "../../utils/birthday";
+import { resolveFeedArea, storesServing } from "./feed-area.service";
 
 // The shopping feed: what's actually happening on Nestly, not just posts.
 //
@@ -25,7 +26,8 @@ const DROP_LOOKBACK_DAYS = 14;
 // purchases and drops rise, plain posts sink (minutes).
 const BOOST_MINUTES = { PURCHASE: 180, DROP: 120, TAGGED_POST: 60, POST: -720 } as const;
 
-type Reason = "FOLLOWING" | "POPULAR";
+// NEAR: from a store based in or delivering to the viewer's area ("Near me").
+type Reason = "FOLLOWING" | "POPULAR" | "NEAR";
 
 const productCard = {
   select: {
@@ -58,13 +60,14 @@ const buyable = { status: ProductStatus.PUBLISHED, store: { isSuspended: false }
 // ---------------------------------------------------------------------------
 // Sources
 
-const purchases = async (before: Date, take: number, userIds: string[] | null, blocked: string[]) => {
+const purchases = async (before: Date, take: number, userIds: string[] | null, blocked: string[], nearStoreIds?: string[]) => {
   const reviews = await prisma.review.findMany({
     where: {
       createdAt: { lt: before },
       product: buyable,
       user: { deletedAt: null, isGuest: false },
-      ...(userIds
+      ...(nearStoreIds ? { storeId: { in: nearStoreIds }, rating: { gte: 3 }, userId: { notIn: blocked } } : {}),
+      ...(nearStoreIds ? {} : userIds
         ? { userId: { in: userIds } }
         : // Across Nestly: happy buyers who said something or showed it.
           { rating: { gte: 4 }, OR: [{ comment: { not: null } }, { images: { isEmpty: false } }], userId: { notIn: blocked } }),
@@ -124,12 +127,21 @@ const drops = async (before: Date, take: number, storeIds: string[] | null) => {
     }));
 };
 
-const posts = async (before: Date, take: number, authorIds: string[] | null, blocked: string[], viewerId: string) => {
+const posts = async (
+  before: Date,
+  take: number,
+  authorIds: string[] | null,
+  blocked: string[],
+  viewerId: string,
+  nearStoreIds?: string[]
+) => {
   const rows = await prisma.post.findMany({
     where: {
       isDeleted: false,
       createdAt: { lt: before },
-      ...(authorIds
+      ...(nearStoreIds
+        ? { product: { storeId: { in: nearStoreIds } }, authorId: { notIn: blocked } }
+        : authorIds
         ? { authorId: { in: authorIds } }
         : // Across Nestly: posts that show something you can buy.
           { productId: { not: null }, authorId: { notIn: blocked } }),
@@ -162,13 +174,17 @@ const boostOf = (item: FeedItem) =>
 // ---------------------------------------------------------------------------
 // Highlights (top of the feed)
 
-const highlights = async (viewerId: string, followingIds: string[], storeIds: string[], blocked: string[]) => {
+const highlights = async (viewerId: string, followingIds: string[], storeIds: string[], blocked: string[], nearStoreIds?: string[]) => {
   const [liveNow, people, groupGifts] = await Promise.all([
     prisma.liveSession.findMany({
       where: {
         status: LiveStatus.LIVE,
         store: { isSuspended: false },
-        ...(storeIds.length ? { OR: [{ storeId: { in: storeIds } }, { store: { isVerified: true } }] } : {}),
+        ...(nearStoreIds
+          ? { storeId: { in: nearStoreIds } }
+          : storeIds.length
+            ? { OR: [{ storeId: { in: storeIds } }, { store: { isVerified: true } }] }
+            : {}),
       },
       orderBy: { startedAt: "desc" },
       take: 8,
@@ -243,9 +259,10 @@ const highlights = async (viewerId: string, followingIds: string[], storeIds: st
  * One page of the shopping feed, older than `before` (the previous page's
  * `nextBefore`; omit for the first page, which also carries highlights).
  */
-export const getShoppingFeedService = async (viewerId: string, beforeInput?: Date, limit = 20) => {
+export const getShoppingFeedService = async (viewerId: string, beforeInput?: Date, limit = 20, near = false) => {
   const before = beforeInput ?? new Date();
   const first = !beforeInput;
+  if (near) return nearFeed(viewerId, before, first, limit);
 
   const [follows, storeFollows, blocked] = await Promise.all([
     prisma.follow.findMany({ where: { followerId: viewerId }, select: { followingId: true } }),
@@ -283,5 +300,44 @@ export const getShoppingFeedService = async (viewerId: string, beforeInput?: Dat
     items: ranked,
     nextBefore,
     highlights: first ? await highlights(viewerId, followingIds, storeIds, blocked) : null,
+  };
+};
+
+/**
+ * "Near me": activity from stores based in or delivering to the viewer's
+ * area - their new items, their buyers' reviews, their product posts and
+ * their lives - whoever the viewer follows. No area yet: `area` is null and
+ * the page asks them to pick one.
+ */
+const nearFeed = async (viewerId: string, before: Date, first: boolean, limit: number) => {
+  const area = await resolveFeedArea(viewerId);
+  if (!area) return { items: [], nextBefore: null, highlights: null, area: null };
+
+  const [follows, storeFollows, blocked, nearStoreIds] = await Promise.all([
+    prisma.follow.findMany({ where: { followerId: viewerId }, select: { followingId: true } }),
+    prisma.storeFollow.findMany({ where: { userId: viewerId }, select: { storeId: true } }),
+    getBlockedUserIds(viewerId),
+    storesServing(area.state, area.area),
+  ]);
+  const followingIds = follows.map((f) => f.followingId).filter((id) => !blocked.includes(id));
+  const storeIds = storeFollows.map((f) => f.storeId);
+
+  const items = nearStoreIds.length
+    ? [
+        ...(await purchases(before, limit, null, blocked, nearStoreIds)),
+        ...(await drops(before, limit, nearStoreIds)),
+        ...(await posts(before, limit, null, blocked, viewerId, nearStoreIds)),
+      ].map((item) => ({ ...item, reason: "NEAR" as Reason }))
+    : [];
+
+  const page = items.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, limit);
+  const nextBefore = page.length === limit ? page[page.length - 1].at : null;
+  const ranked = page.sort((a, b) => b.at.getTime() + boostOf(b) * 60_000 - (a.at.getTime() + boostOf(a) * 60_000));
+
+  return {
+    items: ranked,
+    nextBefore,
+    highlights: first ? await highlights(viewerId, followingIds, storeIds, blocked, nearStoreIds) : null,
+    area: { ...area, storeCount: nearStoreIds.length },
   };
 };
