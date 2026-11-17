@@ -182,7 +182,7 @@ const ADMIN_SELLER_SELECT = {
   // underReview: a quick-start store an admin hasn't reviewed yet - its
   // payouts are held and its orders capped until they do (utils/sellerReview).
   store: {
-    select: { id: true, name: true, slug: true, isSuspended: true, underReview: true, createdAt: true },
+    select: { id: true, name: true, slug: true, isSuspended: true, underReview: true, createdAt: true, salesStoppedAt: true },
   },
 };
 
