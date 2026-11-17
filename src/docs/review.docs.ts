@@ -33,6 +33,12 @@
  *                 maximum: 5
  *               comment:
  *                 type: string
+ *               images:
+ *                 type: array
+ *                 maxItems: 4
+ *                 items:
+ *                   type: string
+ *                 description: Photo URLs of what arrived (uploaded first) - shown on the product and in the shopping feed.
  *     responses:
  *       201:
  *         description: Review created successfully

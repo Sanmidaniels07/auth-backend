@@ -10,7 +10,7 @@ interface MediaInput {
   type: MediaType;
 }
 
-const POST_INCLUDE = {
+export const POST_INCLUDE = {
   // Public fields only - GET /posts works without logging in, so never
   // include the author's email here.
   author: {
@@ -51,7 +51,7 @@ type TaggedProduct = {
   store: { name: string; slug: string; isSuspended: boolean };
 } | null;
 
-const withPostExtras = <
+export const withPostExtras = <
   T extends {
     _count: { likes: number };
     hashtags: { hashtag: { tag: string } }[];

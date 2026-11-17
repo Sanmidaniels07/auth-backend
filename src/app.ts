@@ -47,6 +47,7 @@ import recommendationRoutes from "./modules/recommendation/recommendation.routes
 import paymentLinkRoutes from "./modules/payment-link/payment-link.routes";
 import offerRoutes from "./modules/offer/offer.routes";
 import groupGiftRoutes from "./modules/group-gift/group-gift.routes";
+import feedRoutes from "./modules/feed/feed.routes";
 import liveRoutes from "./modules/live/live.routes";
 import giftRoutes from "./modules/gift/gift.routes";
 import pushRoutes from "./modules/push/push.routes";
@@ -228,6 +229,7 @@ app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/payment-links", paymentLinkRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/group-gifts", groupGiftRoutes);
+app.use("/api/feed", feedRoutes);
 app.use("/api/lives", liveRoutes);
 app.use("/api/gifts", giftRoutes);
 app.use("/api/push", pushRoutes);

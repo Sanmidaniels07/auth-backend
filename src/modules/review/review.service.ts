@@ -21,7 +21,8 @@ export const createReviewService = async (
   userId: string,
   productId: string,
   rating: number,
-  comment?: string
+  comment?: string,
+  images: string[] = []
 ) => {
   const product = await prisma.product.findUnique({
     where: { id: productId },
@@ -67,6 +68,7 @@ export const createReviewService = async (
       storeId: product.storeId,
       rating,
       comment,
+      images,
     },
   });
 

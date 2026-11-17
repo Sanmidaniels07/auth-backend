@@ -1929,6 +1929,10 @@ model Review {
 
   comment String?
 
+  // Photos of what arrived (up to 4) - shown on the product and in the
+  // shopping feed as a real purchase.
+  images String[] @default([])
+
   reply     String?
   repliedAt DateTime?
 
