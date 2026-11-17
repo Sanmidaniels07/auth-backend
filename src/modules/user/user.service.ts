@@ -18,7 +18,8 @@ export const listUsersService = async (
 ) => {
   const skip = (page - 1) * limit;
 
-  const where: any = {};
+  // Guest-checkout accounts aren't profiles.
+  const where: any = { isGuest: false };
 
   if (excludeUserId) {
     where.id = { not: excludeUserId };
@@ -66,7 +67,7 @@ export const getSuggestedUsersService = async (
   ];
 
   const users = await prisma.user.findMany({
-    where: { id: { notIn: excludeIds } },
+    where: { id: { notIn: excludeIds }, isGuest: false },
     select: {
       ...USER_SUMMARY_SELECT,
       _count: { select: { followers: true } },

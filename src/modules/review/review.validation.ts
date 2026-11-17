@@ -5,6 +5,8 @@ export const createReviewSchema = z.object({
     productId: z.string(),
     rating: z.number().int().min(1).max(5),
     comment: z.string().trim().optional(),
+    // Photos of what arrived - shown on the product and in the shopping feed.
+    images: z.array(z.string().trim().url()).max(4, "Up to 4 photos.").optional(),
   }),
 });
 

@@ -11,7 +11,7 @@ import {
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { refundPaystackTransaction } from "../../utils/paystack";
-import { getSellerStore } from "../seller/seller.utils";
+import { getSellerStoreForOrders } from "../seller/seller.utils";
 import { asOrdered } from "../../utils/orderItemSnapshot";
 import { recordOrderEvent, returnWindowEndsAt, returnWindowLabel } from "../order/order-delivery";
 import { OPEN_RETURN_STATUSES } from "../../utils/returnStatuses";
@@ -223,7 +223,7 @@ const refundRequest = async (
 // ---- Seller ------------------------------------------------------------------
 
 const sellerRequest = async (userId: string, returnRequestId: string) => {
-  const store = await getSellerStore(userId);
+  const store = await getSellerStoreForOrders(userId);
   const request = await prisma.returnRequest.findUnique({
     where: { id: returnRequestId },
     include: { orderItem: { select: { product: { select: { storeId: true } } } } },
@@ -430,7 +430,7 @@ export const getCustomerReturnRequestsService = async (userId: string, page: num
 };
 
 export const getSellerReturnRequestsService = async (userId: string, page: number, limit: number, status?: ReturnRequestStatus) => {
-  const store = await getSellerStore(userId);
+  const store = await getSellerStoreForOrders(userId);
   const where: Prisma.ReturnRequestWhereInput = {
     orderItem: { product: { storeId: store.id } },
     ...(status ? { status } : {}),

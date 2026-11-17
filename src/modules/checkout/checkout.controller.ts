@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 
+import { confirmContributionService, isContributionReference } from "../group-gift/group-gift.service";
 import { asyncHandler } from "../../utils/asyncHandlers";
 import { apiResponse } from "../../utils/apiResponse";
 import { ReferenceParams } from "../../types/request.types";
@@ -84,7 +85,12 @@ export const paystackWebhook = asyncHandler(
 
     const event = req.body;
 
-    if (event.event === "charge.success") {
+    // A chip-in contribution (group-gift/) is its own payment, not an order.
+    if (event.event === "charge.success" && isContributionReference(String(event.data?.reference ?? ""))) {
+      await confirmContributionService(event.data.reference).catch((error) => {
+        console.error("Webhook contribution confirmation failed:", error);
+      });
+    } else if (event.event === "charge.success") {
       await confirmPaymentByReferenceService(
         event.data.reference
       ).catch((error) => {

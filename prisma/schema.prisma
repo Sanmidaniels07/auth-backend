@@ -209,6 +209,16 @@ enum NotificationType {
 model User {
   id String @id @default(cuid())
 
+  // Chip in on a gift (group-gift/).
+  groupGiftsOrganized   GroupGift[]             @relation("GroupGiftsOrganized")
+  groupGiftsFor         GroupGift[]             @relation("GroupGiftsFor")
+  groupGiftContributions GroupGiftContribution[] @relation("GroupGiftContributions")
+
+  // Make an offer in chat (offer/): as the buyer, offers they made, links reserved for them.
+  offersAsBuyer        Offer[]       @relation("OffersAsBuyer")
+  offersMade           Offer[]       @relation("OffersMade")
+  reservedPaymentLinks PaymentLink[] @relation("ReservedPaymentLinks")
+
   name     String
   email    String  @unique
   // Null for people who signed up with Google and never set one.
@@ -223,6 +233,12 @@ model User {
   bio      String?
   location String?
   website  String?
+
+  // The area "Near me" in the feed uses (standard state and area names,
+  // utils/serviceAreas) - picked by them. Unset: their default address,
+  // then their profile location.
+  feedState String?
+  feedArea  String?
 
   socialLinks Json?
 
@@ -241,6 +257,12 @@ model User {
   role Role @default(USER)
 
   isVerified Boolean @default(false)
+
+  // Made when someone paid through a payment link without an account
+  // (guest checkout): no password, no Google, kept out of search and
+  // suggestions. Becomes a normal account once they set a password or
+  // continue with Google.
+  isGuest Boolean @default(false)
 
   status       UserStatus @default(ACTIVE)
   statusReason String?
@@ -621,6 +643,7 @@ model Conversation {
 
   participants ConversationParticipant[]
   messages     Message[]
+  offers       Offer[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -663,6 +686,11 @@ model Message {
   // A product shared in the chat, shown as a card.
   productId String?
   product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // An offer card (make an offer in chat) - the offer's current state is
+  // read live, so accepting or declining updates the same card.
+  offerId String?
+  offer   Offer?  @relation(fields: [offerId], references: [id], onDelete: SetNull)
 
   reactions MessageReaction[]
 
@@ -998,6 +1026,11 @@ model SellerProfile {
 model Store {
   id String @id @default(cuid())
 
+  groupGifts GroupGift[]
+
+  // Offers made in chat to this store.
+  offers Offer[]
+
   sellerId String        @unique
   seller   SellerProfile @relation(fields: [sellerId], references: [id])
 
@@ -1030,6 +1063,23 @@ model Store {
   isVerified Boolean @default(false)
 
   isSuspended Boolean @default(false)
+
+  // Quick start: the seller began selling straight away, before an admin
+  // looked at them. Until an admin reviews the store (sets this false):
+  // every sale's payout is held (never split at checkout) and isn't sent
+  // until the review, and one order from the store is capped
+  // (utils/sellerReview).
+  underReview Boolean @default(false)
+
+  // Admin reminders sent while this store waited for its review: 1 after a
+  // day, 2 when overdue (two days) - jobs/review-reminders.
+  reviewRemindersSent Int @default(0)
+
+  // Set when the seller was rejected with "stop new sales": the store is
+  // suspended (no new orders), but the seller can still fulfil and finish
+  // the orders already paid, and is paid for them as usual. Cleared if
+  // they're approved again.
+  salesStoppedAt DateTime?
 
   // Where buyers can also find the seller - shown as buttons on the store
   // page. Stored normalised: handles without "@" or URL, WhatsApp as an
@@ -1202,6 +1252,8 @@ model ShippingOption {
 model Category {
   id String @id @default(cuid())
 
+  offers Offer[]
+
   name String
 
   slug String @unique
@@ -1229,6 +1281,11 @@ model Category {
 
 model Product {
   id String @id @default(cuid())
+
+  groupGifts GroupGift[]
+
+  // Offers made in chat for this listing.
+  offers Offer[]
 
   storeId String
   store   Store  @relation(fields: [storeId], references: [id])
@@ -1339,6 +1396,12 @@ model PaymentLink {
   // Paused links can't be paid; deleted ones are hidden from the seller too.
   isActive   Boolean @default(true)
   isArchived Boolean @default(false)
+
+  // Made from an accepted offer in chat: only this buyer can pay it (the
+  // price was agreed with them).
+  buyerId String?
+  buyer   User?   @relation("ReservedPaymentLinks", fields: [buyerId], references: [id], onDelete: SetNull)
+  offer   Offer?
 
   orders Order[]
 
@@ -1665,6 +1728,11 @@ model Order {
   // Where the buyer came from before this order (admin overview).
   source TrafficSource?
 
+  // Guest checkout: the secret in the buyer's private tracking link
+  // (/orders/track/{token}) - how someone without a login sees the order,
+  // their delivery code, and confirms it arrived.
+  guestAccessToken String? @unique
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1867,6 +1935,10 @@ model Review {
 
   comment String?
 
+  // Photos of what arrived (up to 4) - shown on the product and in the
+  // shopping feed as a real purchase.
+  images String[] @default([])
+
   reply     String?
   repliedAt DateTime?
 
@@ -1877,6 +1949,9 @@ model Review {
 
 model Gift {
   id String @id @default(cuid())
+
+  // Set when friends chipped in for it (group-gift/) - refunds go back to each of them.
+  groupGift GroupGift?
 
   // Short code in the link: nestlyapp.site/gift/{code}
   code String @unique
@@ -2064,4 +2139,165 @@ model LiveBan {
   createdAt DateTime @default(now())
 
   @@unique([liveSessionId, userId])
+}
+
+// Make an offer in chat: a buyer offers a price for something a seller
+// sells (a listed product or anything they describe); the seller accepts,
+// counters or declines; a counter is a new Offer the buyer can accept. An
+// accepted offer becomes a payment link only that buyer can pay.
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  COUNTERED // answered with a counter-offer (counters points to it)
+  WITHDRAWN // the person who made it took it back, or made a new one
+}
+
+model Offer {
+  id String @id @default(cuid())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  // The buyer in this negotiation, whoever made this particular offer.
+  buyerId String
+  buyer   User   @relation("OffersAsBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+
+  // Who made this offer: the buyer, or the seller (a counter).
+  createdById String
+  createdBy   User   @relation("OffersMade", fields: [createdById], references: [id], onDelete: Cascade)
+
+  // A listed product it's about, or null for something described.
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  title    String
+  // Naira, per item.
+  price    Float
+  quantity Int     @default(1)
+  note     String?
+
+  // Sets the commission for the link: the product's category, or chosen by
+  // the seller for a described item.
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  // Set by the seller when their store has no delivery zones: the delivery
+  // fee agreed for this deal (0 = free).
+  deliveryFee Float?
+
+  status OfferStatus @default(PENDING)
+
+  // The offer this one answers (a counter).
+  counterOfId String? @unique
+  counterOf   Offer?  @relation("OfferCounters", fields: [counterOfId], references: [id], onDelete: SetNull)
+  counteredBy Offer?  @relation("OfferCounters")
+
+  // Accepted: the payment link made for it.
+  paymentLinkId String?      @unique
+  paymentLink   PaymentLink? @relation(fields: [paymentLinkId], references: [id], onDelete: SetNull)
+
+  // Pending offers lapse after 48 hours.
+  expiresAt   DateTime
+  respondedAt DateTime?
+
+  messages Message[]
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([storeId, status])
+}
+
+// Chip in on a gift: friends each pay part of one gift (a listed product,
+// delivered to someone). Nestly holds every contribution; when they reach
+// the target a normal gift order is placed (gift/) at the price locked when
+// it started. Not reached by the deadline, or cancelled: everyone refunded.
+enum GroupGiftStatus {
+  OPEN
+  FUNDED // reached the target - the gift was placed (giftId)
+  CANCELLED // the organiser called it off - refunded
+  EXPIRED // the deadline passed first - refunded
+  FAILED // reached the target but the gift couldn't be placed (sold out) - refunded
+}
+
+enum ContributionStatus {
+  PENDING // payment started, not confirmed yet
+  PAID
+  REFUNDED
+  REFUND_FAILED // Paystack refused - admins refund by hand
+}
+
+model GroupGift {
+  id String @id @default(cuid())
+
+  // Short code in the link: nestlyapp.site/chip-in/{code}
+  code String @unique
+
+  organizerId String
+  organizer   User   @relation("GroupGiftsOrganized", fields: [organizerId], references: [id], onDelete: Cascade)
+
+  // Someone on Nestly (told when it's funded), or just a name for an open link.
+  recipientId   String?
+  recipient     User?   @relation("GroupGiftsFor", fields: [recipientId], references: [id], onDelete: SetNull)
+  recipientName String
+  message       String?
+
+  storeId   String
+  store     Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variationId      String?
+  // The seller's delivery zone or pickup point it goes through.
+  shippingOptionId String
+
+  // Locked when it started (naira): what friends are chipping in for.
+  unitPrice   Float
+  deliveryFee Float
+  target      Float
+
+  deadline DateTime
+  status   GroupGiftStatus @default(OPEN)
+  closedAt DateTime?
+
+  // Funded: the gift that was placed.
+  giftId String? @unique
+  gift   Gift?   @relation(fields: [giftId], references: [id], onDelete: SetNull)
+
+  contributions GroupGiftContribution[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, deadline])
+  @@index([organizerId, createdAt])
+}
+
+model GroupGiftContribution {
+  id String @id @default(cuid())
+
+  groupGiftId String
+  groupGift   GroupGift @relation(fields: [groupGiftId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation("GroupGiftContributions", fields: [userId], references: [id], onDelete: Cascade)
+
+  // Naira.
+  amount  Float
+  message String?
+  // Shown as "Someone" on the page.
+  hideName Boolean @default(false)
+
+  status           ContributionStatus @default(PENDING)
+  paymentReference String             @unique
+  paidAt           DateTime?
+  // Part of it given back (the last payment pushed the total over the target).
+  refundedAmount   Float              @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([groupGiftId, status])
 }

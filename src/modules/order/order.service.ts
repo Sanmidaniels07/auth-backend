@@ -13,7 +13,7 @@ import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
 import { SELLER_VISIBLE_ORDER } from "../../utils/giftOrders";
 import { asOrdered, listingChangedSince } from "../../utils/orderItemSnapshot";
-import { getSellerStore } from "../seller/seller.utils";
+import { getSellerStoreForOrders } from "../seller/seller.utils";
 import {
   MAX_DELIVERY_CODE_ATTEMPTS,
   autoConfirmCutoff,
@@ -37,7 +37,7 @@ const ITEM_STATUS_RANK: Record<OrderItemStatus, number> = {
 
 // An order can't be considered "shipped" until every seller's items in it have
 // shipped, so the order-level status is the least-progressed of its active items.
-const computeOrderStatus = (
+export const computeOrderStatus = (
   items: { status: OrderItemStatus }[]
 ): OrderStatus => {
   const activeItems = items.filter(
@@ -347,7 +347,7 @@ export const getSellerOrdersService = async (
   limit: number,
   status?: OrderItemStatus
 ) => {
-  const store = await getSellerStore(userId);
+  const store = await getSellerStoreForOrders(userId);
   const skip = (page - 1) * limit;
 
   const itemFilter: any = { product: { storeId: store.id } };
@@ -438,7 +438,7 @@ export const getSellerOrderByIdService = async (
   userId: string,
   orderId: string
 ) => {
-  const store = await getSellerStore(userId);
+  const store = await getSellerStoreForOrders(userId);
 
   const order = await prisma.order.findFirst({
     where: {
@@ -490,7 +490,7 @@ export const updateOrderItemStatusService = async (
   status: OrderItemStatus,
   deliveryCode?: string
 ) => {
-  const store = await getSellerStore(userId);
+  const store = await getSellerStoreForOrders(userId);
 
   const item = await prisma.orderItem.findUnique({
     where: { id: orderItemId },
@@ -727,7 +727,7 @@ export const updateOrderTrackingNumberService = async (
   orderId: string,
   trackingNumber: string
 ) => {
-  const store = await getSellerStore(userId);
+  const store = await getSellerStoreForOrders(userId);
 
   const order = await prisma.order.findFirst({
     where: {

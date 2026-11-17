@@ -15,6 +15,7 @@ import {
   updateSellerStatusService,
   setSellerVerifiedService,
   recheckSellerCacService,
+  getSellerOpenOrdersService,
 } from "./admin.service";
 import { getAdminOverviewService } from "./admin-overview.service";
 
@@ -39,6 +40,14 @@ export const recheckSellerCac = asyncHandler(
     const seller = await recheckSellerCacService(req.params.id);
 
     res.status(200).json(apiResponse(seller, "CAC number checked"));
+  }
+);
+
+export const getSellerOpenOrders = asyncHandler(
+  async (req: Request<IdParams>, res: Response) => {
+    const summary = await getSellerOpenOrdersService(req.params.id);
+
+    res.status(200).json(apiResponse(summary, "Open orders fetched"));
   }
 );
 
@@ -102,7 +111,8 @@ export const listSellersAdmin = asyncHandler(
     const result = await listSellersAdminService(
       page,
       limit,
-      status
+      status,
+      req.query.needsReview === "true"
     );
 
     res.status(200).json(
@@ -116,7 +126,8 @@ export const updateSellerStatus = asyncHandler(
     const seller = await updateSellerStatusService(
       req.params.id,
       req.body.status,
-      req.body.reason
+      req.body.reason,
+      req.body.rejectMode
     );
 
     res.status(200).json(

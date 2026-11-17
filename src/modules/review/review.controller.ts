@@ -16,7 +16,8 @@ export const createReview = asyncHandler(
       req.user.id,
       req.body.productId,
       req.body.rating,
-      req.body.comment
+      req.body.comment,
+      req.body.images
     );
 
     res.status(201).json(

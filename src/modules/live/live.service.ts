@@ -18,7 +18,8 @@ import { initializePaystackTransaction } from "../../utils/paystack";
 import { snapshotOf } from "../../utils/orderItemSnapshot";
 import { generateReferralCode, referralCommission, referralRewardApplies } from "../../utils/referral";
 import { STOCK_HOLD_TX, assertStockAvailable } from "../../utils/stockHold";
-import { holdPayoutsEnabled, routeViaSplit } from "../../utils/payoutMode";
+import { holdPayoutFor, routeViaSplit } from "../../utils/payoutMode";
+import { assertWithinReviewLimit } from "../../utils/sellerReview";
 import { OPTIONS_INCLUDE, unitPriceOf, variationLabel } from "../../utils/productOptions";
 import { VEHICLE_LABEL, canCarry } from "../../utils/deliveryVehicle";
 import { emitToLive, liveViewerCount } from "../../socket/live-emitter";
@@ -766,8 +767,9 @@ export const buyFromLiveService = async (userId: string, code: string, data: Buy
 
   const fullStore = await prisma.store.findUniqueOrThrow({
     where: { id: store.id },
-    select: { paystackSubaccountCode: true, payoutAccountUpdatedAt: true },
+    select: { name: true, paystackSubaccountCode: true, payoutAccountUpdatedAt: true, underReview: true },
   });
+  assertWithinReviewLimit(fullStore, total);
   const paidViaSplit = routeViaSplit(fullStore);
   const split = paidViaSplit
     ? paystackSplitFor(totalKobo, [
@@ -821,7 +823,7 @@ export const buyFromLiveService = async (userId: string, code: string, data: Buy
             ...shipping,
             deliveryCode: generateDeliveryCode(),
             paidViaSplit,
-            heldForPayout: holdPayoutsEnabled(),
+            heldForPayout: holdPayoutFor(fullStore),
           },
         },
         sellerNotes: note ? { create: { storeId: store.id, note } } : undefined,

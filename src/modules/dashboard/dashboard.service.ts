@@ -1,7 +1,7 @@
 import { OrderStatus, PayoutStatus } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
-import { getSellerStore } from "../seller/seller.utils";
+import { getSellerStore, getSellerStoreForOrders } from "../seller/seller.utils";
 import { asOrdered } from "../../utils/orderItemSnapshot";
 import {
   REVENUE_STATUSES,
@@ -396,7 +396,8 @@ export const getSellerCustomersService = async (
 export const getSellerEarningsService = async (
   userId: string
 ) => {
-  const store = await getSellerStore(userId);
+  // Also for a seller finishing their open orders after "stop new sales".
+  const store = await getSellerStoreForOrders(userId);
 
   return getStoreAvailableBalance(store.id);
 };
@@ -460,7 +461,7 @@ export const getSellerPayoutsService = async (
   page: number,
   limit: number
 ) => {
-  const store = await getSellerStore(userId);
+  const store = await getSellerStoreForOrders(userId);
   const skip = (page - 1) * limit;
 
   // A failed automatic transfer's orders are paid again in a new one, so

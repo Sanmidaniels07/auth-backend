@@ -5,7 +5,11 @@ import { AppError } from "../../utils/appError";
 import { createNotificationService } from "../notification/notification.service";
 import { READINESS_SELECT, READINESS_STEPS, missingSetup } from "../../utils/sellerReadiness";
 import { isDojahConfigured } from "../../utils/dojah";
+import { newSellerOrderLimit } from "../../utils/sellerReview";
+import { heldAmountForStore } from "../payout/held-payout.service";
 import { checkSellerCac } from "./cac-check.service";
+import { createStoreService } from "../store/store.service";
+import { QuickStartSellerInput } from "./seller.validation";
 
 export const SELLER_REAPPLY_COOLDOWN_DAYS = 3;
 
@@ -148,6 +152,107 @@ export const becomeSellerService = async (
   return seller;
 };
 
+const notifyAdminsOfQuickStart = async (userName: string, sellerProfileId: string, storeName: string) => {
+  const admins = await prisma.user.findMany({ where: { role: Role.ADMIN, deletedAt: null }, select: { id: true } });
+  await Promise.allSettled(
+    admins.map((admin) =>
+      createNotificationService(
+        admin.id,
+        "New seller to review",
+        `${userName} started selling as "${storeName}". Their payouts are held and orders capped until you review them.`,
+        undefined,
+        { type: "ADMIN_SELLER_APPLICATION", id: sellerProfileId }
+      )
+    )
+  );
+};
+
+/**
+ * Quick start: a live store in one step. The seller is approved at once and
+ * their store is marked underReview - payouts held, one order capped
+ * (utils/sellerReview) - until an admin reviews them after the fact.
+ *
+ * - No seller profile yet, or an application still pending: approved now.
+ * - Approved before (reviewed) but no store yet: the store is made, with no
+ *   review needed.
+ * - Rejected: no - rejected sellers go through the normal reapply route.
+ */
+export const quickStartSellerService = async (userId: string, data: QuickStartSellerInput) => {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, isGuest: true } });
+  if (!user) throw new AppError("User not found.", 404);
+  if (user.isGuest) throw new AppError("Set a password for your account first, then you can start selling.", 403);
+
+  const existing = await prisma.sellerProfile.findUnique({ where: { userId }, include: { store: { select: { id: true } } } });
+
+  if (existing?.status === SellerStatus.REJECTED) {
+    throw new AppError(
+      "Your seller application was rejected, so you can't use quick start. Reapply from this page once your waiting period ends.",
+      403
+    );
+  }
+  if (existing?.store) throw new AppError("You already have a store.", 400);
+
+  const cacNumber = data.cacNumber || undefined;
+  const cacCompanyType = cacNumber ? data.cacCompanyType : undefined;
+  // Reviewed already: an admin approved them the old way before quick start.
+  const alreadyReviewed = existing?.status === SellerStatus.APPROVED;
+
+  const seller = existing
+    ? await prisma.sellerProfile.update({
+        where: { id: existing.id },
+        data: {
+          status: SellerStatus.APPROVED,
+          statusReason: null,
+          statusUpdatedAt: alreadyReviewed ? existing.statusUpdatedAt : new Date(),
+          ...(cacNumber ? { cacNumber, cacCompanyType: cacCompanyType ?? null } : {}),
+        },
+      })
+    : await prisma.sellerProfile.create({
+        data: { userId, status: SellerStatus.APPROVED, statusUpdatedAt: new Date(), cacNumber, cacCompanyType },
+      });
+
+  let store;
+  try {
+    store = await createStoreService(
+      userId,
+      { name: data.storeName, instagram: data.instagram ?? undefined, whatsapp: data.whatsapp ?? undefined },
+      { underReview: !alreadyReviewed }
+    );
+  } catch (error) {
+    // Put the profile back as it was, so a retry isn't mistaken for a
+    // seller an admin already approved (who'd skip the review).
+    if (!alreadyReviewed) {
+      await (existing
+        ? prisma.sellerProfile.update({
+            where: { id: existing.id },
+            data: {
+              status: existing.status,
+              statusReason: existing.statusReason,
+              statusUpdatedAt: existing.statusUpdatedAt,
+              cacNumber: existing.cacNumber,
+              cacCompanyType: existing.cacCompanyType,
+            },
+          })
+        : prisma.sellerProfile.delete({ where: { id: seller.id } })
+      ).catch((undoError) => console.error("Quick start: couldn't undo the seller profile:", undoError));
+    }
+    throw error;
+  }
+
+  // With the store named, the CAC lookup can also compare names.
+  if (cacNumber && cacNumberChanged(existing?.cacNumber, cacNumber) && isDojahConfigured()) {
+    await checkSellerCac(seller.id);
+  }
+
+  if (!alreadyReviewed) {
+    notifyAdminsOfQuickStart(user.name, seller.id, store.name).catch((error) =>
+      console.error("Failed to notify admins of a quick start:", error)
+    );
+  }
+
+  return getSellerProfileService(userId);
+};
+
 export const getSellerProfileService = async (
   userId: string
 ) => {
@@ -168,7 +273,14 @@ export const getSellerProfileService = async (
     );
   }
 
-  return withReapplyInfo(seller);
+  const underReview = !!seller.store?.underReview;
+  return {
+    ...withReapplyInfo(seller),
+    // A store still under review: the most one order from it can be (naira).
+    orderLimit: underReview ? newSellerOrderLimit() : null,
+    // ...and what Nestly is holding for it until the review (naira).
+    heldForReview: underReview && seller.store ? await heldAmountForStore(seller.store.id) : null,
+  };
 };
 
 /**

@@ -89,6 +89,53 @@ export const payPaymentLinkSchema = z.object({
   }),
 });
 
+const phoneField = z
+  .string()
+  .trim()
+  .regex(/^\+?[\d\s()-]{7,20}$/, "Enter a valid phone number, e.g. 0803 123 4567.");
+
+// Guest checkout: pay without an account. Who they are and where it goes
+// replace the saved address (addressId) a logged-in buyer picks.
+export const guestPayPaymentLinkSchema = z.object({
+  params: z.object({
+    code: z.string().min(1).max(32),
+  }),
+  body: z.object({
+    name: z.string().trim().min(2, "Enter your name.").max(80),
+    email: z.string().trim().toLowerCase().email("Enter a valid email address.").max(254),
+    phone: phoneField,
+    // Where to deliver. Not needed for pickup - the buyer collects it.
+    address: z.string().trim().min(5, "Enter your street address.").max(300).optional(),
+    city: z.string().trim().min(2, "Enter your city or area.").max(80).optional(),
+    state: z.string().trim().min(2, "Choose your state.").max(80).optional(),
+    quantity: z.number().int().min(1).max(10_000).optional(),
+    shippingOptionId: z.string().min(1).optional(),
+    note: z.string().trim().max(PAYMENT_LINK_NOTE_MAX).optional(),
+    source: trafficSourceField,
+    // The seller's share code from ?ref= - same as at signup.
+    referralCode: z.string().trim().max(20).optional(),
+  }),
+});
+
+const guestTokenParam = z.string().min(20).max(64);
+
+export const guestOrderTokenSchema = z.object({
+  params: z.object({ token: guestTokenParam }),
+});
+
+export const guestConfirmDeliverySchema = z.object({
+  params: z.object({ token: guestTokenParam, orderItemId: z.string().min(1) }),
+});
+
+export const guestClaimAccountSchema = z.object({
+  params: z.object({ token: guestTokenParam }),
+  body: z.object({
+    // Same rule as signup.
+    password: z.string().min(6, "Use at least 6 characters.").max(128),
+  }),
+});
+
 export type CreatePaymentLinkInput = z.infer<typeof createPaymentLinkSchema>["body"];
+export type GuestPayPaymentLinkInput = z.infer<typeof guestPayPaymentLinkSchema>["body"];
 export type UpdatePaymentLinkInput = z.infer<typeof updatePaymentLinkSchema>["body"];
 export type PayPaymentLinkInput = z.infer<typeof payPaymentLinkSchema>["body"];

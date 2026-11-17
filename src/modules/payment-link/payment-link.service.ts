@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import bcrypt from "bcrypt";
 import {
   OrderItemStatus,
   OrderStatus,
@@ -7,6 +8,8 @@ import {
   ProductStatus,
   ShippingOption,
   ShippingOptionType,
+  User,
+  UserStatus,
 } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
@@ -19,12 +22,20 @@ import { hideContacts } from "../../utils/contactFilter";
 import { STOCK_HOLD_TX, assertStockAvailable } from "../../utils/stockHold";
 import { getSellerStore } from "../seller/seller.utils";
 import { storePickupAddress } from "../store/store.service";
-import { holdPayoutsEnabled, routeViaSplit } from "../../utils/payoutMode";
+import { holdPayoutFor, routeViaSplit } from "../../utils/payoutMode";
+import { assertWithinReviewLimit } from "../../utils/sellerReview";
 import { generateDeliveryCode } from "../order/order-delivery";
-import { paystackSplitFor } from "../checkout/checkout.service";
+import { confirmPaymentByReferenceService, paystackSplitFor } from "../checkout/checkout.service";
+import { confirmDeliveryService, getCustomerOrderByIdService } from "../order/order.service";
+import { guestOrderUrl } from "../order/order-notifications";
+import { forgotPasswordService } from "../auth/auth.service";
+import { sendEmail } from "../auth/email.services";
+import { verificationTemplate } from "../../templates/verification.template";
+import { generateVerificationToken } from "../../utils/token";
 import { VEHICLE_LABEL, canCarry } from "../../utils/deliveryVehicle";
 import {
   CreatePaymentLinkInput,
+  GuestPayPaymentLinkInput,
   PayPaymentLinkInput,
   UpdatePaymentLinkInput,
 } from "./payment-link.validation";
@@ -152,6 +163,8 @@ export const createPaymentLinkService = async (userId: string, data: CreatePayme
 
   await assertCategory(data.categoryId);
   await assertDeliveryPossible(data.deliveryType, store);
+  // New store under review: a link nobody could pay is caught here.
+  assertWithinReviewLimit(store, data.price + feeFor(data.deliveryType, data.deliveryFee), true);
 
   const code = await uniqueCode();
   const slug = await generateUniqueSlug(data.title, async (candidate) =>
@@ -207,6 +220,7 @@ export const updatePaymentLinkService = async (userId: string, id: string, data:
   const deliveryType = data.deliveryType ?? link.deliveryType;
   await assertDeliveryPossible(deliveryType, store);
   const deliveryFee = feeFor(deliveryType, data.deliveryFee ?? link.deliveryFee);
+  assertWithinReviewLimit(store, (data.price ?? link.product.price) + deliveryFee, true);
 
   const updated = await prisma.$transaction(async (tx) => {
     if (data.images) {
@@ -262,6 +276,7 @@ const PUBLIC_LINK_INCLUDE = {
       address: true,
       isVerified: true,
       isSuspended: true,
+      underReview: true,
       rating: true,
       paystackSubaccountCode: true,
       payoutAccountUpdatedAt: true,
@@ -319,6 +334,9 @@ export const getPublicPaymentLinkService = async (code: string, viewerId?: strin
         : [],
     availability: availabilityOf(link),
     isOwner: !!viewerId && viewerId === store.seller.userId,
+    // Made from an accepted offer in chat: only that buyer can pay it.
+    reserved: !!link.buyerId,
+    reservedForViewer: !!viewerId && viewerId === link.buyerId,
     store: {
       id: store.id,
       name: store.name,
@@ -341,8 +359,6 @@ export const getPublicPaymentLinkService = async (code: string, viewerId?: strin
  * webhook, which then works like any order (stock, notifications, payouts).
  */
 export const payPaymentLinkService = async (userId: string, code: string, data: PayPaymentLinkInput) => {
-  const quantity = data.quantity ?? 1;
-
   const [link, user, address] = await Promise.all([
     findLiveLink(code),
     prisma.user.findUnique({ where: { id: userId } }),
@@ -352,17 +368,47 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
   if (!user) throw new AppError("User not found.", 404);
   if (!address || address.userId !== userId) throw new AppError("Address not found.", 404);
 
-  const { store, product } = link;
+  assertCanBuy(link, userId, data.quantity ?? 1);
+  return startLinkPayment(link, user, address, data);
+};
 
-  if (store.seller.userId === userId) {
+// Before anything is created: the link can be paid, by this person, for this many.
+const assertCanBuy = (link: PublicLink, userId: string | null, quantity: number) => {
+  // From an accepted offer in chat: the price was agreed with one buyer.
+  if (link.buyerId && userId !== link.buyerId) {
+    throw new AppError(
+      userId
+        ? "This link is for the buyer the price was agreed with in chat. Make your own offer to the seller."
+        : "This price was agreed in a Nestly chat. Log in to the account that agreed it to pay.",
+      403
+    );
+  }
+  if (userId && link.store.seller.userId === userId) {
     throw new AppError("This is your own payment link - share it with your buyer.", 400);
   }
   const availability = availabilityOf(link);
   if (availability === "PAUSED") throw new AppError("The seller has paused this link. Message them to turn it back on.", 400);
   if (availability === "SOLD_OUT") throw new AppError("This item has sold out.", 400);
-  if (quantity > product.stock) {
-    throw new AppError(`Only ${product.stock} left - lower the quantity.`, 400);
+  if (quantity > link.product.stock) {
+    throw new AppError(`Only ${link.product.stock} left - lower the quantity.`, 400);
   }
+};
+
+/**
+ * Creates the pending order and its Paystack transaction - shared by
+ * logged-in buyers and guest checkout. `guestAccessToken` is set for
+ * guests: it's the secret in their private tracking link.
+ */
+const startLinkPayment = async (
+  link: PublicLink,
+  user: User,
+  address: { id: string; phone: string },
+  data: Omit<PayPaymentLinkInput, "addressId">,
+  guestAccessToken?: string
+) => {
+  const userId = user.id;
+  const quantity = data.quantity ?? 1;
+  const { store, product } = link;
 
   const fullProduct = await prisma.product.findUniqueOrThrow({
     where: { id: product.id },
@@ -426,6 +472,7 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
   const subtotal = product.price * quantity;
   const deliveryFee = shipping.fee;
   const total = subtotal + deliveryFee;
+  assertWithinReviewLimit(store, total);
   const totalKobo = Math.round(total * NAIRA_TO_KOBO);
 
   // Seller's share (less commission, plus the delivery fee) goes straight
@@ -466,6 +513,7 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
         paymentReference: reference,
         deliveryPhone: data.deliveryPhone?.trim() || address.phone,
         source: data.source,
+        guestAccessToken,
         items: {
           create: {
             productId: product.id,
@@ -484,7 +532,7 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
             ...shipping,
             deliveryCode: generateDeliveryCode(),
             paidViaSplit,
-            heldForPayout: holdPayoutsEnabled(),
+            heldForPayout: holdPayoutFor(store),
           },
         },
         sellerNotes: note ? { create: { storeId: store.id, note } } : undefined,
@@ -496,7 +544,11 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
     email: user.email,
     amountKobo: totalKobo,
     reference,
-    callbackUrl: process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/marketplace/orders` : undefined,
+    callbackUrl: process.env.FRONTEND_URL
+      ? guestAccessToken
+        ? guestOrderUrl(guestAccessToken)
+        : `${process.env.FRONTEND_URL}/marketplace/orders`
+      : undefined,
     split,
   });
 
@@ -507,4 +559,214 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
     authorizationUrl: paystack.authorization_url,
     total,
   };
+};
+
+// ---------------------------------------------------------------------------
+// Guest checkout
+//
+// Someone who came from a seller's Instagram or WhatsApp can pay without
+// making an account first. Behind the scenes they get a guest account (no
+// password) so the order works exactly like any other - stock holds,
+// delivery code, seller notified, payouts, returns. They follow the order
+// through a private tracking link (/orders/track/{token}), sent by email
+// too, and can turn the guest account into a full one by setting a
+// password (or continuing with Google).
+// ---------------------------------------------------------------------------
+
+const generateGuestToken = () => crypto.randomBytes(24).toString("base64url");
+
+/**
+ * The guest account for this email: an existing guest account is reused
+ * (no session is given - each order has its own tracking link), a new one
+ * is made otherwise. An email that belongs to a full account must log in.
+ */
+const guestAccountFor = async (data: GuestPayPaymentLinkInput) => {
+  const existing = await prisma.user.findFirst({
+    where: { email: { equals: data.email, mode: "insensitive" } },
+  });
+
+  if (existing) {
+    if (existing.deletedAt || existing.status !== UserStatus.ACTIVE) {
+      throw new AppError("This email can't be used for checkout. Use another email address.", 400);
+    }
+    if (!existing.isGuest) {
+      throw new AppError("You already have a Nestly account with this email. Log in to pay.", 409);
+    }
+    return existing;
+  }
+
+  const referredBy = data.referralCode
+    ? await prisma.store.findUnique({
+        where: { referralCode: data.referralCode.toUpperCase() },
+        select: { id: true, isSuspended: true },
+      })
+    : null;
+
+  return prisma.user.create({
+    data: {
+      name: data.name,
+      email: data.email,
+      isGuest: true,
+      signupSource: data.source,
+      ...(referredBy && !referredBy.isSuspended ? { referredByStoreId: referredBy.id, referredAt: new Date() } : {}),
+    },
+  });
+};
+
+/** Starts paying through a link without logging in. */
+export const guestPayPaymentLinkService = async (code: string, data: GuestPayPaymentLinkInput) => {
+  const link = await findLiveLink(code);
+  const quantity = data.quantity ?? 1;
+
+  if (link.deliveryType === PaymentLinkDelivery.STORE_OPTIONS && !data.shippingOptionId) {
+    throw new AppError("Choose how you'd like to receive it.", 400);
+  }
+  // Pickup needs no address; everything else needs somewhere to deliver.
+  const isPickup =
+    link.deliveryType === PaymentLinkDelivery.PICKUP ||
+    (link.deliveryType === PaymentLinkDelivery.STORE_OPTIONS &&
+      link.store.shippingOptions.find((option) => option.id === data.shippingOptionId)?.type === ShippingOptionType.PICKUP);
+  if (!isPickup && (!data.address || !data.city || !data.state)) {
+    throw new AppError("Enter the address, city and state to deliver to.", 400);
+  }
+
+  assertCanBuy(link, null, quantity);
+  const user = await guestAccountFor(data);
+  assertCanBuy(link, user.id, quantity);
+
+  const address = await prisma.address.create({
+    data: {
+      userId: user.id,
+      fullName: data.name,
+      phone: data.phone,
+      address: isPickup ? data.address || "Pickup" : data.address!,
+      city: isPickup ? data.city || link.store.city || "-" : data.city!,
+      state: isPickup ? data.state || link.store.state || "-" : data.state!,
+      country: "Nigeria",
+    },
+  });
+
+  const token = generateGuestToken();
+  const payment = await startLinkPayment(
+    link,
+    user,
+    address,
+    {
+      quantity,
+      shippingOptionId: data.shippingOptionId,
+      deliveryPhone: data.phone,
+      note: data.note,
+      source: data.source,
+    },
+    token
+  );
+
+  return { ...payment, guestToken: token };
+};
+
+const GUEST_ORDER_INCLUDE = {
+  user: { select: { id: true, name: true, email: true, isGuest: true } },
+  paymentLink: {
+    select: {
+      code: true,
+      store: { select: { name: true, slug: true, logo: true, isVerified: true, seller: { select: { userId: true } } } },
+    },
+  },
+} satisfies Prisma.OrderInclude;
+
+const findGuestOrder = async (token: string) => {
+  const order = await prisma.order.findUnique({ where: { guestAccessToken: token }, include: GUEST_ORDER_INCLUDE });
+  if (!order) throw new AppError("We couldn't find this order. Check the link in your email.", 404);
+  return order;
+};
+
+// "s***a@gmail.com" - enough to recognise, not enough to harvest.
+const maskEmail = (email: string) => {
+  const [name, domain] = email.split("@");
+  if (!domain) return email;
+  return `${name[0]}${name.length > 2 ? "***" : "*"}${name.length > 1 ? name[name.length - 1] : ""}@${domain}`;
+};
+
+/**
+ * The guest's order, as their order page shows it (items, delivery code,
+ * timeline), plus whether they can still turn it into a full account.
+ */
+export const getGuestOrderService = async (token: string) => {
+  const order = await findGuestOrder(token);
+  const details = await getCustomerOrderByIdService(order.userId, order.id);
+  const store = order.paymentLink?.store;
+
+  return {
+    ...details,
+    store: store
+      ? { name: store.name, slug: store.slug, logo: store.logo, isVerified: store.isVerified, sellerUserId: store.seller.userId }
+      : null,
+    paymentLinkCode: order.paymentLink?.code ?? null,
+    buyer: {
+      name: order.user.name,
+      email: maskEmail(order.user.email),
+      // False once they've set a password / used Google - then the order is
+      // also under "My orders" when they log in.
+      isGuest: order.user.isGuest,
+    },
+  };
+};
+
+/** After the Paystack popup: confirm the payment for this guest order. */
+export const verifyGuestOrderService = async (token: string) => {
+  const order = await findGuestOrder(token);
+  if (!order.paymentReference) throw new AppError("This order has no payment to confirm.", 400);
+  await confirmPaymentByReferenceService(order.paymentReference);
+  return getGuestOrderService(token);
+};
+
+/** The guest confirms an item the seller marked delivered arrived. */
+export const confirmGuestDeliveryService = async (token: string, orderItemId: string) => {
+  const order = await findGuestOrder(token);
+  const item = await prisma.orderItem.findUnique({ where: { id: orderItemId }, select: { orderId: true } });
+  if (!item || item.orderId !== order.id) throw new AppError("Order item not found.", 404);
+  await confirmDeliveryService(order.userId, orderItemId);
+  return getGuestOrderService(token);
+};
+
+/**
+ * Turns the guest account into a full one with a password, straight from
+ * the tracking page - when this order is the only thing on the account.
+ * If the account has other orders, whoever holds this link may not be the
+ * person behind them (anyone can type an email at checkout), so the
+ * password link goes to the email instead.
+ */
+export const claimGuestAccountService = async (token: string, password: string) => {
+  const order = await findGuestOrder(token);
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: order.userId } });
+
+  if (!user.isGuest) {
+    throw new AppError("This order already belongs to a Nestly account. Log in to see it.", 400);
+  }
+
+  const otherOrders = await prisma.order.count({ where: { userId: user.id, id: { not: order.id } } });
+  if (otherOrders > 0) {
+    await forgotPasswordService(user.email);
+    return { emailSent: true as const, email: maskEmail(user.email) };
+  }
+
+  const verificationToken = generateVerificationToken();
+  const claimed = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password: await bcrypt.hash(password, 10),
+      isGuest: false,
+      // They typed this email at checkout - it still needs confirming, as at signup.
+      verificationToken,
+      verificationTokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    },
+  });
+
+  sendEmail(
+    claimed.email,
+    "Verify your account",
+    verificationTemplate(claimed.name, `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`)
+  ).catch(console.error);
+
+  return { emailSent: false as const, user: claimed };
 };

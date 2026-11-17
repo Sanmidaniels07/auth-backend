@@ -25,6 +25,8 @@ export const sendProfileRemindersService = async (now: Date = new Date()) => {
       profileRemindersSent: { lt: MAX_REMINDERS },
       deletedAt: null,
       status: UserStatus.ACTIVE,
+      // No profile to finish - they only checked out as a guest.
+      isGuest: false,
     },
     select: {
       id: true,

@@ -63,6 +63,9 @@ export const updateSellerStatusSchema = z.object({
     .object({
       status: z.enum(["APPROVED", "REJECTED"]),
       reason: z.string().trim().min(1).optional(),
+      // Rejecting: STOP_SALES (default) lets the seller finish orders already
+      // paid; FRAUD cancels and refunds everything not yet delivered.
+      rejectMode: z.enum(["STOP_SALES", "FRAUD"]).optional(),
     })
     .refine(
       (data) => data.status === "APPROVED" || !!data.reason,
@@ -78,6 +81,8 @@ export const listSellersAdminSchema = z.object({
     page: z.string().optional(),
     limit: z.string().optional(),
     status: z.nativeEnum(SellerStatus).optional(),
+    // "true": only quick-start sellers waiting for a review.
+    needsReview: z.enum(["true", "false"]).optional(),
   }),
 });
 

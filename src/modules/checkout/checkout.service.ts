@@ -12,6 +12,7 @@ import {
 } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
+import { broadcastOfferUpdate } from "../conversation/conversation.service";
 import { AppError } from "../../utils/appError";
 import {
   initializePaystackTransaction,
@@ -27,7 +28,8 @@ import {
 import { createNotificationService } from "../notification/notification.service";
 import { saveCardFromAuthorization } from "../payment-method/payment-method.service";
 import { storePickupAddress } from "../store/store.service";
-import { holdPayoutsEnabled, routeViaSplit } from "../../utils/payoutMode";
+import { holdPayoutFor, routeViaSplit } from "../../utils/payoutMode";
+import { assertWithinReviewLimit } from "../../utils/sellerReview";
 import { generateDeliveryCode, recordOrderEvent } from "../order/order-delivery";
 import { notifyOrderPaid } from "../order/order-notifications";
 import { announceLivePurchase } from "../live/live.service";
@@ -198,6 +200,15 @@ const buildPendingOrder = async (
   let deliveryFee = 0;
 
   for (const store of stores) {
+    // A suspended (or rejected) store takes no new orders, even from carts
+    // filled before it was taken down.
+    if (store.isSuspended) {
+      throw new AppError(
+        `"${store.name}" isn't selling on Nestly right now. Remove its items from your cart to check out the rest.`,
+        400,
+      );
+    }
+
     // The buyer needs a way to get the order - at least one delivery zone
     // or a pickup point (pickup on its own is fine).
     if (store.shippingOptions.length === 0) {
@@ -242,6 +253,14 @@ const buildPendingOrder = async (
       );
     }
 
+    // A store under review: one order's part from them is capped.
+    assertWithinReviewLimit(
+      store,
+      cart.items
+        .filter((item) => item.product.storeId === store.id)
+        .reduce((sum, item) => sum + priceOf(item) * item.quantity, 0) + option.fee,
+    );
+
     shippingRows.push({
       storeId: store.id,
       optionName: option.name,
@@ -261,8 +280,9 @@ const buildPendingOrder = async (
       // The seller does the delivery, so the fee is theirs - it rides along
       // in their split share below when they're eligible for one.
       paidViaSplit: routeViaSplit(store),
-      // Hold-then-pay: Nestly pays this seller once the return window closes.
-      heldForPayout: holdPayoutsEnabled(),
+      // Hold-then-pay: Nestly pays this seller once the return window
+      // closes - always for a store still under review.
+      heldForPayout: holdPayoutFor(store),
     });
 
     deliveryFee += option.fee;
@@ -687,6 +707,14 @@ export const confirmPaymentByReferenceService = async (reference: string) => {
   }
 
   const updatedOrder = await finalizeOrderPayment(order);
+
+  // Paid through a link from an offer in chat: its card there shows "Paid".
+  if (order.paymentLinkId) {
+    prisma.offer
+      .findUnique({ where: { paymentLinkId: order.paymentLinkId }, select: { id: true } })
+      .then((offer) => (offer ? broadcastOfferUpdate(offer.id) : null))
+      .catch((error) => console.error("Offer card refresh failed:", error));
+  }
 
   if (paystackData.authorization?.reusable) {
     saveCardFromAuthorization(order.userId, paystackData.authorization).catch(

@@ -111,7 +111,9 @@ const getOwnedStoreBySlug = async (
 
 export const createStoreService = async (
   userId: string,
-  data: CreateStoreInput
+  data: CreateStoreInput,
+  // Quick start: selling before an admin review (utils/sellerReview).
+  { underReview = false }: { underReview?: boolean } = {}
 ) => {
   const seller = await getApprovedSellerProfile(userId);
 
@@ -146,6 +148,7 @@ export const createStoreService = async (
       // A business already verified (by hand, before the store existed)
       // shows its badge from the start.
       isVerified: seller.isVerified,
+      underReview,
     },
   });
 

@@ -5,6 +5,7 @@ import {
   becomeSellerService,
   getSellerProfileService,
   getSellerReadinessService,
+  quickStartSellerService,
   updateSellerService,
 } from "./seller.service";
 
@@ -20,6 +21,18 @@ export const becomeSeller = asyncHandler(
     res.status(201).json({
       success: true,
       message: "Seller profile created successfully.",
+      data: seller,
+    });
+  }
+);
+
+export const quickStartSeller = asyncHandler(
+  async (req: Request, res: Response) => {
+    const seller = await quickStartSellerService(req.user.id, req.body);
+
+    res.status(201).json({
+      success: true,
+      message: "Your store is live.",
       data: seller,
     });
   }

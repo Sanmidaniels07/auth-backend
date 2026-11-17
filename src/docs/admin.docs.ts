@@ -204,6 +204,12 @@
  *           type: string
  *           enum: [PENDING, APPROVED, REJECTED]
  *       - in: query
+ *         name: needsReview
+ *         description: "true - only quick-start sellers already selling whose store is still underReview (payouts held, orders capped). Each seller's store has underReview and createdAt."
+ *         schema:
+ *           type: string
+ *           enum: ["true", "false"]
+ *       - in: query
  *         name: page
  *         schema:
  *           type: integer
@@ -224,8 +230,8 @@
  * @swagger
  * /api/admin/sellers/{id}/status:
  *   patch:
- *     summary: Approve or reject a seller application
- *     description: Requires authentication and ADMIN role. The id is the SellerProfile id, not the user id (use GET /api/admin/sellers to look it up). A newly-created seller profile starts PENDING and cannot create a store or products until approved - the same createStoreService, createProductService, and every other seller-owned action check this status. A reason is required when rejecting. The seller is notified either way. Rejecting starts a 3-day cooldown (tracked via statusUpdatedAt) before the seller can reapply via POST /api/seller/become-seller - see that endpoint's docs for details.
+ *     summary: Approve or reject a seller (or review a quick-start seller)
+ *     description: Requires authentication and ADMIN role. The id is the SellerProfile id, not the user id (use GET /api/admin/sellers to look it up). A newly-created seller profile starts PENDING and cannot create a store or products until approved - the same createStoreService, createProductService, and every other seller-owned action check this status. A reason is required when rejecting. The seller is notified either way. Rejecting starts a 3-day cooldown (tracked via statusUpdatedAt) before the seller can reapply via POST /api/seller/become-seller - see that endpoint's docs for details. Quick-start sellers (POST /api/seller/quick-start) are already APPROVED with a store that is underReview: sending APPROVED for them is the review - the store's underReview is cleared (payouts released as usual, no order cap) and the seller is told; sending REJECTED also suspends their store, so their links and listings stop working, and money still held stays held for admins to refund or release.
  *     tags:
  *       - Administration
  *     security:
@@ -251,9 +257,16 @@
  *               reason:
  *                 type: string
  *                 description: Required when status is REJECTED
+ *               rejectMode:
+ *                 type: string
+ *                 enum: [STOP_SALES, FRAUD]
+ *                 description: |
+ *                   Only when rejecting a seller who has a store (default STOP_SALES). Check GET /sellers/{id}/open-orders first.
+ *                   - STOP_SALES: the store is suspended (no new orders) and Store.salesStoppedAt is set - the seller can still fulfil, finish and be paid for the orders already paid (orders, returns and earnings stay open to them). Approving them again later reopens the store.
+ *                   - FRAUD: the store is suspended and every one of its items not yet delivered is cancelled and refunded through Paystack (whole order, or just this store's part plus its delivery fee); buyers are emailed. Orders already split to the seller, and refunds Paystack refuses, are left for admins (notified). Money held for delivered items stays held (underReview) - admins can pay it by hand if they decide to.
  *     responses:
  *       200:
- *         description: Seller status updated successfully
+ *         description: Seller status updated successfully. For FRAUD, `refunds` - { refunded, refundedAmount, failed, manual }.
  *       400:
  *         description: Missing reason when rejecting
  *       401:
@@ -459,3 +472,24 @@
  */
 
 export {};
+
+/**
+ * @swagger
+ * /api/admin/sellers/{id}/open-orders:
+ *   get:
+ *     summary: A seller's open orders, before rejecting them
+ *     description: Requires ADMIN. The id is the SellerProfile id. Paid orders with something from the seller's store not yet delivered - `openOrders`, `openAmount` (their undelivered items plus delivery fee, naira); what a FRAUD rejection would refund automatically (`refundableOrders`, `refundableAmount` - money Nestly holds) and what would need a person (`manualOrders` - already split to the seller); and `heldAmount`, everything Nestly holds for the store. All zero without a store.
+ *     tags:
+ *       - Administration
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: The summary
+ */
