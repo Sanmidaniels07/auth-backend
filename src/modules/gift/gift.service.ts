@@ -26,6 +26,7 @@ import { notifyGiftClaimed, notifyGiftClosed } from "./gift-notifications";
 import { ClaimGiftInput, SendGiftInput } from "./gift.validation";
 import { holdPayoutFor } from "../../utils/payoutMode";
 import { assertWithinReviewLimit } from "../../utils/sellerReview";
+import { refundGroupGiftContributions } from "../group-gift/group-gift.service";
 
 // Gift links. The sender pays for one item and picks the seller's delivery
 // zone the recipient lives in (or a pickup point) - not their street
@@ -57,15 +58,20 @@ const normalize = (value: string | null | undefined) => (value ?? "").toLowerCas
 // Send
 
 /**
- * Starts a gift: creates the pending order (no address yet) and the Paystack
- * transaction. Payment is confirmed through the usual checkout verify /
- * webhook, which marks the gift SENT and tells the sender and recipient.
+ * Everything a gift needs checked before an order is made: the product can
+ * be gifted (published, store not suspended, not the sender's own), the
+ * option (size, colour...) and stock, the recipient (if on Nestly), and the
+ * seller's delivery zone or pickup point. Shared by single gifts and chip-in
+ * gifts (group-gift/).
  */
-export const sendGiftService = async (userId: string, data: SendGiftInput) => {
+export const resolveGiftItem = async (
+  senderId: string,
+  data: { productId: string; variationId?: string; quantity?: number; shippingOptionId: string; recipientId?: string | null }
+) => {
   const quantity = data.quantity ?? 1;
 
   const [user, product] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId } }),
+    prisma.user.findUnique({ where: { id: senderId } }),
     prisma.product.findUnique({
       where: { id: data.productId },
       include: {
@@ -90,7 +96,7 @@ export const sendGiftService = async (userId: string, data: SendGiftInput) => {
   }
 
   const { store } = product;
-  if (store.seller.userId === userId) {
+  if (store.seller.userId === senderId) {
     throw new AppError("You can't send a gift from your own store.", 400);
   }
 
@@ -108,12 +114,12 @@ export const sendGiftService = async (userId: string, data: SendGiftInput) => {
   // Someone on Nestly: they're told as soon as it's paid.
   let recipientId: string | null = null;
   if (data.recipientId) {
-    if (data.recipientId === userId) throw new AppError("Choose someone else - gifts are for other people.", 400);
+    if (data.recipientId === senderId) throw new AppError("Choose someone else - gifts are for other people.", 400);
     const recipient = await prisma.user.findFirst({
       where: { id: data.recipientId, deletedAt: null },
       select: { id: true },
     });
-    if (!recipient || (await isBlockedEitherWay(userId, recipient.id))) {
+    if (!recipient || (await isBlockedEitherWay(senderId, recipient.id))) {
       throw new AppError("We couldn't find that person.", 404);
     }
     recipientId = recipient.id;
@@ -127,29 +133,53 @@ export const sendGiftService = async (userId: string, data: SendGiftInput) => {
       400
     );
   }
+
+  return { user, product, store, variation, option, quantity, recipientId, unitPrice: unitPriceOf(product, variation) };
+};
+
+type GiftItem = Awaited<ReturnType<typeof resolveGiftItem>>;
+
+/**
+ * Makes the gift's order (no address yet - the recipient adds it when they
+ * claim). `paymentReference` is the Paystack payment for a single gift, or
+ * null for a chip-in gift (paid by several contributions). `unitPrice`
+ * overrides the current price - a chip-in gift keeps the price it started at.
+ */
+export const createGiftOrder = async (
+  senderId: string,
+  item: GiftItem,
+  details: {
+    recipientName: string;
+    message?: string | null;
+    showPrice?: boolean;
+    source?: SendGiftInput["source"];
+    paymentReference: string | null;
+    unitPrice?: number;
+    deliveryFee?: number;
+  }
+) => {
+  const { user, product, store, variation, option, quantity, recipientId } = item;
   const isPickup = option.type === ShippingOptionType.PICKUP;
 
   const commissionRate = referralRewardApplies(user, { id: store.id, sellerUserId: store.seller.userId })
     ? referralCommission(product.category.commissionRate)
     : product.category.commissionRate;
 
-  const unitPrice = unitPriceOf(product, variation);
+  const unitPrice = details.unitPrice ?? item.unitPrice;
   const subtotal = unitPrice * quantity;
-  const deliveryFee = option.fee;
+  const deliveryFee = details.deliveryFee ?? option.fee;
   const total = subtotal + deliveryFee;
-  assertWithinReviewLimit(store, total);
   const code = await uniqueCode();
-  const reference = `NESTLY_${crypto.randomUUID().replace(/-/g, "")}`;
 
   // The unpaid order holds its stock while the sender pays (utils/stockHold).
   const order = await prisma.$transaction(async (tx) => {
-    await assertStockAvailable(tx, userId, [
+    await assertStockAvailable(tx, senderId, [
       { productId: product.id, variationId: variation?.id ?? null, quantity, title: product.title },
     ]);
 
     return tx.order.create({
       data: {
-        userId,
+        userId: senderId,
         // The recipient adds their address when they claim it.
         addressId: null,
         status: OrderStatus.PENDING,
@@ -158,8 +188,8 @@ export const sendGiftService = async (userId: string, data: SendGiftInput) => {
         tax: 0,
         total,
         paymentMethod: "PAYSTACK",
-        paymentReference: reference,
-        source: data.source,
+        paymentReference: details.paymentReference,
+        source: details.source,
         items: {
           create: {
             productId: product.id,
@@ -179,7 +209,7 @@ export const sendGiftService = async (userId: string, data: SendGiftInput) => {
           create: {
             storeId: store.id,
             optionName: option.name,
-            fee: option.fee,
+            fee: deliveryFee,
             eta: option.eta,
             type: option.type,
             pickupAddress: isPickup ? option.pickupAddress ?? storePickupAddress(store) : null,
@@ -193,22 +223,44 @@ export const sendGiftService = async (userId: string, data: SendGiftInput) => {
         gift: {
           create: {
             code,
-            senderId: userId,
+            senderId,
             recipientId,
-            recipientName: data.recipientName,
-            message: data.message || null,
-            showPrice: data.showPrice ?? false,
+            recipientName: details.recipientName,
+            message: details.message || null,
+            showPrice: details.showPrice ?? false,
             deliveryState: isPickup ? null : option.state,
             deliveryAreas: isPickup ? [] : option.areas,
           },
         },
       },
+      include: { items: true, gift: { select: { id: true, code: true } } },
     });
   }, STOCK_HOLD_TX);
 
+  return { order, code, total };
+};
+
+/**
+ * Starts a gift: creates the pending order (no address yet) and the Paystack
+ * transaction. Payment is confirmed through the usual checkout verify /
+ * webhook, which marks the gift SENT and tells the sender and recipient.
+ */
+export const sendGiftService = async (userId: string, data: SendGiftInput) => {
+  const item = await resolveGiftItem(userId, data);
+  assertWithinReviewLimit(item.store, item.unitPrice * item.quantity + item.option.fee);
+
+  const reference = `NESTLY_${crypto.randomUUID().replace(/-/g, "")}`;
+  const { order, code, total } = await createGiftOrder(userId, item, {
+    recipientName: data.recipientName,
+    message: data.message,
+    showPrice: data.showPrice,
+    source: data.source,
+    paymentReference: reference,
+  });
+
   // No split: the payment stays with Nestly until the gift is accepted.
   const paystack = await initializePaystackTransaction({
-    email: user.email,
+    email: item.user.email,
     amountKobo: Math.round(total * NAIRA_TO_KOBO),
     reference,
     callbackUrl: process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/gift/${code}` : undefined,
@@ -459,7 +511,7 @@ const closeGift = async (
 ) => {
   const gift = await prisma.gift.findUniqueOrThrow({
     where: { id: giftId },
-    include: { order: { include: { items: true } } },
+    include: { order: { include: { items: true } }, groupGift: { select: { id: true } } },
   });
   const { order } = gift;
 
@@ -507,8 +559,14 @@ const closeGift = async (
 
   let refunded = true;
   try {
-    if (!order.paymentReference) throw new Error("No payment reference");
-    await refundPaystackTransaction(order.paymentReference);
+    if (gift.groupGift) {
+      // Friends chipped in for it: each gets their own payment back.
+      const result = await refundGroupGiftContributions(gift.groupGift.id);
+      if (result.failed > 0) throw new Error(`${result.failed} contribution refund(s) failed`);
+    } else {
+      if (!order.paymentReference) throw new Error("No payment reference");
+      await refundPaystackTransaction(order.paymentReference);
+    }
   } catch (error) {
     refunded = false;
     console.error(`Automatic refund for gift ${gift.code} failed:`, error);
