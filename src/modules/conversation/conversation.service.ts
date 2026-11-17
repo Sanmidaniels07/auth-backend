@@ -1,4 +1,4 @@
-import { MediaType, NotificationType, ProductStatus } from "@prisma/client";
+import { MediaType, NotificationType, OrderStatus, ProductStatus } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
 import { AppError } from "../../utils/appError";
@@ -29,7 +29,46 @@ const PRODUCT_CARD_SELECT = {
   store: { select: { name: true, slug: true } },
 } as const;
 
-const MESSAGE_INCLUDE = {
+const PAID_ORDER_STATUSES: OrderStatus[] = [OrderStatus.PAID, OrderStatus.PROCESSING, OrderStatus.SHIPPED, OrderStatus.DELIVERED];
+
+const OFFER_CARD_SELECT = {
+  id: true,
+  status: true,
+  title: true,
+  price: true,
+  quantity: true,
+  note: true,
+  deliveryFee: true,
+  categoryId: true,
+  expiresAt: true,
+  createdAt: true,
+  createdById: true,
+  buyerId: true,
+  counterOfId: true,
+  product: { select: PRODUCT_CARD_SELECT },
+  store: {
+    select: {
+      name: true,
+      slug: true,
+      seller: { select: { userId: true } },
+      // Without zones the seller sets the delivery fee when accepting.
+      _count: { select: { shippingOptions: { where: { isArchived: false } } } },
+    },
+  },
+  // Accepted: the link to pay, and whether it's been paid.
+  paymentLink: {
+    select: {
+      code: true,
+      _count: {
+        select: {
+          orders: { where: { status: { in: PAID_ORDER_STATUSES } } },
+        },
+      },
+    },
+  },
+} as const;
+
+export const MESSAGE_INCLUDE = {
   sender: { select: PARTICIPANT_USER_SELECT },
   media: {
     orderBy: { order: "asc" as const },
@@ -47,6 +86,9 @@ const MESSAGE_INCLUDE = {
     },
   },
   product: { select: PRODUCT_CARD_SELECT },
+  // An offer card (offer/): its live state, so the same card updates when
+  // it's accepted, countered, declined or paid.
+  offer: { select: OFFER_CARD_SELECT },
   reactions: { select: { emoji: true, userId: true } },
 };
 
@@ -447,4 +489,45 @@ export const deleteMessageService = async (userId: string, conversationId: strin
 
   await broadcastUpdate(conversationId, updated);
   return updated;
+};
+
+// ---- Offer cards (offer/) ----------------------------------------------------
+
+/**
+ * Posts an offer card into the chat as a message from `senderId`, pushes it
+ * live to the other side and notifies them.
+ */
+export const postOfferMessage = async (senderId: string, conversationId: string, offerId: string, notice: string) => {
+  const [message] = await prisma.$transaction([
+    prisma.message.create({
+      data: { conversationId, senderId, offerId },
+      include: MESSAGE_INCLUDE,
+    }),
+    prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }),
+  ]);
+
+  const others = await prisma.conversationParticipant.findMany({
+    where: { conversationId, NOT: { userId: senderId } },
+    select: { userId: true },
+  });
+  try {
+    const io = getIO();
+    for (const participant of others) io.to(participant.userId).emit("message:new", message);
+  } catch (error) {
+    console.error("Realtime offer delivery failed:", error);
+  }
+  for (const participant of others) {
+    createNotificationService(participant.userId, "New offer", notice, NotificationType.MESSAGE, {
+      type: "CONVERSATION",
+      id: conversationId,
+    }).catch((error) => console.error("Notification failed:", error));
+  }
+  return message;
+};
+
+/** An offer changed (accepted, declined, withdrawn, paid): refresh its card(s) for everyone in the chat. */
+export const broadcastOfferUpdate = async (offerId: string) => {
+  const messages = await prisma.message.findMany({ where: { offerId }, include: MESSAGE_INCLUDE });
+  for (const message of messages) await broadcastUpdate(message.conversationId, message);
+  return messages;
 };

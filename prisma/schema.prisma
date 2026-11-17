@@ -209,6 +209,11 @@ enum NotificationType {
 model User {
   id String @id @default(cuid())
 
+  // Make an offer in chat (offer/): as the buyer, offers they made, links reserved for them.
+  offersAsBuyer        Offer[]       @relation("OffersAsBuyer")
+  offersMade           Offer[]       @relation("OffersMade")
+  reservedPaymentLinks PaymentLink[] @relation("ReservedPaymentLinks")
+
   name     String
   email    String  @unique
   // Null for people who signed up with Google and never set one.
@@ -627,6 +632,7 @@ model Conversation {
 
   participants ConversationParticipant[]
   messages     Message[]
+  offers       Offer[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -669,6 +675,11 @@ model Message {
   // A product shared in the chat, shown as a card.
   productId String?
   product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // An offer card (make an offer in chat) - the offer's current state is
+  // read live, so accepting or declining updates the same card.
+  offerId String?
+  offer   Offer?  @relation(fields: [offerId], references: [id], onDelete: SetNull)
 
   reactions MessageReaction[]
 
@@ -1004,6 +1015,9 @@ model SellerProfile {
 model Store {
   id String @id @default(cuid())
 
+  // Offers made in chat to this store.
+  offers Offer[]
+
   sellerId String        @unique
   seller   SellerProfile @relation(fields: [sellerId], references: [id])
 
@@ -1225,6 +1239,8 @@ model ShippingOption {
 model Category {
   id String @id @default(cuid())
 
+  offers Offer[]
+
   name String
 
   slug String @unique
@@ -1252,6 +1268,9 @@ model Category {
 
 model Product {
   id String @id @default(cuid())
+
+  // Offers made in chat for this listing.
+  offers Offer[]
 
   storeId String
   store   Store  @relation(fields: [storeId], references: [id])
@@ -1362,6 +1381,12 @@ model PaymentLink {
   // Paused links can't be paid; deleted ones are hidden from the seller too.
   isActive   Boolean @default(true)
   isArchived Boolean @default(false)
+
+  // Made from an accepted offer in chat: only this buyer can pay it (the
+  // price was agreed with them).
+  buyerId String?
+  buyer   User?   @relation("ReservedPaymentLinks", fields: [buyerId], references: [id], onDelete: SetNull)
+  offer   Offer?
 
   orders Order[]
 
@@ -2092,4 +2117,75 @@ model LiveBan {
   createdAt DateTime @default(now())
 
   @@unique([liveSessionId, userId])
+}
+
+// Make an offer in chat: a buyer offers a price for something a seller
+// sells (a listed product or anything they describe); the seller accepts,
+// counters or declines; a counter is a new Offer the buyer can accept. An
+// accepted offer becomes a payment link only that buyer can pay.
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  COUNTERED // answered with a counter-offer (counters points to it)
+  WITHDRAWN // the person who made it took it back, or made a new one
+}
+
+model Offer {
+  id String @id @default(cuid())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  // The buyer in this negotiation, whoever made this particular offer.
+  buyerId String
+  buyer   User   @relation("OffersAsBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+
+  // Who made this offer: the buyer, or the seller (a counter).
+  createdById String
+  createdBy   User   @relation("OffersMade", fields: [createdById], references: [id], onDelete: Cascade)
+
+  // A listed product it's about, or null for something described.
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  title    String
+  // Naira, per item.
+  price    Float
+  quantity Int     @default(1)
+  note     String?
+
+  // Sets the commission for the link: the product's category, or chosen by
+  // the seller for a described item.
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  // Set by the seller when their store has no delivery zones: the delivery
+  // fee agreed for this deal (0 = free).
+  deliveryFee Float?
+
+  status OfferStatus @default(PENDING)
+
+  // The offer this one answers (a counter).
+  counterOfId String? @unique
+  counterOf   Offer?  @relation("OfferCounters", fields: [counterOfId], references: [id], onDelete: SetNull)
+  counteredBy Offer?  @relation("OfferCounters")
+
+  // Accepted: the payment link made for it.
+  paymentLinkId String?      @unique
+  paymentLink   PaymentLink? @relation(fields: [paymentLinkId], references: [id], onDelete: SetNull)
+
+  // Pending offers lapse after 48 hours.
+  expiresAt   DateTime
+  respondedAt DateTime?
+
+  messages Message[]
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([storeId, status])
 }

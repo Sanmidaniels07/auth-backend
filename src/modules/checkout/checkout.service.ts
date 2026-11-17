@@ -12,6 +12,7 @@ import {
 } from "@prisma/client";
 
 import prisma from "../../prisma/prisma";
+import { broadcastOfferUpdate } from "../conversation/conversation.service";
 import { AppError } from "../../utils/appError";
 import {
   initializePaystackTransaction,
@@ -706,6 +707,14 @@ export const confirmPaymentByReferenceService = async (reference: string) => {
   }
 
   const updatedOrder = await finalizeOrderPayment(order);
+
+  // Paid through a link from an offer in chat: its card there shows "Paid".
+  if (order.paymentLinkId) {
+    prisma.offer
+      .findUnique({ where: { paymentLinkId: order.paymentLinkId }, select: { id: true } })
+      .then((offer) => (offer ? broadcastOfferUpdate(offer.id) : null))
+      .catch((error) => console.error("Offer card refresh failed:", error));
+  }
 
   if (paystackData.authorization?.reusable) {
     saveCardFromAuthorization(order.userId, paystackData.authorization).catch(

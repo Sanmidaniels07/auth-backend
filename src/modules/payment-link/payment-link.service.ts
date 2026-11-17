@@ -334,6 +334,9 @@ export const getPublicPaymentLinkService = async (code: string, viewerId?: strin
         : [],
     availability: availabilityOf(link),
     isOwner: !!viewerId && viewerId === store.seller.userId,
+    // Made from an accepted offer in chat: only that buyer can pay it.
+    reserved: !!link.buyerId,
+    reservedForViewer: !!viewerId && viewerId === link.buyerId,
     store: {
       id: store.id,
       name: store.name,
@@ -371,6 +374,15 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
 
 // Before anything is created: the link can be paid, by this person, for this many.
 const assertCanBuy = (link: PublicLink, userId: string | null, quantity: number) => {
+  // From an accepted offer in chat: the price was agreed with one buyer.
+  if (link.buyerId && userId !== link.buyerId) {
+    throw new AppError(
+      userId
+        ? "This link is for the buyer the price was agreed with in chat. Make your own offer to the seller."
+        : "This price was agreed in a Nestly chat. Log in to the account that agreed it to pay.",
+      403
+    );
+  }
   if (userId && link.store.seller.userId === userId) {
     throw new AppError("This is your own payment link - share it with your buyer.", 400);
   }
