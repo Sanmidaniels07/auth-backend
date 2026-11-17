@@ -29,6 +29,7 @@ interface ShippingOptionParams {
   optionId: string;
 }
 import { getStoreReviewsService } from "../review/review.service";
+import { getStoreTrustService } from "./store-trust.service";
 
 export const createStore = asyncHandler(
   async (req: Request, res: Response) => {
@@ -287,5 +288,14 @@ export const setStoreVerified = asyncHandler(
         "Store verification status updated successfully"
       )
     );
+  }
+);
+
+// Public trust record - delivered orders, completion, shipping time, refunds, rating.
+export const getStoreTrust = asyncHandler(
+  async (req: Request<{ slug: string }>, res: Response) => {
+    const trust = await getStoreTrustService(req.params.slug);
+
+    res.status(200).json(apiResponse(trust, "Trust record fetched successfully"));
   }
 );

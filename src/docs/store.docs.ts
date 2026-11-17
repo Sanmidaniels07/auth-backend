@@ -577,3 +577,33 @@
  */
 
 export {};
+
+/**
+ * @swagger
+ * /api/stores/{slug}/trust:
+ *   get:
+ *     summary: A store's public trust record
+ *     description: >-
+ *       Public. What the seller has actually done on Nestly, from real orders - shown on the store page, payment
+ *       links and the shareable /s/{slug} page sellers put in their bio. Cached for 10 minutes. 404 for suspended stores.
+ *       Fields - level (TRUSTED, ESTABLISHED or NEW); verifiedBusiness (CAC checked); newlyReviewed (false while a
+ *       quick-start store waits for its review); sellingSince; deliveredOrders (orders with an item delivered and
+ *       confirmed); completionRate (% of finished items delivered rather than cancelled by the seller, null under 5);
+ *       typicalShipHours (median hours from order to sent out, last 50); refundRate (% of delivered items refunded after
+ *       a problem report, null under 5 deliveries); problemReports; rating and reviewCount; followers.
+ *       TRUSTED needs a verified business, at least 20 delivered orders, 95% completion or more, 5% refunds or fewer,
+ *       and a completed review. ESTABLISHED needs 5 delivered orders.
+ *     tags:
+ *       - Store
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: The trust record
+ *       404:
+ *         description: Store not found or suspended
+ */

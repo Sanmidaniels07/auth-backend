@@ -35,6 +35,7 @@ import {
   deleteShippingOption,
   setStoreVerified,
   setupPayoutAccount,
+  getStoreTrust,
 } from "./store.controller";
 
 const router = Router();
@@ -127,6 +128,9 @@ router.post(
   validate(setupPayoutAccountSchema),
   setupPayoutAccount
 );
+
+// Public trust record (store page, payment links, the /s/{slug} badge page).
+router.get("/:slug/trust", validate(storeSlugSchema), getStoreTrust);
 
 router.get(
   "/:slug",
