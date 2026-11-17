@@ -178,20 +178,25 @@ const ADMIN_SELLER_SELECT = {
   },
   // Shown next to the CAC number so the admin can compare it with the
   // name the CAC public search returns.
+  // underReview: a quick-start store an admin hasn't reviewed yet - its
+  // payouts are held and its orders capped until they do (utils/sellerReview).
   store: {
-    select: { id: true, name: true, slug: true, isSuspended: true },
+    select: { id: true, name: true, slug: true, isSuspended: true, underReview: true, createdAt: true },
   },
 };
 
 export const listSellersAdminService = async (
   page: number,
   limit: number,
-  status?: SellerStatus
+  status?: SellerStatus,
+  // Only quick-start sellers still waiting for a review.
+  needsReview = false
 ) => {
   const skip = (page - 1) * limit;
   const where: any = {};
 
   if (status) where.status = status;
+  if (needsReview) where.store = { underReview: true };
 
   const [sellers, total] = await Promise.all([
     prisma.sellerProfile.findMany({
@@ -306,16 +311,47 @@ export const updateSellerStatusService = async (
   }
 
   const now = new Date();
+  const store = await prisma.store.findUnique({
+    where: { sellerId },
+    select: { id: true, name: true, underReview: true },
+  });
+  // A quick-start seller already selling: approving is the review.
+  const reviewing = status === SellerStatus.APPROVED && seller.status === SellerStatus.APPROVED && !!store?.underReview;
 
-  const updated = await prisma.sellerProfile.update({
+  await prisma.sellerProfile.update({
     where: { id: sellerId },
     data: {
       status,
       statusReason: status === SellerStatus.APPROVED ? null : reason,
       statusUpdatedAt: now,
     },
+  });
+
+  if (store?.underReview) {
+    await prisma.store.update({
+      where: { id: store.id },
+      // Approved: the safeguards go and held payouts are paid as usual.
+      // Rejected: the store comes down at once (its links stop working);
+      // money still held stays held for the admins to refund or release.
+      data: status === SellerStatus.APPROVED ? { underReview: false } : { isSuspended: true },
+    });
+  }
+
+  const updated = await prisma.sellerProfile.findUniqueOrThrow({
+    where: { id: sellerId },
     select: ADMIN_SELLER_SELECT,
   });
+
+  if (reviewing) {
+    await createNotificationService(
+      seller.userId,
+      "Your store has been reviewed ✅",
+      `${store!.name} is fully set up: payouts are released as usual and the order limit for new stores no longer applies.`,
+      undefined,
+      { type: "SELLER_EARNINGS", id: store!.id }
+    );
+    return updated;
+  }
 
   const reapplyMessage =
     status === SellerStatus.REJECTED

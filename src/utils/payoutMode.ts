@@ -21,6 +21,19 @@ export const holdPayoutsEnabled = () => process.env.PAYOUTS_HOLD === "true";
 
 export const transfersEnabled = () => process.env.PAYSTACK_TRANSFERS === "true";
 
-/** Whether this store's share of a new order goes straight to its Paystack subaccount. */
-export const routeViaSplit = (store: { paystackSubaccountCode: string | null; payoutAccountUpdatedAt: Date | null }) =>
-  !holdPayoutsEnabled() && isPayoutAccountEligibleForSplit(store);
+/**
+ * Whether this store's share of a new order goes straight to its Paystack
+ * subaccount. Never for a store still under review (utils/sellerReview).
+ */
+export const routeViaSplit = (store: {
+  paystackSubaccountCode: string | null;
+  payoutAccountUpdatedAt: Date | null;
+  underReview: boolean;
+}) => !holdPayoutsEnabled() && !store.underReview && isPayoutAccountEligibleForSplit(store);
+
+/**
+ * Whether this store's part of a new order is held and paid out after
+ * delivery and the return window (hold-then-pay) - always for a store
+ * under review.
+ */
+export const holdPayoutFor = (store: { underReview: boolean }) => holdPayoutsEnabled() || store.underReview;

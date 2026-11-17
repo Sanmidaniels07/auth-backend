@@ -204,6 +204,12 @@
  *           type: string
  *           enum: [PENDING, APPROVED, REJECTED]
  *       - in: query
+ *         name: needsReview
+ *         description: "true - only quick-start sellers already selling whose store is still underReview (payouts held, orders capped). Each seller's store has underReview and createdAt."
+ *         schema:
+ *           type: string
+ *           enum: ["true", "false"]
+ *       - in: query
  *         name: page
  *         schema:
  *           type: integer
@@ -225,7 +231,7 @@
  * /api/admin/sellers/{id}/status:
  *   patch:
  *     summary: Approve or reject a seller application
- *     description: Requires authentication and ADMIN role. The id is the SellerProfile id, not the user id (use GET /api/admin/sellers to look it up). A newly-created seller profile starts PENDING and cannot create a store or products until approved - the same createStoreService, createProductService, and every other seller-owned action check this status. A reason is required when rejecting. The seller is notified either way. Rejecting starts a 3-day cooldown (tracked via statusUpdatedAt) before the seller can reapply via POST /api/seller/become-seller - see that endpoint's docs for details.
+ *     description: Requires authentication and ADMIN role. The id is the SellerProfile id, not the user id (use GET /api/admin/sellers to look it up). A newly-created seller profile starts PENDING and cannot create a store or products until approved - the same createStoreService, createProductService, and every other seller-owned action check this status. A reason is required when rejecting. The seller is notified either way. Rejecting starts a 3-day cooldown (tracked via statusUpdatedAt) before the seller can reapply via POST /api/seller/become-seller - see that endpoint's docs for details. Quick-start sellers (POST /api/seller/quick-start) are already APPROVED with a store that is underReview: sending APPROVED for them is the review - the store's underReview is cleared (payouts released as usual, no order cap) and the seller is told; sending REJECTED also suspends their store, so their links and listings stop working, and money still held stays held for admins to refund or release.
  *     tags:
  *       - Administration
  *     security:

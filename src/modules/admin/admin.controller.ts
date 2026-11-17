@@ -102,7 +102,8 @@ export const listSellersAdmin = asyncHandler(
     const result = await listSellersAdminService(
       page,
       limit,
-      status
+      status,
+      req.query.needsReview === "true"
     );
 
     res.status(200).json(

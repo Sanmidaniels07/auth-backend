@@ -1,6 +1,8 @@
 import { CacCompanyType } from "@prisma/client";
 import { z } from "zod";
 
+import { socialFields } from "../store/store.validation";
+
 // A CAC number as sellers type it: letters and digits, any spaces or dashes
 // dropped, stored uppercase - e.g. "rc 123-4567" -> "RC1234567". "" means none.
 const cacNumberField = z
@@ -31,6 +33,21 @@ export const updateSellerSchema = z.object({
     cacCompanyType: cacCompanyTypeField.optional(),
   }),
 });
+
+// Quick start: from nothing to a live store in one step - the store name,
+// the Seller Agreement, and (optionally) CAC and where buyers know them.
+export const quickStartSellerSchema = z.object({
+  body: z.object({
+    storeName: z.string().trim().min(2, "Give your store a name.").max(60, "Keep the store name under 60 characters."),
+    instagram: socialFields.instagram,
+    whatsapp: socialFields.whatsapp,
+    cacNumber: cacNumberField.optional(),
+    cacCompanyType: cacCompanyTypeField.optional(),
+    agreeToSellerTerms: z.literal(true, { message: "Agree to the Seller Agreement to start selling." }),
+  }),
+});
+
+export type QuickStartSellerInput = z.infer<typeof quickStartSellerSchema>["body"];
 
 export type BecomeSellerInput =
   z.infer<typeof becomeSellerSchema>["body"];

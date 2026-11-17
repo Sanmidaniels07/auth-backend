@@ -22,7 +22,8 @@ import { hideContacts } from "../../utils/contactFilter";
 import { STOCK_HOLD_TX, assertStockAvailable } from "../../utils/stockHold";
 import { getSellerStore } from "../seller/seller.utils";
 import { storePickupAddress } from "../store/store.service";
-import { holdPayoutsEnabled, routeViaSplit } from "../../utils/payoutMode";
+import { holdPayoutFor, routeViaSplit } from "../../utils/payoutMode";
+import { assertWithinReviewLimit } from "../../utils/sellerReview";
 import { generateDeliveryCode } from "../order/order-delivery";
 import { confirmPaymentByReferenceService, paystackSplitFor } from "../checkout/checkout.service";
 import { confirmDeliveryService, getCustomerOrderByIdService } from "../order/order.service";
@@ -162,6 +163,8 @@ export const createPaymentLinkService = async (userId: string, data: CreatePayme
 
   await assertCategory(data.categoryId);
   await assertDeliveryPossible(data.deliveryType, store);
+  // New store under review: a link nobody could pay is caught here.
+  assertWithinReviewLimit(store, data.price + feeFor(data.deliveryType, data.deliveryFee), true);
 
   const code = await uniqueCode();
   const slug = await generateUniqueSlug(data.title, async (candidate) =>
@@ -217,6 +220,7 @@ export const updatePaymentLinkService = async (userId: string, id: string, data:
   const deliveryType = data.deliveryType ?? link.deliveryType;
   await assertDeliveryPossible(deliveryType, store);
   const deliveryFee = feeFor(deliveryType, data.deliveryFee ?? link.deliveryFee);
+  assertWithinReviewLimit(store, (data.price ?? link.product.price) + deliveryFee, true);
 
   const updated = await prisma.$transaction(async (tx) => {
     if (data.images) {
@@ -272,6 +276,7 @@ const PUBLIC_LINK_INCLUDE = {
       address: true,
       isVerified: true,
       isSuspended: true,
+      underReview: true,
       rating: true,
       paystackSubaccountCode: true,
       payoutAccountUpdatedAt: true,
@@ -455,6 +460,7 @@ const startLinkPayment = async (
   const subtotal = product.price * quantity;
   const deliveryFee = shipping.fee;
   const total = subtotal + deliveryFee;
+  assertWithinReviewLimit(store, total);
   const totalKobo = Math.round(total * NAIRA_TO_KOBO);
 
   // Seller's share (less commission, plus the delivery fee) goes straight
@@ -514,7 +520,7 @@ const startLinkPayment = async (
             ...shipping,
             deliveryCode: generateDeliveryCode(),
             paidViaSplit,
-            heldForPayout: holdPayoutsEnabled(),
+            heldForPayout: holdPayoutFor(store),
           },
         },
         sellerNotes: note ? { create: { storeId: store.id, note } } : undefined,

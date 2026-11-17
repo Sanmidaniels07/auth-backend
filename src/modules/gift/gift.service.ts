@@ -24,7 +24,8 @@ import { storePickupAddress } from "../store/store.service";
 import { generateDeliveryCode, recordOrderEvent } from "../order/order-delivery";
 import { notifyGiftClaimed, notifyGiftClosed } from "./gift-notifications";
 import { ClaimGiftInput, SendGiftInput } from "./gift.validation";
-import { holdPayoutsEnabled } from "../../utils/payoutMode";
+import { holdPayoutFor } from "../../utils/payoutMode";
+import { assertWithinReviewLimit } from "../../utils/sellerReview";
 
 // Gift links. The sender pays for one item and picks the seller's delivery
 // zone the recipient lives in (or a pickup point) - not their street
@@ -136,6 +137,7 @@ export const sendGiftService = async (userId: string, data: SendGiftInput) => {
   const subtotal = unitPrice * quantity;
   const deliveryFee = option.fee;
   const total = subtotal + deliveryFee;
+  assertWithinReviewLimit(store, total);
   const code = await uniqueCode();
   const reference = `NESTLY_${crypto.randomUUID().replace(/-/g, "")}`;
 
@@ -185,7 +187,7 @@ export const sendGiftService = async (userId: string, data: SendGiftInput) => {
             deliveryCode: generateDeliveryCode(),
             paidViaSplit: false,
             // Paid out after delivery and the return window, like any held order.
-            heldForPayout: holdPayoutsEnabled(),
+            heldForPayout: holdPayoutFor(store),
           },
         },
         gift: {

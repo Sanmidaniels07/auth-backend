@@ -78,6 +78,8 @@ export const listSellersAdminSchema = z.object({
     page: z.string().optional(),
     limit: z.string().optional(),
     status: z.nativeEnum(SellerStatus).optional(),
+    // "true": only quick-start sellers waiting for a review.
+    needsReview: z.enum(["true", "false"]).optional(),
   }),
 });
 

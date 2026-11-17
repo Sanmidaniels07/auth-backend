@@ -26,7 +26,7 @@ const whatsappNumber = z.preprocess(
   z.string().regex(/^\d{10,15}$/, "Enter your WhatsApp number, e.g. 0815 967 1809.").nullable().optional()
 );
 
-const socialFields = {
+export const socialFields = {
   instagram: socialHandle("Instagram", /^[A-Za-z0-9._]{1,30}$/),
   facebook: socialHandle("Facebook", /^[A-Za-z0-9.\-]{2,80}$/),
   tiktok: socialHandle("TikTok", /^[A-Za-z0-9._]{2,24}$/),

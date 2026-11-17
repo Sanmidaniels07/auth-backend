@@ -263,7 +263,9 @@ const ensureRecipient = async (store: {
   return code;
 };
 
-type SkipReason = "NO_BANK_ACCOUNT" | "ACCOUNT_RECENTLY_CHANGED" | "ALREADY_PAID_TODAY" | "BELOW_MINIMUM";
+// UNDER_REVIEW: a quick-start store an admin hasn't reviewed yet - its
+// money waits until they have (utils/sellerReview).
+type SkipReason = "NO_BANK_ACCOUNT" | "ACCOUNT_RECENTLY_CHANGED" | "ALREADY_PAID_TODAY" | "BELOW_MINIMUM" | "UNDER_REVIEW";
 
 const payStore = async (storeId: string, units: Unit[], amount: number, force: boolean): Promise<{ sent: boolean; skipped?: SkipReason }> => {
   const store = await prisma.store.findUnique({
@@ -278,8 +280,10 @@ const payStore = async (storeId: string, units: Unit[], amount: number, force: b
       payoutAccountUpdatedAt: true,
       paystackRecipientCode: true,
       paystackRecipientFor: true,
+      underReview: true,
     },
   });
+  if (store?.underReview) return { sent: false, skipped: "UNDER_REVIEW" };
   if (!store?.payoutBankCode || !store.payoutAccountNumber) return { sent: false, skipped: "NO_BANK_ACCOUNT" };
   if (accountOnHoldUntil(store)) return { sent: false, skipped: "ACCOUNT_RECENTLY_CHANGED" };
   if (amount < MIN_PAYOUT) return { sent: false, skipped: "BELOW_MINIMUM" };
@@ -392,7 +396,13 @@ export const payHeldManuallyService = async (adminUserId: string, storeId: strin
   if (ready.length === 0) throw new AppError("Nothing is ready to pay for this store.", 400);
 
   const amount = round(ready.reduce((sum, unit) => sum + evaluateUnit(unit).amount, 0));
-  const store = await prisma.store.findUnique({ where: { id: storeId }, select: { payoutBankName: true, payoutAccountNumber: true } });
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+    select: { payoutBankName: true, payoutAccountNumber: true, underReview: true },
+  });
+  if (store?.underReview) {
+    throw new AppError("This store hasn't been reviewed yet. Review the seller (Sellers → Mark reviewed) before paying them.", 400);
+  }
 
   const payout = await prisma.$transaction(async (tx) => {
     const created = await tx.payout.create({

@@ -46,7 +46,7 @@
  * /api/seller/me:
  *   get:
  *     summary: Get the authenticated user's seller profile
- *     description: Returns the seller profile (including its store, if one exists) for the authenticated user. Requires authentication and an existing seller profile. Check the status field (PENDING, APPROVED, REJECTED) and statusReason to see approval state. When status is REJECTED, also returns reapplyEligibleAt (ISO datetime the 3-day cooldown ends) and canReapply (boolean) - use these to drive a reapply countdown on the frontend instead of guessing from statusUpdatedAt yourself.
+ *     description: Returns the seller profile (including its store, if one exists) for the authenticated user. Requires authentication and an existing seller profile. Check the status field (PENDING, APPROVED, REJECTED) and statusReason to see approval state. When status is REJECTED, also returns reapplyEligibleAt (ISO datetime the 3-day cooldown ends) and canReapply (boolean) - use these to drive a reapply countdown on the frontend instead of guessing from statusUpdatedAt yourself. `orderLimit` (naira) is set while the store is underReview (quick start, not yet reviewed by an admin) - the most one order from the store can be; null otherwise.
  *     tags:
  *       - Seller
  *     security:
@@ -111,3 +111,59 @@
  */
 
 export {};
+
+/**
+ * @swagger
+ * /api/seller/quick-start:
+ *   post:
+ *     summary: Start selling in one step (quick start)
+ *     description: |
+ *       Requires authentication. Approves the seller and creates their store at once, so they can make a payment link straight away. Nestly reviews them afterwards: the store is created with `underReview: true`, which until an admin reviews it (PATCH /api/admin/sellers/{id}/status with APPROVED):
+ *       - holds every payout (never split at checkout) and doesn't send held payouts, automatically or by hand;
+ *       - caps one order from the store at NEW_SELLER_ORDER_LIMIT naira (default 200000, items + delivery) - checkout, payment links (also when creating/editing one), lives and gifts.
+ *       Admins are notified ("New seller to review").
+ *       - No seller profile, or an application still PENDING: approved now, store underReview.
+ *       - APPROVED earlier by an admin but no store yet: store created without review.
+ *       - REJECTED: 403 (reapply via POST /become-seller after the cooldown). Already has a store: 400. Guest-checkout account: 403.
+ *       If creating the store fails, the profile is put back as it was.
+ *       Returns the seller profile as GET /api/seller/me, including `store` and `orderLimit`.
+ *     tags:
+ *       - Seller
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [storeName, agreeToSellerTerms]
+ *             properties:
+ *               storeName:
+ *                 type: string
+ *                 minLength: 2
+ *                 maxLength: 60
+ *                 example: Tola's Bakes
+ *               instagram:
+ *                 type: string
+ *                 example: "@tolasbakes"
+ *               whatsapp:
+ *                 type: string
+ *                 example: 0815 967 1809
+ *               cacNumber:
+ *                 type: string
+ *                 description: Optional. Checked with Dojah when configured, after the store is named.
+ *               cacCompanyType:
+ *                 type: string
+ *                 enum: [BUSINESS_NAME, COMPANY, INCORPORATED_TRUSTEES, LIMITED_PARTNERSHIP, LIMITED_LIABILITY_PARTNERSHIP]
+ *               agreeToSellerTerms:
+ *                 type: boolean
+ *                 enum: [true]
+ *     responses:
+ *       201:
+ *         description: Store live - the seller profile with `store` (underReview) and `orderLimit`
+ *       400:
+ *         description: Validation error, or already has a store
+ *       403:
+ *         description: Rejected seller, or a guest-checkout account
+ */

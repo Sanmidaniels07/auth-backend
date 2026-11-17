@@ -1037,6 +1037,13 @@ model Store {
 
   isSuspended Boolean @default(false)
 
+  // Quick start: the seller began selling straight away, before an admin
+  // looked at them. Until an admin reviews the store (sets this false):
+  // every sale's payout is held (never split at checkout) and isn't sent
+  // until the review, and one order from the store is capped
+  // (utils/sellerReview).
+  underReview Boolean @default(false)
+
   // Where buyers can also find the seller - shown as buttons on the store
   // page. Stored normalised: handles without "@" or URL, WhatsApp as an
   // international number (2348012345678).

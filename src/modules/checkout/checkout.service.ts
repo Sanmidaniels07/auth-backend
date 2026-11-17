@@ -27,7 +27,8 @@ import {
 import { createNotificationService } from "../notification/notification.service";
 import { saveCardFromAuthorization } from "../payment-method/payment-method.service";
 import { storePickupAddress } from "../store/store.service";
-import { holdPayoutsEnabled, routeViaSplit } from "../../utils/payoutMode";
+import { holdPayoutFor, routeViaSplit } from "../../utils/payoutMode";
+import { assertWithinReviewLimit } from "../../utils/sellerReview";
 import { generateDeliveryCode, recordOrderEvent } from "../order/order-delivery";
 import { notifyOrderPaid } from "../order/order-notifications";
 import { announceLivePurchase } from "../live/live.service";
@@ -242,6 +243,14 @@ const buildPendingOrder = async (
       );
     }
 
+    // A store under review: one order's part from them is capped.
+    assertWithinReviewLimit(
+      store,
+      cart.items
+        .filter((item) => item.product.storeId === store.id)
+        .reduce((sum, item) => sum + priceOf(item) * item.quantity, 0) + option.fee,
+    );
+
     shippingRows.push({
       storeId: store.id,
       optionName: option.name,
@@ -261,8 +270,9 @@ const buildPendingOrder = async (
       // The seller does the delivery, so the fee is theirs - it rides along
       // in their split share below when they're eligible for one.
       paidViaSplit: routeViaSplit(store),
-      // Hold-then-pay: Nestly pays this seller once the return window closes.
-      heldForPayout: holdPayoutsEnabled(),
+      // Hold-then-pay: Nestly pays this seller once the return window
+      // closes - always for a store still under review.
+      heldForPayout: holdPayoutFor(store),
     });
 
     deliveryFee += option.fee;
