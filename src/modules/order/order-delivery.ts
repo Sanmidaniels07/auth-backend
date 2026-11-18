@@ -1,5 +1,6 @@
 import crypto from "crypto";
-import { OrderEventActor, OrderEventType, Prisma, PrismaClient } from "@prisma/client";
+import { OrderEventActor, OrderEventType, Prisma } from "@prisma/client";
+import type appPrisma from "../../prisma/prisma";
 
 // Delivered-but-unconfirmed items confirm themselves after this long.
 // Staging can shorten it (e.g. AUTO_CONFIRM_DAYS=0.01 = ~15 minutes) so
@@ -46,7 +47,7 @@ export const returnWindowLabel = (confirmedAt: Date | null, perishable = false) 
 
 export const autoConfirmCutoff = (now = new Date()) => new Date(now.getTime() - AUTO_CONFIRM_DAYS * DAY_MS);
 
-type Db = PrismaClient | Prisma.TransactionClient;
+type Db = typeof appPrisma | Prisma.TransactionClient;
 
 export const recordOrderEvent = (
   db: Db,

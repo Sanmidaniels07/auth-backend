@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import type appPrisma from "../prisma/prisma";
 
 // Edit history for products (admin-only) and the "earlier version" rule for
 // reviews. Values are stored readable ("₦2,000", "Size: S, M") so the log
@@ -107,7 +108,7 @@ export const isDifferentProduct = (before: Pick<HistorySource, "title" | "catego
   before.categoryId !== after.categoryId || titleSimilarity(before.title, after.title) < 0.5;
 
 export const recordProductRevision = (
-  client: Prisma.TransactionClient,
+  client: typeof appPrisma | Prisma.TransactionClient,
   data: { productId: string; editedById: string; changes: HistoryChange[]; reviewsReset?: boolean }
 ) =>
   client.productRevision.create({
