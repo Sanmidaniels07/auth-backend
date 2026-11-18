@@ -97,6 +97,8 @@ export const notifyOrderPaid = (orderId: string, { buyer = true }: { buyer?: boo
   safely("Order paid notifications", async () => {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
+      // Needed for the guest's order link in the email.
+      omit: { guestAccessToken: false },
       include: {
         user: { select: USER_SELECT },
         address: { select: { fullName: true, address: true, city: true, state: true } },
