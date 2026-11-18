@@ -455,9 +455,36 @@ export const finalizeOrderPayment = async (order: {
   // only hears about it once the recipient claims it.
   const gift = await prisma.gift.findUnique({ where: { orderId: order.id }, select: { id: true } });
 
+  // A price agreed in chat on a listed product: the sale comes out of that
+  // listing's stock too (the link has its own private copy of the item).
+  const offerListing = order.paymentLinkId
+    ? (await prisma.offer.findUnique({ where: { paymentLinkId: order.paymentLinkId }, select: { productId: true } }))?.productId ?? null
+    : null;
+
   let updatedOrder;
   try {
     updatedOrder = await prisma.$transaction(async (tx) => {
+      if (offerListing) {
+        const quantity = order.items.reduce((sum, item) => sum + item.quantity, 0);
+        const taken = await tx.product.updateMany({
+          where: { id: offerListing, stock: { gte: quantity } },
+          data: { stock: { decrement: quantity } },
+        });
+        // Sold out in the shop meanwhile: cancelled and refunded like any
+        // other sold-out payment (named after the item the buyer paid for).
+        if (taken.count === 0) throw new SoldOutError(order.items[0].productId);
+        const listing = await tx.product.findUniqueOrThrow({
+          where: { id: offerListing },
+          include: { store: { select: { seller: { select: { userId: true } } } } },
+        });
+        if (listing.stock <= 0 && listing.status === ProductStatus.PUBLISHED) {
+          await tx.product.update({ where: { id: listing.id }, data: { status: ProductStatus.OUT_OF_STOCK } });
+        }
+        if (listing.stock > 0 && listing.stock <= LOW_STOCK_THRESHOLD) {
+          lowStock.push({ sellerUserId: listing.store.seller.userId, productId: listing.id, title: listing.title, stock: listing.stock });
+        }
+      }
+
       for (const item of order.items) {
         // Only take stock that's still there. If someone else's payment got
         // the last one first (e.g. this buyer's hold ran out mid-payment),

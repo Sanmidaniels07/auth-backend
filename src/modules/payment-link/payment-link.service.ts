@@ -260,11 +260,21 @@ export const deletePaymentLinkService = async (userId: string, id: string) => {
 
 type Availability = "AVAILABLE" | "SOLD_OUT" | "PAUSED";
 
-const availabilityOf = (link: { isActive: boolean; product: { stock: number } }): Availability =>
-  !link.isActive ? "PAUSED" : link.product.stock <= 0 ? "SOLD_OUT" : "AVAILABLE";
+// How many can still be bought: the link's own quantity, and - for a price
+// agreed in chat on a listed product - what's left of that listing too.
+const stockOf = (link: { product: { stock: number }; offer?: { product: { stock: number } | null } | null }) =>
+  Math.min(link.product.stock, link.offer?.product?.stock ?? Infinity);
+
+const availabilityOf = (link: {
+  isActive: boolean;
+  product: { stock: number };
+  offer?: { product: { stock: number } | null } | null;
+}): Availability => (!link.isActive ? "PAUSED" : stockOf(link) <= 0 ? "SOLD_OUT" : "AVAILABLE");
 
 const PUBLIC_LINK_INCLUDE = {
   product: { include: LINK_PRODUCT_INCLUDE },
+  // From an offer in chat on a listed product: that listing's stock.
+  offer: { select: { product: { select: { id: true, title: true, stock: true } } } },
   store: {
     select: {
       id: true,
@@ -312,7 +322,7 @@ export const getPublicPaymentLinkService = async (code: string, viewerId?: strin
     price: product.price,
     images: product.images.map(({ url, isPrimary }) => ({ url, isPrimary })),
     category: product.category,
-    quantityAvailable: Math.max(0, product.stock),
+    quantityAvailable: Math.max(0, stockOf(link)),
     deliveryType: link.deliveryType,
     deliveryFee: link.deliveryFee,
     pickupAddress: link.deliveryType === PaymentLinkDelivery.PICKUP ? storePickupAddress(store) : null,
@@ -389,8 +399,8 @@ const assertCanBuy = (link: PublicLink, userId: string | null, quantity: number)
   const availability = availabilityOf(link);
   if (availability === "PAUSED") throw new AppError("The seller has paused this link. Message them to turn it back on.", 400);
   if (availability === "SOLD_OUT") throw new AppError("This item has sold out.", 400);
-  if (quantity > link.product.stock) {
-    throw new AppError(`Only ${link.product.stock} left - lower the quantity.`, 400);
+  if (quantity > stockOf(link)) {
+    throw new AppError(`Only ${stockOf(link)} left - lower the quantity.`, 400);
   }
 };
 
@@ -495,8 +505,12 @@ const startLinkPayment = async (
 
   // The unpaid order holds its stock while the buyer pays (utils/stockHold).
   const order = await prisma.$transaction(async (tx) => {
+    // An offer on a listed product also holds that listing's stock, so the
+    // last one can't be sold twice (once in the shop, once via the offer).
+    const listed = link.offer?.product;
     await assertStockAvailable(tx, userId, [
       { productId: product.id, variationId: null, quantity, title: product.title },
+      ...(listed ? [{ productId: listed.id, variationId: null, quantity, title: listed.title }] : []),
     ]);
 
     return tx.order.create({

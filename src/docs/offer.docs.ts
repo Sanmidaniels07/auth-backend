@@ -68,7 +68,9 @@
  *       give categoryId for a described item (it sets the commission) and may give deliveryFee when their store has no
  *       delivery zones (default free). ACCEPT creates a payment link (/pay/{code}) at the agreed price that only the
  *       buyer can pay - with the store's delivery zones if it has any, else the agreed fee; if the link can't be made
- *       the offer goes back to pending. The other side is notified.
+ *       the offer goes back to pending. The other side is notified. For an offer on a listed product, paying the
+ *       link also takes the quantity from that listing's stock (the link shows as sold out when the listing is, and a
+ *       payment that lands after the listing sold out is cancelled and refunded).
  *     tags:
  *       - Offer
  *     security:
