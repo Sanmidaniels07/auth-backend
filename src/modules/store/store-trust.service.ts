@@ -126,11 +126,13 @@ const computeTrust = async (store: {
   };
 };
 
-/** Public. 404 for suspended stores. Cached for 10 minutes per store. */
+/**
+ * Public. 404 for suspended stores. The store itself is always read fresh,
+ * so a store taken down (e.g. rejected as fraud) disappears at once and a
+ * review or verification shows straight away; only the order statistics
+ * are cached, for 10 minutes.
+ */
 export const getStoreTrustService = async (slug: string) => {
-  const hit = cache.get(slug);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
-
   const store = await prisma.store.findUnique({
     where: { slug },
     select: {
@@ -148,8 +150,12 @@ export const getStoreTrustService = async (slug: string) => {
   });
   if (!store || store.isSuspended) throw new AppError("Store not found.", 404);
 
+  const key = `${slug}:${store.underReview}:${store.isVerified}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
+
   const value = await computeTrust(store);
-  cache.set(slug, { at: Date.now(), value });
+  cache.set(key, { at: Date.now(), value });
   // Keep the cache small - it's a convenience, not a store.
   if (cache.size > 2000) cache.delete(cache.keys().next().value as string);
   return value;
