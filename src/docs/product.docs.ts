@@ -590,3 +590,82 @@
  */
 
 export {};
+
+/**
+ * @swagger
+ * /api/products/ai-draft/status:
+ *   get:
+ *     summary: Photo-to-listing availability
+ *     description: Whether photo-to-listing is switched on (the server has an ANTHROPIC_API_KEY) and how many tries the signed-in seller has left today (Nigeria time, AI_LISTING_DAILY_LIMIT, default 30). The website hides the button when enabled is false. Requires authentication.
+ *     tags:
+ *       - Product
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Status
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               message: Photo-to-listing status
+ *               data: { enabled: true, remainingToday: 28 }
+ *       401:
+ *         description: Not signed in
+ *
+ * /api/products/ai-draft:
+ *   post:
+ *     summary: Suggest listing details from product photos
+ *     description: |
+ *       Sends 1-4 of the seller's already-uploaded product photos (Cloudinary URLs from POST /api/uploads, this account's cloud only) to Claude and returns suggested listing details for the add product form - title, description, category, brand (only if visible), condition, delivery vehicle, highlights and specifications. Nothing is saved; the seller reviews and edits before saving. The price guide is the middle half of live prices in the suggested category on Nestly (shown only with 5+ products), never an AI guess.
+ *       Requires authentication, an APPROVED seller profile and a store. Limited per seller per day.
+ *     tags:
+ *       - Product
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [imageUrls]
+ *             properties:
+ *               imageUrls:
+ *                 type: array
+ *                 minItems: 1
+ *                 maxItems: 4
+ *                 items: { type: string, format: uri }
+ *           example:
+ *             imageUrls: ["https://res.cloudinary.com/<cloud>/image/upload/v1/nestly/posts/abc.jpg"]
+ *     responses:
+ *       200:
+ *         description: Suggestion ready
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               message: Listing suggestion ready
+ *               data:
+ *                 title: Red Ankara Wrap Dress with Puff Sleeves
+ *                 description: A bright red Ankara wrap dress with short puff sleeves...
+ *                 categoryId: cm123
+ *                 categoryName: Fashion
+ *                 brand: ""
+ *                 condition: NEW
+ *                 deliveryVehicle: BIKE
+ *                 highlights: [Bold Ankara print, Adjustable wrap waist]
+ *                 specifications: [{ name: Colour, value: Red }]
+ *                 priceGuide: { low: 15000, high: 28000, basedOn: 42 }
+ *                 remainingToday: 27
+ *       400:
+ *         description: No photos / more than 4 / not a Nestly-uploaded photo
+ *       403:
+ *         description: Not an approved seller, or no store yet
+ *       422:
+ *         description: The photos don't show a product for sale, or couldn't be read
+ *       429:
+ *         description: Daily tries used up, or the AI service is busy
+ *       503:
+ *         description: Photo-to-listing is switched off or unavailable - fill in the form by hand
+ */

@@ -30,8 +30,14 @@ import {
   bulkDeleteProducts,
   exportSellerProductsCsv,
 } from "./product.controller";
+import { aiListingDraftSchema } from "../ai-listing/ai-listing.validation";
+import { createAiListingDraft, getAiListingStatus } from "../ai-listing/ai-listing.controller";
 
 const router = Router();
+
+// Photo-to-listing (before "/:id" so "ai-draft" isn't read as a product id).
+router.get("/ai-draft/status", authMiddleware, getAiListingStatus);
+router.post("/ai-draft", authMiddleware, validate(aiListingDraftSchema), createAiListingDraft);
 
 router.post(
   "/",
