@@ -16,6 +16,7 @@ import { startPayoutTermsUpdateJob } from "./jobs/payout-terms-update.job";
 import { startLiveJob } from "./jobs/live.job";
 import { startReviewRemindersJob } from "./jobs/review-reminders.job";
 import { startGroupGiftExpiryJob } from "./jobs/group-gift-expiry.job";
+import { startWinbackRemindersJob } from "./jobs/winback-reminders.job";
 
 const PORT = process.env.PORT || 5000;
 
@@ -40,4 +41,5 @@ server.listen(PORT, () => {
   startLiveJob();
   startReviewRemindersJob();
   startGroupGiftExpiryJob();
+  startWinbackRemindersJob();
 });

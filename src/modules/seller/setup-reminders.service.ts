@@ -8,10 +8,14 @@ import { READINESS_SELECT, READINESS_STEPS, missingSetup } from "../../utils/sel
 
 // Approved sellers whose store isn't ready to take orders (no store, payout
 // account, delivery zones or published product) are reminded in the app and
-// by email: first 2 days after approval, then once a week until it's done.
-// The Seller Hub and home dashboard show a banner the whole time.
+// by email: first 2 days after approval, then once a week for the first few,
+// then once a month until it's done (they never stop, but don't become a
+// weekly email forever). The Seller Hub and home dashboard show a banner the
+// whole time.
 const FIRST_AFTER_DAYS = 2;
+const WEEKLY_REMINDERS = 5;
 const EVERY_DAYS = 7;
+const LATER_EVERY_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const frontend = () => process.env.FRONTEND_URL ?? "";
@@ -38,7 +42,8 @@ export const sendSetupRemindersService = async (now: Date = new Date()) => {
 
     const approvedAt = seller.statusUpdatedAt ?? seller.createdAt;
     const dueAt = seller.lastSetupReminderAt
-      ? seller.lastSetupReminderAt.getTime() + EVERY_DAYS * DAY_MS
+      ? seller.lastSetupReminderAt.getTime() +
+        (seller.setupRemindersSent < WEEKLY_REMINDERS ? EVERY_DAYS : LATER_EVERY_DAYS) * DAY_MS
       : approvedAt.getTime() + FIRST_AFTER_DAYS * DAY_MS;
     if (now.getTime() < dueAt) continue;
 
