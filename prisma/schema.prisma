@@ -204,6 +204,8 @@ enum NotificationType {
   SHOPPING
   // Live selling: a store you follow announced a live, reminders, "live now".
   LIVE
+  // "We miss you" catch-ups for people who haven't opened Nestly in a while.
+  REMINDER
 }
 
 model User {
@@ -279,6 +281,11 @@ model User {
   // "Finish your profile" nudges after signup (jobs/profile-reminders).
   profileRemindersSent  Int       @default(0)
   lastProfileReminderAt DateTime?
+
+  // "We miss you" catch-ups while they're away (jobs/winback-reminders):
+  // how many in the current time away, and when the last one went out.
+  winbackRemindersSent  Int       @default(0)
+  lastWinbackReminderAt DateTime?
 
   // Where they came from before signing up (admin overview).
   signupSource TrafficSource?
