@@ -9,14 +9,14 @@ import { NIGERIA_UTC_OFFSET_MS, nigeriaToday } from "../../utils/birthday";
 
 // "We miss you" catch-ups, in the app and by email, for anyone - buyer,
 // seller or member - who hasn't opened Nestly for AWAY_DAYS. They repeat
-// twice a week for as long as the person stays away (they don't stop),
+// once a week for as long as the person stays away (they don't stop),
 // and start over when they come back and leave again. Each one shows what
 // really happened while they were away: shop visits, followers, orders and
 // offers waiting (sellers), unread messages, new products from stores they
 // follow and picks for them. One switch turns them off:
 // NotificationType.REMINDER ("We miss you" in Settings -> Notifications).
 const AWAY_DAYS = 14;
-const EVERY_DAYS = 3.5; // twice a week
+const EVERY_DAYS = 7; // once a week
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // At most this many go out per day (Nigeria time), across everyone, so other
