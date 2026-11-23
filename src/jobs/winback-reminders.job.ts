@@ -2,8 +2,8 @@ import { sendWinbackRemindersService } from "../modules/winback/winback-reminder
 import { nigeriaHour } from "../utils/birthday";
 
 // "We miss you" catch-ups for people away from Nestly (see
-// winback-reminders.service). Checked hourly, sent between 9am and 9pm
-// Nigeria time, a few per run. Each one is claimed before it's sent, so
+// winback-reminders.service). Checked hourly between 9am and 9pm
+// Nigeria time, up to the daily limit. Each one is claimed before it's sent, so
 // repeated runs or several instances never double up.
 const INTERVAL_MS = 60 * 60 * 1000;
 const FIRST_RUN_DELAY_MS = 5 * 60 * 1000;
