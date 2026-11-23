@@ -5,22 +5,24 @@ import { sendEmail } from "../auth/email.services";
 import { createNotificationService } from "../notification/notification.service";
 import { getForYouService } from "../recommendation/recommendation.service";
 import { winbackEmail, WinbackFact, WinbackPick } from "../../templates/winback.template";
+import { NIGERIA_UTC_OFFSET_MS, nigeriaToday } from "../../utils/birthday";
 
 // "We miss you" catch-ups, in the app and by email, for anyone - buyer,
 // seller or member - who hasn't opened Nestly for AWAY_DAYS. They repeat
-// every EVERY_DAYS for as long as the person stays away (they don't stop),
+// once a week for as long as the person stays away (they don't stop),
 // and start over when they come back and leave again. Each one shows what
 // really happened while they were away: shop visits, followers, orders and
 // offers waiting (sellers), unread messages, new products from stores they
 // follow and picks for them. One switch turns them off:
 // NotificationType.REMINDER ("We miss you" in Settings -> Notifications).
 const AWAY_DAYS = 14;
-const EVERY_DAYS = 14;
+const EVERY_DAYS = 7; // once a week
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Sent a few at a time so a first run after launch doesn't fire hundreds of
-// emails at once (and other emails, like order updates, keep flowing).
-const maxPerRun = () => Number(process.env.WINBACK_MAX_PER_RUN) || 10;
+// At most this many go out per day (Nigeria time), across everyone, so other
+// emails like order updates stay within the email plan's daily limit. Anyone
+// who doesn't get theirs today is first in line tomorrow.
+const maxPerDay = () => Number(process.env.WINBACK_MAX_PER_DAY) || 10;
 const GAP_MS = 600;
 
 // A seller who just got a "finish setting up" email waits a couple of days.
@@ -97,6 +99,12 @@ export const sendWinbackRemindersService = async (now: Date = new Date()) => {
   const awayCutoff = new Date(now.getTime() - AWAY_DAYS * DAY_MS);
   const repeatCutoff = new Date(now.getTime() - EVERY_DAYS * DAY_MS);
 
+  // What's left of today's allowance (the day starts at midnight in Nigeria).
+  const dayStart = new Date(nigeriaToday(now).getTime() - NIGERIA_UTC_OFFSET_MS);
+  const sentToday = await prisma.user.count({ where: { lastWinbackReminderAt: { gte: dayStart } } });
+  const allowance = maxPerDay() - sentToday;
+  if (allowance <= 0) return 0;
+
   const users = await prisma.user.findMany({
     where: {
       createdAt: { lt: awayCutoff },
@@ -113,9 +121,9 @@ export const sendWinbackRemindersService = async (now: Date = new Date()) => {
         { OR: [{ lastWinbackReminderAt: null }, { lastWinbackReminderAt: { lte: repeatCutoff } }] },
       ],
     },
-    // Longest without a catch-up first.
+    // Longest without a catch-up first, so whoever missed out yesterday goes first.
     orderBy: [{ lastWinbackReminderAt: { sort: "asc", nulls: "first" } }, { createdAt: "asc" }],
-    take: maxPerRun() * 3,
+    take: allowance * 3,
     select: {
       id: true,
       name: true,
@@ -132,7 +140,7 @@ export const sendWinbackRemindersService = async (now: Date = new Date()) => {
   let sent = 0;
 
   for (const user of users) {
-    if (sent >= maxPerRun()) break;
+    if (sent >= allowance) break;
 
     const setupAt = user.sellerProfile?.lastSetupReminderAt;
     if (setupAt && now.getTime() - setupAt.getTime() < AFTER_SETUP_REMINDER_DAYS * DAY_MS) continue;
