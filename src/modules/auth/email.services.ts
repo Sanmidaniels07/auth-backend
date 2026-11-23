@@ -6,6 +6,9 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const isProduction = process.env.NODE_ENV === "production";
 
+// Where a customer's "Reply" goes - a real inbox (Zoho), not the sending address.
+const replyTo = process.env.EMAIL_REPLY_TO || "support@nestlyapp.site";
+
 export const sendEmail = async (
   to: string,
   subject: string,
@@ -20,6 +23,7 @@ export const sendEmail = async (
   const { data, error } = await resend.emails.send({
     from: process.env.EMAIL_FROM as string,
     to,
+    replyTo,
     // Testers' inboxes get mail from both environments - make staging's obvious.
     subject: isStaging ? `[Staging] ${subject}` : subject,
     html,

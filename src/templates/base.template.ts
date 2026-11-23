@@ -17,6 +17,8 @@ const logoUrl = () => `${frontendOrigin()}/email/nestly-mark.png`;
 // Nestly Support is on WhatsApp for now (same number as the app's support
 // buttons); override with SUPPORT_WHATSAPP, digits only.
 const supportWhatsAppUrl = () => `https://wa.me/${process.env.SUPPORT_WHATSAPP || "2348159671809"}`;
+// Same inbox replies go to (see email.services.ts).
+const supportEmail = () => process.env.EMAIL_REPLY_TO || "support@nestlyapp.site";
 
 const BRAND = {
   name: "Nestly",
@@ -145,8 +147,9 @@ export const renderEmailLayout = ({
             <tr>
               <td style="padding:20px 36px 28px 36px; border-top:1px solid ${BRAND.border};">
                 <p style="margin:0; font-family:${SANS_STACK}; font-size:12px; line-height:1.6; color:${BRAND.mutedInk};">
-                  Sent by ${BRAND.name}. This is an automated message, so replies to this email aren't read.
-                  Need help? <a href="${supportWhatsAppUrl()}" target="_blank" style="color:${BRAND.gradientFrom}; text-decoration:none; font-weight:600;">Chat with Nestly Support on WhatsApp</a>.
+                  Sent by ${BRAND.name}. Need help? Reply to this email, write to
+                  <a href="mailto:${supportEmail()}" style="color:${BRAND.gradientFrom}; text-decoration:none; font-weight:600;">${supportEmail()}</a>,
+                  or <a href="${supportWhatsAppUrl()}" target="_blank" style="color:${BRAND.gradientFrom}; text-decoration:none; font-weight:600;">chat with Nestly Support on WhatsApp</a>.
                 </p>
               </td>
             </tr>
