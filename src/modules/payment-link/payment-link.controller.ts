@@ -7,6 +7,7 @@ import { issueUserSession } from "../auth/auth.service";
 import {
   claimGuestAccountService,
   confirmGuestDeliveryService,
+  createLinkFromProductService,
   createPaymentLinkService,
   deletePaymentLinkService,
   getGuestOrderService,
@@ -24,6 +25,16 @@ export const createPaymentLink = asyncHandler(
 
     res.status(201).json(
       apiResponse(link, "Payment link created")
+    );
+  }
+);
+
+export const createLinkFromProduct = asyncHandler(
+  async (req: Request, res: Response) => {
+    const link = await createLinkFromProductService(req.user.id, req.params.productId as string);
+
+    res.status(200).json(
+      apiResponse(link, "Pay link ready")
     );
   }
 );

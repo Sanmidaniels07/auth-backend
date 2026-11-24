@@ -11,6 +11,7 @@ import {
   guestOrderTokenSchema,
   guestPayPaymentLinkSchema,
   paymentLinkCodeSchema,
+  paymentLinkFromProductSchema,
   paymentLinkIdSchema,
   payPaymentLinkSchema,
   updatePaymentLinkSchema,
@@ -18,6 +19,7 @@ import {
 import {
   claimGuestAccount,
   confirmGuestDelivery,
+  createLinkFromProduct,
   createPaymentLink,
   deletePaymentLink,
   getGuestOrder,
@@ -35,6 +37,9 @@ const router = Router();
 router.post("/", authMiddleware, validate(createPaymentLinkSchema), createPaymentLink);
 
 router.get("/me", authMiddleware, getMyPaymentLinks);
+
+// "Share pay link" on a listed product: made once, reused after.
+router.post("/from-product/:productId", authMiddleware, validate(paymentLinkFromProductSchema), createLinkFromProduct);
 
 router.patch("/:id", authMiddleware, validate(updatePaymentLinkSchema), updatePaymentLink);
 

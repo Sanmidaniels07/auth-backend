@@ -62,6 +62,12 @@ export const paymentLinkIdSchema = z.object({
   }),
 });
 
+export const paymentLinkFromProductSchema = z.object({
+  params: z.object({
+    productId: z.string().min(1),
+  }),
+});
+
 export const paymentLinkCodeSchema = z.object({
   params: z.object({
     code: z.string().min(1).max(32),

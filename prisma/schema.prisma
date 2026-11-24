@@ -1373,7 +1373,8 @@ model Product {
   // Shared into chats as product cards.
   messages Message[]
 
-  // Set for PRIVATE products - the link they're sold through.
+  // The link it's sold through: PRIVATE products always, listed ones when
+  // the seller shared a pay link for them.
   paymentLink PaymentLink?
 
   liveProducts LiveProduct[]
@@ -1394,6 +1395,12 @@ model PaymentLink {
 
   productId String  @unique
   product   Product @relation(fields: [productId], references: [id])
+
+  // A link to a product listed in the shop ("Share pay link" on a product):
+  // the buyer pays for the real listing, so its price, photos and stock are
+  // always current and sales come out of the shop stock. Otherwise the item
+  // is a PRIVATE product made for the link.
+  fromListing Boolean @default(false)
 
   deliveryType PaymentLinkDelivery @default(DELIVERY)
 
