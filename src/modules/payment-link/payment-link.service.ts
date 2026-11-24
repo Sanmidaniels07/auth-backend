@@ -33,6 +33,7 @@ import { sendEmail } from "../auth/email.services";
 import { verificationTemplate } from "../../templates/verification.template";
 import { generateVerificationToken } from "../../utils/token";
 import { VEHICLE_LABEL, canCarry } from "../../utils/deliveryVehicle";
+import { unitPriceOf, variationLabel } from "../../utils/productOptions";
 import {
   CreatePaymentLinkInput,
   GuestPayPaymentLinkInput,
@@ -67,6 +68,10 @@ const uniqueCode = async () => {
 const LINK_PRODUCT_INCLUDE = {
   images: { orderBy: [{ isPrimary: "desc" as const }, { id: "asc" as const }] },
   category: { select: { id: true, name: true, slug: true } },
+  // Shared from the shop: the listing's options (e.g. Size, Colour) and
+  // combinations - the buyer picks one on the pay page.
+  options: { orderBy: { position: "asc" as const } },
+  variations: { where: { isArchived: false }, orderBy: { createdAt: "asc" as const } },
 };
 
 type LinkWithProduct = Prisma.PaymentLinkGetPayload<{
@@ -107,15 +112,19 @@ const assertDeliveryPossible = async (
 const feeFor = (deliveryType: PaymentLinkDelivery, fee: number | undefined) =>
   deliveryType === PaymentLinkDelivery.DELIVERY ? fee ?? 0 : 0;
 
-/** Paid orders through each link: how many orders, units and naira (cancelled items left out). */
-const salesByProduct = async (productIds: string[]) => {
-  if (!productIds.length) return new Map<string, { orders: number; units: number; revenue: number }>();
+/**
+ * Paid orders through each link: how many orders, units and naira
+ * (cancelled items left out), keyed by the link's product. Only orders
+ * made through the link count - a listed product also sells in the shop.
+ */
+const salesByProduct = async (links: { id: string; productId: string }[]) => {
+  if (!links.length) return new Map<string, { orders: number; units: number; revenue: number }>();
   const rows = await prisma.orderItem.groupBy({
     by: ["productId"],
     where: {
-      productId: { in: productIds },
+      productId: { in: links.map((link) => link.productId) },
       status: { not: OrderItemStatus.CANCELLED },
-      order: { status: { in: PAID_ORDER_STATUSES } },
+      order: { status: { in: PAID_ORDER_STATUSES }, paymentLinkId: { in: links.map((link) => link.id) } },
     },
     _count: { _all: true },
     _sum: { quantity: true, totalPrice: true },
@@ -142,6 +151,11 @@ const forSeller = (link: LinkWithProduct, sales?: { orders: number; units: numbe
   deliveryFee: link.deliveryFee,
   deliveryVehicle: link.product.deliveryVehicle,
   isActive: link.isActive,
+  // Shared from a product in the shop: title, price, photos and stock are
+  // the listing's (edited on the product), only delivery is the link's own.
+  fromListing: link.fromListing,
+  productId: link.fromListing ? link.productId : null,
+  productStatus: link.product.status,
   createdAt: link.createdAt,
   updatedAt: link.updatedAt,
   sales: sales ?? { orders: 0, units: 0, revenue: 0 },
@@ -209,8 +223,76 @@ export const getMyPaymentLinksService = async (userId: string) => {
     orderBy: { createdAt: "desc" },
     include: { product: { include: LINK_PRODUCT_INCLUDE } },
   });
-  const sales = await salesByProduct(links.map((link) => link.productId));
+  const sales = await salesByProduct(links);
   return links.map((link) => forSeller(link, sales.get(link.productId)));
+};
+
+// Why a listed product can't be sold through a link right now (null = it can).
+const listingProblem = (product: { status: ProductStatus }) => {
+  if (product.status === ProductStatus.DRAFT) return "Publish this product first, then share its pay link.";
+  if (product.status === ProductStatus.ARCHIVED || product.status === ProductStatus.PRIVATE) {
+    return "This product isn't in your shop anymore.";
+  }
+  return null;
+};
+
+/**
+ * "Share pay link" on a product in the shop: the link for that product,
+ * made the first time and reused after (turned back on if it was paused or
+ * deleted). Buyers pay for the real listing - same price, photos and stock -
+ * without needing an account.
+ */
+export const createLinkFromProductService = async (userId: string, productId: string) => {
+  const store = await getSellerStore(userId);
+  if (store.isSuspended) throw new AppError("Your store is suspended, so you can't share pay links.", 403);
+
+  const product = await prisma.product.findFirst({
+    where: { id: productId, storeId: store.id },
+    select: { id: true, price: true, status: true, variations: { where: { isArchived: false, isActive: true }, select: { price: true } } },
+  });
+  if (!product) throw new AppError("Product not found.", 404);
+  const problem = listingProblem(product);
+  if (problem) throw new AppError(problem, 400);
+
+  const existing = await prisma.paymentLink.findUnique({ where: { productId: product.id } });
+  if (existing) {
+    const link = await prisma.paymentLink.update({
+      where: { id: existing.id },
+      data: { isActive: true, isArchived: false },
+      include: { product: { include: LINK_PRODUCT_INCLUDE } },
+    });
+    const sales = await salesByProduct([link]);
+    return forSeller(link, sales.get(link.productId));
+  }
+
+  // The buyer picks one of the store's zones / pickup points, as in the shop.
+  await assertDeliveryPossible(PaymentLinkDelivery.STORE_OPTIONS, store);
+  // With options: the cheapest combination has to be payable.
+  assertWithinReviewLimit(store, Math.min(product.price, ...product.variations.map((v) => v.price ?? product.price)), true);
+
+  try {
+    const link = await prisma.paymentLink.create({
+      data: {
+        code: await uniqueCode(),
+        fromListing: true,
+        deliveryType: PaymentLinkDelivery.STORE_OPTIONS,
+        store: { connect: { id: store.id } },
+        product: { connect: { id: product.id } },
+      },
+      include: { product: { include: LINK_PRODUCT_INCLUDE } },
+    });
+    return forSeller(link);
+  } catch (error) {
+    // Tapped twice at once: the other tap made it.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const link = await prisma.paymentLink.findUniqueOrThrow({
+        where: { productId: product.id },
+        include: { product: { include: LINK_PRODUCT_INCLUDE } },
+      });
+      return forSeller(link);
+    }
+    throw error;
+  }
 };
 
 export const updatePaymentLinkService = async (userId: string, id: string, data: UpdatePaymentLinkInput) => {
@@ -221,6 +303,18 @@ export const updatePaymentLinkService = async (userId: string, id: string, data:
   await assertDeliveryPossible(deliveryType, store);
   const deliveryFee = feeFor(deliveryType, data.deliveryFee ?? link.deliveryFee);
   assertWithinReviewLimit(store, (data.price ?? link.product.price) + deliveryFee, true);
+
+  // Shared from a product in the shop: the item is the listing itself, edited
+  // on the product page - only delivery and on / off belong to the link.
+  if (link.fromListing) {
+    const updated = await prisma.paymentLink.update({
+      where: { id: link.id },
+      data: { deliveryType, deliveryFee, isActive: data.isActive },
+      include: { product: { include: LINK_PRODUCT_INCLUDE } },
+    });
+    const sales = await salesByProduct([updated]);
+    return forSeller(updated, sales.get(updated.productId));
+  }
 
   const updated = await prisma.$transaction(async (tx) => {
     if (data.images) {
@@ -245,7 +339,7 @@ export const updatePaymentLinkService = async (userId: string, id: string, data:
     });
   });
 
-  const sales = await salesByProduct([updated.productId]);
+  const sales = await salesByProduct([updated]);
   return forSeller(updated, sales.get(updated.productId));
 };
 
@@ -307,6 +401,10 @@ const findLiveLink = async (code: string) => {
   if (!link || link.isArchived || link.store.isSuspended) {
     throw new AppError("This payment link doesn't exist or has been removed.", 404);
   }
+  // A listed product taken out of the shop (or given options) since.
+  if (link.fromListing && listingProblem(link.product)) {
+    throw new AppError("This item isn't available through this link anymore. Ask the seller for a new one.", 404);
+  }
   return link;
 };
 
@@ -322,11 +420,25 @@ export const getPublicPaymentLinkService = async (code: string, viewerId?: strin
     price: product.price,
     images: product.images.map(({ url, isPrimary }) => ({ url, isPrimary })),
     category: product.category,
+    // Shared from the shop: the listing, for "See it in the shop".
+    productId: link.fromListing ? product.id : null,
     quantityAvailable: Math.max(0, stockOf(link)),
     deliveryType: link.deliveryType,
     deliveryFee: link.deliveryFee,
     pickupAddress: link.deliveryType === PaymentLinkDelivery.PICKUP ? storePickupAddress(store) : null,
     deliveryVehicle: product.deliveryVehicle,
+    // Shared from the shop with options: the buyer picks a combination.
+    options: link.fromListing ? product.options.map(({ name, values, position }) => ({ name, values, position })) : [],
+    variations: link.fromListing
+      ? product.variations.map(({ id, option1, option2, price, stock, isActive }) => ({
+          id,
+          option1,
+          option2,
+          price,
+          stock: Math.max(0, stock),
+          isActive,
+        }))
+      : [],
     // STORE_OPTIONS: what the buyer chooses from, as at checkout.
     shippingOptions:
       link.deliveryType === PaymentLinkDelivery.STORE_OPTIONS
@@ -378,12 +490,31 @@ export const payPaymentLinkService = async (userId: string, code: string, data: 
   if (!user) throw new AppError("User not found.", 404);
   if (!address || address.userId !== userId) throw new AppError("Address not found.", 404);
 
-  assertCanBuy(link, userId, data.quantity ?? 1);
+  assertCanBuy(link, userId, data.quantity ?? 1, data.variationId);
   return startLinkPayment(link, user, address, data);
 };
 
+/**
+ * The combination (e.g. Size: L · Colour: Black) the buyer chose, for a
+ * product shared from the shop with options - null for everything else.
+ */
+const chosenVariation = (link: PublicLink, variationId?: string) => {
+  const variations = link.fromListing ? link.product.variations : [];
+  if (!variations.length) return null;
+  if (!variationId) {
+    const names = link.product.options.map((option) => option.name.toLowerCase()).join(" and ");
+    throw new AppError(`Choose the ${names || "option"} you want.`, 400);
+  }
+  const variation = variations.find((v) => v.id === variationId);
+  if (!variation) throw new AppError("That option isn't available anymore. Choose another.", 400);
+  if (!variation.isActive || variation.stock <= 0) {
+    throw new AppError(`${variationLabel(link.product.options, variation)} is sold out. Choose another option.`, 400);
+  }
+  return variation;
+};
+
 // Before anything is created: the link can be paid, by this person, for this many.
-const assertCanBuy = (link: PublicLink, userId: string | null, quantity: number) => {
+const assertCanBuy = (link: PublicLink, userId: string | null, quantity: number, variationId?: string) => {
   // From an accepted offer in chat: the price was agreed with one buyer.
   if (link.buyerId && userId !== link.buyerId) {
     throw new AppError(
@@ -401,6 +532,10 @@ const assertCanBuy = (link: PublicLink, userId: string | null, quantity: number)
   if (availability === "SOLD_OUT") throw new AppError("This item has sold out.", 400);
   if (quantity > stockOf(link)) {
     throw new AppError(`Only ${stockOf(link)} left - lower the quantity.`, 400);
+  }
+  const variation = chosenVariation(link, variationId);
+  if (variation && quantity > variation.stock) {
+    throw new AppError(`Only ${variation.stock} left in ${variationLabel(link.product.options, variation)} - lower the quantity.`, 400);
   }
 };
 
@@ -479,7 +614,9 @@ const startLinkPayment = async (
     };
   }
 
-  const subtotal = product.price * quantity;
+  const variation = chosenVariation(link, data.variationId);
+  const unitPrice = unitPriceOf(product, variation);
+  const subtotal = unitPrice * quantity;
   const deliveryFee = shipping.fee;
   const total = subtotal + deliveryFee;
   assertWithinReviewLimit(store, total);
@@ -509,7 +646,7 @@ const startLinkPayment = async (
     // last one can't be sold twice (once in the shop, once via the offer).
     const listed = link.offer?.product;
     await assertStockAvailable(tx, userId, [
-      { productId: product.id, variationId: null, quantity, title: product.title },
+      { productId: product.id, variationId: variation?.id ?? null, quantity, title: product.title },
       ...(listed ? [{ productId: listed.id, variationId: null, quantity, title: listed.title }] : []),
     ]);
 
@@ -532,7 +669,9 @@ const startLinkPayment = async (
           create: {
             productId: product.id,
             quantity,
-            unitPrice: product.price,
+            unitPrice,
+            variationId: variation?.id ?? null,
+            variantLabel: variation ? variationLabel(product.options, variation) : null,
             totalPrice: subtotal,
             commissionRate,
             referralReward,
@@ -644,9 +783,9 @@ export const guestPayPaymentLinkService = async (code: string, data: GuestPayPay
     throw new AppError("Enter the address, city and state to deliver to.", 400);
   }
 
-  assertCanBuy(link, null, quantity);
+  assertCanBuy(link, null, quantity, data.variationId);
   const user = await guestAccountFor(data);
-  assertCanBuy(link, user.id, quantity);
+  assertCanBuy(link, user.id, quantity, data.variationId);
 
   const address = await prisma.address.create({
     data: {
@@ -668,6 +807,7 @@ export const guestPayPaymentLinkService = async (code: string, data: GuestPayPay
     {
       quantity,
       shippingOptionId: data.shippingOptionId,
+      variationId: data.variationId,
       deliveryPhone: data.phone,
       note: data.note,
       source: data.source,

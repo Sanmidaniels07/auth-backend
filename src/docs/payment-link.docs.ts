@@ -81,7 +81,7 @@
  * /api/payment-links/me:
  *   get:
  *     summary: The seller's payment links
- *     description: Requires an approved seller. Newest first, deleted links left out. Each has `quantity` (still available), `isActive` and `sales` - `{ orders, units, revenue }` from paid orders, cancelled items left out.
+ *     description: Requires an approved seller. Newest first, deleted links left out. Each has `quantity` (still available), `isActive`, `fromListing` (shared from a product in the shop - then `productId` is set and `sales` only counts orders made through the link) and `sales` - `{ orders, units, revenue }` from paid orders, cancelled items left out.
  *     tags:
  *       - PaymentLink
  *     security:
@@ -89,6 +89,31 @@
  *     responses:
  *       200:
  *         description: Payment links fetched successfully
+ */
+
+/**
+ * @swagger
+ * /api/payment-links/from-product/{productId}:
+ *   post:
+ *     summary: Get the pay link for a product in the shop
+ *     description: Requires the seller who owns the product. Returns the product's pay link, creating it the first time (later calls return the same link, turned back on if it was paused or deleted). The buyer pays for the listing itself, with or without an account - its current price, photos and stock - and chooses one of the store's delivery zones or pickup points. The link has `fromListing` true and `productId` set. Editing it (PATCH) only changes `deliveryType`, `deliveryFee` and `isActive` - title, price, photos and stock are edited on the product. Sales through the link come out of the product's stock. Products with options (size / colour) work too: the pay page gets `options` and `variations` and the buyer sends `variationId` when paying (each combination's own price and stock). 400 when the product is a draft, removed, or the store has no delivery zones or pickup points; 404 when it isn't the seller's.
+ *     tags:
+ *       - PaymentLink
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Pay link ready
+ *       400:
+ *         description: The product can't be sold through a link
+ *       404:
+ *         description: Product not found
  */
 
 /**
@@ -196,6 +221,9 @@
  *               shippingOptionId:
  *                 type: string
  *                 description: Required for STORE_OPTIONS links - one of the link's `shippingOptions`; its fee is charged.
+ *               variationId:
+ *                 type: string
+ *                 description: Required when the link is for a shop product with options - one of the link's `variations` (active, in stock).
  *               deliveryPhone:
  *                 type: string
  *                 description: Defaults to the address's phone.
@@ -263,6 +291,9 @@
  *               shippingOptionId:
  *                 type: string
  *                 description: Required for STORE_OPTIONS links.
+ *               variationId:
+ *                 type: string
+ *                 description: Required when the link is for a shop product with options - one of the link's `variations` (active, in stock).
  *               note:
  *                 type: string
  *                 maxLength: 500
