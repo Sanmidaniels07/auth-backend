@@ -84,6 +84,8 @@ export const payPaymentLinkSchema = z.object({
     // The store's delivery zone or pickup point - required when the link
     // lets the buyer choose (STORE_OPTIONS).
     shippingOptionId: z.string().min(1).optional(),
+    // Shared from the shop with options (e.g. Size, Colour): the combination.
+    variationId: z.string().min(1).optional(),
     // Phone the seller calls to deliver (defaults to the address's phone).
     deliveryPhone: z
       .string()
@@ -116,6 +118,8 @@ export const guestPayPaymentLinkSchema = z.object({
     state: z.string().trim().min(2, "Choose your state.").max(80).optional(),
     quantity: z.number().int().min(1).max(10_000).optional(),
     shippingOptionId: z.string().min(1).optional(),
+    // Shared from the shop with options (e.g. Size, Colour): the combination.
+    variationId: z.string().min(1).optional(),
     note: z.string().trim().max(PAYMENT_LINK_NOTE_MAX).optional(),
     source: trafficSourceField,
     // The seller's share code from ?ref= - same as at signup.
