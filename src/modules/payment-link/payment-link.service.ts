@@ -32,6 +32,7 @@ import { forgotPasswordService } from "../auth/auth.service";
 import { sendEmail } from "../auth/email.services";
 import { verificationTemplate } from "../../templates/verification.template";
 import { generateVerificationToken } from "../../utils/token";
+import { declineGuestAccountService, generateGuestToken, guestAccountFor } from "../checkout/guest-account";
 import { VEHICLE_LABEL, canCarry } from "../../utils/deliveryVehicle";
 import { unitPriceOf, variationLabel } from "../../utils/productOptions";
 import {
@@ -726,46 +727,6 @@ const startLinkPayment = async (
 // password (or continuing with Google).
 // ---------------------------------------------------------------------------
 
-const generateGuestToken = () => crypto.randomBytes(24).toString("base64url");
-
-/**
- * The guest account for this email: an existing guest account is reused
- * (no session is given - each order has its own tracking link), a new one
- * is made otherwise. An email that belongs to a full account must log in.
- */
-const guestAccountFor = async (data: GuestPayPaymentLinkInput) => {
-  const existing = await prisma.user.findFirst({
-    where: { email: { equals: data.email, mode: "insensitive" } },
-  });
-
-  if (existing) {
-    if (existing.deletedAt || existing.status !== UserStatus.ACTIVE) {
-      throw new AppError("This email can't be used for checkout. Use another email address.", 400);
-    }
-    if (!existing.isGuest) {
-      throw new AppError("You already have a Nestly account with this email. Log in to pay.", 409);
-    }
-    return existing;
-  }
-
-  const referredBy = data.referralCode
-    ? await prisma.store.findUnique({
-        where: { referralCode: data.referralCode.toUpperCase() },
-        select: { id: true, isSuspended: true },
-      })
-    : null;
-
-  return prisma.user.create({
-    data: {
-      name: data.name,
-      email: data.email,
-      isGuest: true,
-      signupSource: data.source,
-      ...(referredBy && !referredBy.isSuspended ? { referredByStoreId: referredBy.id, referredAt: new Date() } : {}),
-    },
-  });
-};
-
 /** Starts paying through a link without logging in. */
 export const guestPayPaymentLinkService = async (code: string, data: GuestPayPaymentLinkInput) => {
   const link = await findLiveLink(code);
@@ -819,7 +780,7 @@ export const guestPayPaymentLinkService = async (code: string, data: GuestPayPay
 };
 
 const GUEST_ORDER_INCLUDE = {
-  user: { select: { id: true, name: true, email: true, isGuest: true } },
+  user: { select: { id: true, name: true, email: true, isGuest: true, guestDeclinedAt: true } },
   paymentLink: {
     select: {
       code: true,
@@ -862,8 +823,16 @@ export const getGuestOrderService = async (token: string) => {
       // False once they've set a password / used Google - then the order is
       // also under "My orders" when they log in.
       isGuest: order.user.isGuest,
+      // Said "No thanks" to the account offer - don't ask again on this page.
+      declinedAccount: !!order.user.guestDeclinedAt,
     },
   };
+};
+
+/** "No thanks" to making an account, from the order page. */
+export const declineGuestAccountForOrderService = async (token: string) => {
+  const order = await findGuestOrder(token);
+  await declineGuestAccountService(order.userId);
 };
 
 /** After the Paystack popup: confirm the payment for this guest order. */
@@ -910,6 +879,7 @@ export const claimGuestAccountService = async (token: string, password: string) 
     data: {
       password: await bcrypt.hash(password, 10),
       isGuest: false,
+      guestJoinedAt: new Date(),
       // They typed this email at checkout - it still needs confirming, as at signup.
       verificationToken,
       verificationTokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000),

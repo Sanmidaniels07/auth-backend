@@ -36,6 +36,7 @@ export const listUsersAdminSchema = z.object({
     search: z.string().optional(),
     role: z.nativeEnum(Role).optional(),
     status: z.nativeEnum(UserStatus).optional(),
+    guests: z.enum(["all", "signed_up", "not_signed_up", "declined"]).optional(),
   }),
 });
 

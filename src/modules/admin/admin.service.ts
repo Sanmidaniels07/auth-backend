@@ -109,12 +109,15 @@ interface AdminUserFilters {
   search?: string;
   role?: Role;
   status?: UserStatus;
+  // People who checked out without an account: everyone, those who went on
+  // to make a full account, those still guests, or those who said no.
+  guests?: "all" | "signed_up" | "not_signed_up" | "declined";
 }
 
 export const listUsersAdminService = async (
   filters: AdminUserFilters
 ) => {
-  const { page, limit, search, role, status } = filters;
+  const { page, limit, search, role, status, guests } = filters;
   const skip = (page - 1) * limit;
 
   const where: any = {};
@@ -129,6 +132,12 @@ export const listUsersAdminService = async (
 
   if (role) where.role = role;
   if (status) where.status = status;
+  if (guests) {
+    where.guestSince = { not: null };
+    if (guests === "signed_up") where.isGuest = false;
+    if (guests === "not_signed_up") where.isGuest = true;
+    if (guests === "declined") Object.assign(where, { isGuest: true, guestDeclinedAt: { not: null } });
+  }
 
   const [users, total] = await Promise.all([
     prisma.user.findMany({
@@ -141,12 +150,32 @@ export const listUsersAdminService = async (
         isVerified: true,
         createdAt: true,
         deletedAt: true,
+        // Guest checkout history (labels in the admin's user list).
+        isGuest: true,
+        guestSince: true,
+        guestJoinedAt: true,
+        guestDeclinedAt: true,
+        signupSource: true,
+        _count: { select: { orders: { where: { status: { not: "PENDING" } } } } },
       },
     }),
     prisma.user.count({ where }),
   ]);
 
+  // With the guest filter: how many guests went on to make an account.
+  const guestSummary = guests
+    ? await (async () => {
+        const [total, signedUp, declined] = await Promise.all([
+          prisma.user.count({ where: { guestSince: { not: null } } }),
+          prisma.user.count({ where: { guestSince: { not: null }, isGuest: false } }),
+          prisma.user.count({ where: { guestSince: { not: null }, isGuest: true, guestDeclinedAt: { not: null } } }),
+        ]);
+        return { total, signedUp, notSignedUp: total - signedUp, declined };
+      })()
+    : null;
+
   return {
+    guestSummary,
     users,
     total,
     page,

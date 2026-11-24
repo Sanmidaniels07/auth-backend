@@ -134,6 +134,12 @@
  *         schema:
  *           type: string
  *           enum: [ACTIVE, SUSPENDED, BANNED]
+ *       - in: query
+ *         name: guests
+ *         description: People who checked out without an account (guestSince set). all; signed_up - went on to make a full account (password or Google); not_signed_up - still a guest; declined - still a guest and said "No thanks" to the account offer. Adds `guestSummary` { total, signedUp, notSignedUp, declined } to the response. Each user has isGuest, guestSince, guestJoinedAt (null for guests who signed up before this was recorded), guestDeclinedAt, signupSource and _count.orders (orders that were paid).
+ *         schema:
+ *           type: string
+ *           enum: [all, signed_up, not_signed_up, declined]
  *     responses:
  *       200:
  *         description: Users fetched successfully

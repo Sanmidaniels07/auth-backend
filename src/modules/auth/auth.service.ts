@@ -254,6 +254,8 @@ export const googleAuthService = async (
         data: {
           googleId: google.googleId,
           isGuest: false,
+          // A guest checkout account turned into a full one (admin guest list).
+          ...(existing.isGuest ? { guestJoinedAt: new Date() } : {}),
           ...(existing.isVerified
             ? {}
             : { isVerified: true, password: null, verificationToken: null, verificationTokenExpiry: null }),
@@ -362,7 +364,7 @@ export const resetPasswordService = async (token: string, password: string) => {
       resetToken: null,
       resetTokenExpiry: null,
       // Guest checkout account: the emailed link proved the email is theirs.
-      ...(user.isGuest ? { isGuest: false, isVerified: true } : {}),
+      ...(user.isGuest ? { isGuest: false, isVerified: true, guestJoinedAt: new Date() } : {}),
     },
   });
 

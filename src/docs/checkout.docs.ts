@@ -183,3 +183,74 @@
  */
 
 export {};
+
+/**
+ * @swagger
+ * /api/checkout/guest/quote:
+ *   post:
+ *     summary: Price a guest's cart (no login)
+ *     description: The cart of someone shopping without an account lives in their browser. Send its lines; get live prices, what's wrong with any line (`problem` - sold out, only N left, no longer available, choose an option) and, per seller, the delivery zones / pickup points that can carry their items. Never fails because of a bad line.
+ *     tags: [Checkout]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               items:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     productId: { type: string }
+ *                     variationId: { type: string, nullable: true, description: "For products with options (size / colour)" }
+ *                     quantity: { type: integer }
+ *     responses:
+ *       200:
+ *         description: "{ items: [{ productId, variationId, quantity, problem, title, image, variantLabel, unitPrice, maxQuantity, storeId }], stores: [{ id, name, slug, logo, isVerified, problem, shippingOptions }], subtotal }"
+ *
+ * /api/checkout/guest:
+ *   post:
+ *     summary: Check out without an account (shop cart or Buy now)
+ *     description: No login. Several items from several sellers in one payment, exactly like a signed-in checkout (delivery chosen per seller, Paystack split per seller, stock held while paying). Behind the scenes the buyer gets a guest account (an email that belongs to a full account gets 409 - log in instead). Returns the Paystack `accessCode` / `authorizationUrl` and `guestToken` - the order page is /orders/track/{guestToken}, also emailed, using the guest-order routes under /api/payment-links. Address, city and state are needed unless every seller's choice is a pickup point. Coupons need an account. Rate limited (8 tries per 10 minutes).
+ *     tags: [Checkout]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [items, name, email, phone, shippingSelections]
+ *             properties:
+ *               items: { type: array, items: { type: object, properties: { productId: { type: string }, variationId: { type: string, nullable: true }, quantity: { type: integer } } } }
+ *               name: { type: string }
+ *               email: { type: string }
+ *               phone: { type: string }
+ *               address: { type: string }
+ *               city: { type: string }
+ *               state: { type: string }
+ *               shippingSelections: { type: array, items: { type: object, properties: { storeId: { type: string }, shippingOptionId: { type: string } } } }
+ *               sellerNotes: { type: array, items: { type: object, properties: { storeId: { type: string }, note: { type: string } } } }
+ *               source: { type: string }
+ *               referralCode: { type: string }
+ *     responses:
+ *       201:
+ *         description: Checkout started - open Paystack with accessCode, then POST /api/payment-links/guest-orders/{guestToken}/verify
+ *       409:
+ *         description: This email has a Nestly account - log in to pay
+ *
+ * /api/payment-links/guest-orders/{token}/decline-account:
+ *   post:
+ *     summary: Guest says "No thanks" to making an account
+ *     description: No login - the order's token is the access. Recorded for the admin's guest list (guestDeclinedAt); the order page then stops offering it up front (they can still make an account from the page). The guest order response has buyer.declinedAccount.
+ *     tags: [PaymentLink]
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Recorded
+ */

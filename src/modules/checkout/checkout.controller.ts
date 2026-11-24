@@ -10,6 +10,8 @@ import {
   checkoutWithSavedCardService,
   verifyCheckoutService,
   confirmPaymentByReferenceService,
+  guestCartQuoteService,
+  guestCheckoutService,
 } from "./checkout.service";
 import { handleTransferWebhookService } from "../payout/held-payout.service";
 
@@ -111,3 +113,14 @@ export const paystackWebhook = asyncHandler(
     res.status(200).json({ received: true });
   }
 );
+
+// Guest checkout - no login.
+export const guestCartQuote = asyncHandler(async (req: Request, res: Response) => {
+  const quote = await guestCartQuoteService(req.body.items);
+  res.status(200).json(apiResponse(quote, "Cart fetched"));
+});
+
+export const guestCheckout = asyncHandler(async (req: Request, res: Response) => {
+  const result = await guestCheckoutService(req.body);
+  res.status(201).json(apiResponse(result, "Checkout started"));
+});
