@@ -134,6 +134,27 @@ export const newOrderEmail = (opts: {
     `,
   });
 
+// Guests only (signed-up buyers see this in the app): the seller has started
+// on their order - so they aren't left wondering between paying and shipping.
+export const orderPreparingEmail = (opts: {
+  name: string;
+  orderNumber: string;
+  storeName: string;
+  lines: EmailOrderLine[];
+  orderUrl: string;
+}) =>
+  renderEmailLayout({
+    preheader: `${opts.storeName} is preparing order ${opts.orderNumber}`,
+    eyebrow: "Being prepared",
+    heading: "The seller is preparing your order",
+    bodyHtml: `
+      <p style="margin:0;">Hi ${escapeHtml(opts.name)}, <strong>${escapeHtml(opts.storeName)}</strong> has started on your items from order <strong>${opts.orderNumber}</strong>.</p>
+      ${itemsTable(opts.lines)}
+      ${emailNotice("We'll email you again when it's on its way or ready to pick up. Your money stays with Nestly until you have your order.")}
+      ${emailButton("View your order", opts.orderUrl)}
+    `,
+  });
+
 export const orderShippedEmail = (opts: {
   name: string;
   orderNumber: string;

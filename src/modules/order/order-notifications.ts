@@ -9,6 +9,7 @@ import {
   newOrderEmail,
   orderConfirmedEmail,
   orderDeliveredEmail,
+  orderPreparingEmail,
   orderShippedEmail,
   sellerRemovedRefundEmail,
   soldOutRefundEmail,
@@ -245,7 +246,19 @@ export const notifyItemStatusChanged = (orderItemId: string, status: OrderItemSt
     const orderUrl = buyerOrderUrl(item.order);
 
     if (status === OrderItemStatus.PROCESSING) {
-      await deliver({ to: buyer, title: "Order being prepared", message: `${storeName} is preparing your order ${number}.`, target });
+      await deliver({
+        to: buyer,
+        title: "Order being prepared",
+        message: `${storeName} is preparing your order ${number}.`,
+        target,
+        // Guests have no app notifications to see - they get it by email.
+        email: buyer.isGuest
+          ? {
+              subject: `${storeName} is preparing order ${number}`,
+              html: orderPreparingEmail({ name: buyer.name, orderNumber: number, storeName, lines, orderUrl }),
+            }
+          : undefined,
+      });
       return;
     }
 
