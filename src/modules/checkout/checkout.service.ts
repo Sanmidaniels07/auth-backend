@@ -31,7 +31,8 @@ import { storePickupAddress } from "../store/store.service";
 import { holdPayoutFor, routeViaSplit } from "../../utils/payoutMode";
 import { assertWithinReviewLimit } from "../../utils/sellerReview";
 import { generateDeliveryCode, recordOrderEvent } from "../order/order-delivery";
-import { notifyOrderPaid } from "../order/order-notifications";
+import { guestOrderUrl, notifyOrderPaid } from "../order/order-notifications";
+import { generateGuestToken, guestAccountFor } from "./guest-account";
 import { announceLivePurchase } from "../live/live.service";
 import { snapshotOf } from "../../utils/orderItemSnapshot";
 import { unitPriceOf, variationLabel } from "../../utils/productOptions";
@@ -77,6 +78,54 @@ export const paystackSplitFor = (
   };
 };
 
+const CART_PRODUCT_INCLUDE = {
+  category: true,
+  images: true,
+  specifications: true,
+  options: true,
+  variations: { where: { isArchived: false }, select: { id: true } },
+} as const;
+
+/** One line a guest wants to buy (their cart is kept in the browser). */
+export interface CheckoutLineInput {
+  productId: string;
+  variationId?: string | null;
+  quantity: number;
+}
+
+/**
+ * A guest's lines in the same shape as a saved cart, so one checkout serves
+ * both. Same product + combination twice is merged; unknown items are refused.
+ */
+const cartFromLines = async (lines: CheckoutLineInput[]) => {
+  const merged = new Map<string, CheckoutLineInput>();
+  for (const line of lines) {
+    const key = `${line.productId}:${line.variationId ?? ""}`;
+    const existing = merged.get(key);
+    merged.set(key, { ...line, quantity: (existing?.quantity ?? 0) + line.quantity });
+  }
+  const wanted = Array.from(merged.values());
+  const [products, variations] = await Promise.all([
+    prisma.product.findMany({
+      where: { id: { in: wanted.map((line) => line.productId) } },
+      include: CART_PRODUCT_INCLUDE,
+    }),
+    prisma.productVariation.findMany({
+      where: { id: { in: wanted.flatMap((line) => (line.variationId ? [line.variationId] : [])) } },
+    }),
+  ]);
+  const items = wanted.map((line) => {
+    const product = products.find((p) => p.id === line.productId);
+    if (!product) throw new AppError("An item in your cart is no longer on Nestly. Remove it and try again.", 400);
+    const variation = line.variationId ? variations.find((v) => v.id === line.variationId) ?? null : null;
+    if (line.variationId && (!variation || variation.productId !== product.id)) {
+      throw new AppError(`That option of "${product.title}" is no longer available. Choose it again.`, 400);
+    }
+    return { productId: product.id, quantity: line.quantity, product, variation };
+  });
+  return { id: null as string | null, items };
+};
+
 const buildPendingOrder = async (
   userId: string,
   addressId: string,
@@ -85,29 +134,19 @@ const buildPendingOrder = async (
   sellerNotes: SellerNoteInput[] = [],
   deliveryPhone?: string,
   source?: TrafficSource,
+  // Guest checkout: the lines come from the browser instead of a saved
+  // cart, and the order gets the guest's private tracking token.
+  guest?: { lines: CheckoutLineInput[]; accessToken: string },
 ) => {
   const [user, address, cart] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
     prisma.address.findUnique({ where: { id: addressId } }),
-    prisma.cart.findUnique({
-      where: { userId },
-      include: {
-        items: {
-          include: {
-            product: {
-              include: {
-                category: true,
-                images: true,
-                specifications: true,
-                options: true,
-                variations: { where: { isArchived: false }, select: { id: true } },
-              },
-            },
-            variation: true,
-          },
-        },
-      },
-    }),
+    guest
+      ? cartFromLines(guest.lines)
+      : prisma.cart.findUnique({
+          where: { userId },
+          include: { items: { include: { product: { include: CART_PRODUCT_INCLUDE }, variation: true } } },
+        }),
   ]);
 
   if (!user) {
@@ -389,6 +428,7 @@ const buildPendingOrder = async (
         paymentReference: reference,
         deliveryPhone: deliveryPhone?.trim() || address.phone,
         source,
+        guestAccessToken: guest?.accessToken,
         items: {
           create: cart.items.map((item) => ({
             productId: item.productId,
@@ -767,4 +807,171 @@ export const verifyCheckoutService = async (
   }
 
   return confirmPaymentByReferenceService(reference);
+};
+
+/**
+ * Checkout without an account (the shop cart or Buy now): the guest's lines,
+ * who they are and where it goes. Works exactly like a signed-in checkout -
+ * several sellers in one payment, delivery per seller, splits, stock holds -
+ * behind a guest account. They follow it through a private tracking link.
+ */
+export const guestCheckoutService = async (data: {
+  items: CheckoutLineInput[];
+  name: string;
+  email: string;
+  phone: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  shippingSelections: ShippingSelection[];
+  sellerNotes?: SellerNoteInput[];
+  source?: TrafficSource;
+  referralCode?: string;
+}) => {
+  // Everything is picked up: no address needed.
+  const options = await prisma.shippingOption.findMany({
+    where: { id: { in: data.shippingSelections.map((s) => s.shippingOptionId) } },
+    select: { type: true },
+  });
+  const allPickup = options.length > 0 && options.every((o) => o.type === ShippingOptionType.PICKUP);
+  if (!allPickup && (!data.address || !data.city || !data.state)) {
+    throw new AppError("Enter the address, city and state to deliver to.", 400);
+  }
+
+  // Checked before an account is made, so a bad cart doesn't leave one behind.
+  const preview = await cartFromLines(data.items);
+  if (preview.items.length === 0) throw new AppError("Your cart is empty.", 400);
+
+  const user = await guestAccountFor(data);
+  const address = await prisma.address.create({
+    data: {
+      userId: user.id,
+      fullName: data.name,
+      phone: data.phone,
+      address: allPickup ? data.address || "Pickup" : data.address!,
+      city: allPickup ? data.city || "-" : data.city!,
+      state: allPickup ? data.state || "-" : data.state!,
+      country: "Nigeria",
+    },
+  });
+
+  const accessToken = generateGuestToken();
+  const { order, reference, total, split } = await buildPendingOrder(
+    user.id,
+    address.id,
+    data.shippingSelections,
+    undefined,
+    data.sellerNotes ?? [],
+    data.phone,
+    data.source,
+    { lines: data.items, accessToken },
+  );
+
+  const paystackData = await initializePaystackTransaction({
+    email: user.email,
+    amountKobo: Math.round(total * NAIRA_TO_KOBO),
+    reference,
+    callbackUrl: process.env.FRONTEND_URL ? guestOrderUrl(accessToken) : undefined,
+    split,
+  });
+
+  return {
+    orderId: order.id,
+    reference,
+    accessCode: paystackData.access_code,
+    authorizationUrl: paystackData.authorization_url,
+    total,
+    guestToken: accessToken,
+  };
+};
+
+/**
+ * A guest's cart as it stands now (their cart lives in the browser): live
+ * prices, what's still available, and each seller's delivery options that
+ * can carry their items. Never throws for a bad line - it says what's wrong
+ * so the cart page can show it.
+ */
+export const guestCartQuoteService = async (lines: CheckoutLineInput[]) => {
+  const productIds = Array.from(new Set(lines.map((line) => line.productId)));
+  const products = await prisma.product.findMany({
+    where: { id: { in: productIds } },
+    include: {
+      images: { orderBy: [{ isPrimary: "desc" }, { id: "asc" }], take: 1 },
+      options: { orderBy: { position: "asc" } },
+      variations: { where: { isArchived: false } },
+      store: {
+        include: {
+          shippingOptions: { where: { isArchived: false }, orderBy: { fee: "asc" } },
+        },
+      },
+    },
+  });
+
+  const quoted = lines.map((line) => {
+    const product = products.find((p) => p.id === line.productId);
+    if (!product) {
+      return { productId: line.productId, variationId: line.variationId ?? null, quantity: line.quantity, problem: "No longer on Nestly", product: null };
+    }
+    const variation = line.variationId ? product.variations.find((v) => v.id === line.variationId) ?? null : null;
+    const stock = variation ? variation.stock : product.stock;
+    const problem =
+      product.status !== ProductStatus.PUBLISHED && product.status !== ProductStatus.OUT_OF_STOCK
+        ? "No longer available"
+        : product.store.isSuspended
+          ? "This shop isn't selling right now"
+          : product.variations.length > 0 && !variation
+            ? "Choose an option on the product page"
+            : variation && !variation.isActive
+              ? "This option is no longer available"
+              : stock <= 0
+                ? "Sold out"
+                : line.quantity > stock
+                  ? `Only ${stock} left`
+                  : null;
+    return { productId: product.id, variationId: variation?.id ?? null, quantity: line.quantity, problem, product, variation, stock };
+  });
+
+  const items = quoted.map((line) => ({
+    productId: line.productId,
+    variationId: line.variationId,
+    quantity: line.quantity,
+    problem: line.problem,
+    title: line.product?.title ?? null,
+    image: line.product?.images[0]?.url ?? null,
+    variantLabel: line.product && line.variation ? variationLabel(line.product.options, line.variation) : null,
+    unitPrice: line.product ? unitPriceOf(line.product, line.variation) : 0,
+    maxQuantity: Math.max(0, line.stock ?? 0),
+    storeId: line.product?.storeId ?? null,
+  }));
+
+  // Delivery per seller: options that can carry everything bought from them.
+  const storeIds = Array.from(new Set(quoted.flatMap((line) => (line.product ? [line.product.storeId] : []))));
+  const stores = storeIds.map((storeId) => {
+    const storeLines = quoted.filter((line) => line.product?.storeId === storeId);
+    const store = storeLines[0].product!.store;
+    const needed = requiredVehicle(storeLines.map((line) => line.product!));
+    const usable = store.shippingOptions.filter((option) => canCarry(option, needed));
+    return {
+      id: store.id,
+      name: store.name,
+      slug: store.slug,
+      logo: store.logo,
+      isVerified: store.isVerified,
+      problem: usable.length === 0 ? "This shop can't deliver these items yet - remove them to check out the rest." : null,
+      shippingOptions: usable.map(({ id, name, fee, eta, type, areas, state, vehicle, pickupAddress }) => ({
+        id,
+        name,
+        fee,
+        eta,
+        type,
+        areas,
+        state,
+        vehicle,
+        pickupAddress: type === ShippingOptionType.PICKUP ? pickupAddress ?? storePickupAddress(store) : null,
+      })),
+    };
+  });
+
+  const subtotal = items.filter((item) => !item.problem).reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  return { items, stores, subtotal };
 };

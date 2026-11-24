@@ -260,11 +260,19 @@ model User {
 
   isVerified Boolean @default(false)
 
-  // Made when someone paid through a payment link without an account
+  // Made when someone paid without an account (guest checkout - a payment
+  // link or the shop cart)
   // (guest checkout): no password, no Google, kept out of search and
   // suggestions. Becomes a normal account once they set a password or
   // continue with Google.
   isGuest Boolean @default(false)
+
+  // Guest checkout history, for the admin's guest list: when they first
+  // checked out without an account, when they turned it into a full account
+  // (password or Google), and when they said "No thanks" to the offer.
+  guestSince      DateTime?
+  guestJoinedAt   DateTime?
+  guestDeclinedAt DateTime?
 
   status       UserStatus @default(ACTIVE)
   statusReason String?

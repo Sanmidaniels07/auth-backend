@@ -97,7 +97,7 @@ export const payPaymentLinkSchema = z.object({
   }),
 });
 
-const phoneField = z
+export const phoneField = z
   .string()
   .trim()
   .regex(/^\+?[\d\s()-]{7,20}$/, "Enter a valid phone number, e.g. 0803 123 4567.");

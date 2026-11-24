@@ -87,6 +87,7 @@ export const listUsersAdmin = asyncHandler(
     const search = req.query.search as string;
     const role = req.query.role as Role | undefined;
     const status = req.query.status as UserStatus | undefined;
+    const guests = req.query.guests as "all" | "signed_up" | "not_signed_up" | "declined" | undefined;
 
     const result = await listUsersAdminService({
       page,
@@ -94,6 +95,7 @@ export const listUsersAdmin = asyncHandler(
       search,
       role,
       status,
+      guests,
     });
 
     res.status(200).json(

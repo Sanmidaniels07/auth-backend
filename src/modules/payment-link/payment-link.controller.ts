@@ -9,6 +9,7 @@ import {
   confirmGuestDeliveryService,
   createLinkFromProductService,
   createPaymentLinkService,
+  declineGuestAccountForOrderService,
   deletePaymentLinkService,
   getGuestOrderService,
   getMyPaymentLinksService,
@@ -154,3 +155,8 @@ export const payPaymentLink = asyncHandler(
     );
   }
 );
+
+export const declineGuestAccount = asyncHandler(async (req: Request, res: Response) => {
+  await declineGuestAccountForOrderService(req.params.token as string);
+  res.status(200).json(apiResponse(null, "Okay - you can still make an account later from this page"));
+});

@@ -20,6 +20,7 @@ import {
   claimGuestAccount,
   confirmGuestDelivery,
   createLinkFromProduct,
+  declineGuestAccount,
   createPaymentLink,
   deletePaymentLink,
   getGuestOrder,
@@ -70,6 +71,9 @@ router.post(
 );
 
 router.post("/guest-orders/:token/claim", guestLimit, validate(guestClaimAccountSchema), claimGuestAccount);
+
+// "No thanks" to the account offer after checkout (kept for the admin).
+router.post("/guest-orders/:token/decline-account", guestLimit, validate(guestOrderTokenSchema), declineGuestAccount);
 
 // Buyer
 router.get("/:code", optionalAuthMiddleware, validate(paymentLinkCodeSchema), getPublicPaymentLink);
