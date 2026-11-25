@@ -40,7 +40,7 @@ const OPTIONS_TOGETHER = { message: "Send options and variations together." };
 // can't move listings into or out of it here.
 const sellerStatusSchema = z
   .nativeEnum(ProductStatus)
-  .refine((status) => status !== ProductStatus.PRIVATE, { message: "Invalid status." });
+  .refine((status) => status !== ProductStatus.PRIVATE && status !== ProductStatus.UPDATING, { message: "Invalid status." });
 
 export const createProductSchema = z.object({
   body: z.object({

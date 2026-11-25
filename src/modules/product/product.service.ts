@@ -9,6 +9,7 @@ import { findArea } from "../../utils/serviceAreas";
 import { storeIdsServingArea } from "../seo/seo.service";
 import { OPTIONS_INCLUDE, assertValidOptions, saveProductOptions } from "../../utils/productOptions";
 import { diffProducts, isDifferentProduct, recordProductRevision, recordStatusChanges } from "../../utils/productHistory";
+import { LISTED_STATUSES, UPDATE_COOLDOWN_MS, isBuyerFacingChange, relistDueProducts } from "../../utils/productCooldown";
 import { isAdminUser } from "../../utils/isAdmin";
 import {
   CreateProductInput,
@@ -171,6 +172,12 @@ export const updateProductService = async (
   const { images, specifications, options, variations, ...fields } =
     data;
 
+  // Being updated: it goes back on sale by itself when the few minutes are
+  // up - "Publish" doesn't skip them.
+  if (product.status === ProductStatus.UPDATING && (fields.status === ProductStatus.PUBLISHED || fields.status === ProductStatus.OUT_OF_STOCK)) {
+    delete fields.status;
+  }
+
   if (options && variations) assertValidOptions(options, variations);
 
   // A product with options keeps its stock as the total of its combinations.
@@ -231,15 +238,27 @@ export const updateProductService = async (
     });
   }
 
-  const after = await prisma.product.findUniqueOrThrow({
+  let after = await prisma.product.findUniqueOrThrow({
     where: { id: productId },
     include: FULL_PRODUCT_INCLUDE,
   });
 
+  // A listed product that now looks or costs different is off the
+  // marketplace for a few minutes before buyers see it again (unless the
+  // seller moved it to draft or archived it in this edit).
+  const changes = diffProducts(before, after);
+  const keepsListed = fields.status === undefined || fields.status === ProductStatus.PUBLISHED || fields.status === ProductStatus.OUT_OF_STOCK;
+  if (LISTED_STATUSES.includes(before.status) && keepsListed && isBuyerFacingChange(changes, before, after)) {
+    after = await prisma.product.update({
+      where: { id: productId },
+      data: { status: ProductStatus.UPDATING, relistAt: new Date(Date.now() + UPDATE_COOLDOWN_MS) },
+      include: FULL_PRODUCT_INCLUDE,
+    });
+  }
+
   // Log what changed for admins. Turning the listing into a different
   // product also marks its existing reviews as for an earlier version.
   // The edit is already saved, so a failure here mustn't fail the request.
-  const changes = diffProducts(before, after);
   if (changes.length === 0) return after;
 
   const reviewsReset = isDifferentProduct(before, after);
@@ -415,12 +434,16 @@ export const getPublicProductByIdService = async (
   id: string,
   viewerId?: string
 ) => {
+  // An edit's few minutes are up: back on sale now, not at the next job run.
+  await relistDueProducts(new Date(), [id]);
+
   // Sold-out products stay viewable - buyers can ask to be told when
-  // they're back. Listings and search only show PUBLISHED ones.
+  // they're back - and so do ones being updated (the page says when they
+  // can buy again). Listings and search only show PUBLISHED ones.
   const product = await prisma.product.findFirst({
     where: {
       id,
-      status: { in: [ProductStatus.PUBLISHED, ProductStatus.OUT_OF_STOCK] },
+      status: { in: [ProductStatus.PUBLISHED, ProductStatus.OUT_OF_STOCK, ProductStatus.UPDATING] },
     },
     include: {
       ...FULL_PRODUCT_INCLUDE,
@@ -553,9 +576,12 @@ export const bulkUpdateProductStatusService = async (
       select: { id: true, status: true },
     });
     await recordStatusChanges(tx, userId, products, status);
+    // Products being updated go back on sale by themselves - publishing
+    // them here doesn't skip their few minutes.
+    const skipUpdating = status === ProductStatus.PUBLISHED || status === ProductStatus.OUT_OF_STOCK;
     return tx.product.updateMany({
-      where: { id: { in: productIds }, storeId: store.id, ...NOT_LINK_ITEM },
-      data: { status },
+      where: { id: { in: productIds }, storeId: store.id, ...NOT_LINK_ITEM, ...(skipUpdating ? { status: { not: ProductStatus.UPDATING } } : {}) },
+      data: { status, ...(status === ProductStatus.DRAFT || status === ProductStatus.ARCHIVED ? { relistAt: null } : {}) },
     });
   }, TX_OPTIONS);
 

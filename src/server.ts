@@ -15,6 +15,7 @@ import { startPayoutsJob } from "./jobs/payouts.job";
 import { startPayoutTermsUpdateJob } from "./jobs/payout-terms-update.job";
 import { startLiveJob } from "./jobs/live.job";
 import { startReviewRemindersJob } from "./jobs/review-reminders.job";
+import { startRelistUpdatedProductsJob } from "./jobs/relist-updated-products.job";
 import { startGroupGiftExpiryJob } from "./jobs/group-gift-expiry.job";
 import { startWinbackRemindersJob } from "./jobs/winback-reminders.job";
 
@@ -40,6 +41,7 @@ server.listen(PORT, () => {
   startPayoutTermsUpdateJob();
   startLiveJob();
   startReviewRemindersJob();
+  startRelistUpdatedProductsJob();
   startGroupGiftExpiryJob();
   startWinbackRemindersJob();
 });

@@ -164,7 +164,7 @@
  * /api/collections/{store}/{slug}:
  *   get:
  *     summary: Public collection page
- *     description: What buyers see at nestlyapp.site/{store}/{slug}. Public. The store's current slug or one it had before a rename works. Products are the ones listed in the shop, in the seller's order, with options and variations so buyers can pick; soldOut marks ones that can't be bought now. A switched-off collection returns isActive false and no products. Suspended stores and unknown collections return 404.
+ *     description: What buyers see at nestlyapp.site/{store}/{slug}. Public. The store's current slug or one it had before a rename works. Products are the ones listed in the shop, in the seller's order, with their description, brand, condition, highlights and specifications, and options and variations so buyers can pick; soldOut marks ones that can't be bought now. A switched-off collection returns isActive false and no products. Suspended stores and unknown collections return 404.
  *     tags: [Collection]
  *     parameters:
  *       - in: path

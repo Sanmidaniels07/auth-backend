@@ -443,7 +443,7 @@
  * /api/products/{id}:
  *   get:
  *     summary: Get a published product by id
- *     description: Public endpoint. Returns products with status PUBLISHED or OUT_OF_STOCK (sold-out pages stay viewable so buyers can ask to be told when they're back - see /api/stock-alerts); listings and search only include PUBLISHED. Products of a suspended store return 404, except to admins (send their token), who can still review them - store.isSuspended tells them. `store.sellerUserId` is the seller's user id (to start a chat). `store.canDeliver` is false when the store has no delivery zone and no pickup point - the product can be viewed but not added to a cart.
+ *     description: Public endpoint. Returns products with status PUBLISHED, OUT_OF_STOCK or UPDATING (being updated by the seller - `relistAt` says when it can be bought again; sold-out pages stay viewable so buyers can ask to be told when they're back - see /api/stock-alerts); listings and search only include PUBLISHED. Products of a suspended store return 404, except to admins (send their token), who can still review them - store.isSuspended tells them. `store.sellerUserId` is the seller's user id (to start a chat). `store.canDeliver` is false when the store has no delivery zone and no pickup point - the product can be viewed but not added to a cart.
  *     tags:
  *       - Product
  *     security: []
@@ -460,7 +460,7 @@
  *         description: Product not found
  *   patch:
  *     summary: Update a product
- *     description: Updates a product owned by the authenticated seller. Requires authentication and ownership. Also used to manage inventory (`stock`) and publishing (`status`) - there are no separate endpoints for these. Providing `images` or `specifications` replaces the existing set entirely; `options` + `variations` (sent together) replace the product's options. While a product has options, a plain `stock` value is ignored - stock is the total of its active combinations. Every save that changes something is logged for admins (see GET /api/admin/products/{id}/history); a new category or a mostly different title also sets `reviewsResetAt`, marking earlier reviews as for an earlier version.
+ *     description: Updates a product owned by the authenticated seller. Requires authentication and ownership. Also used to manage inventory (`stock`) and publishing (`status`) - there are no separate endpoints for these. Providing `images` or `specifications` replaces the existing set entirely; `options` + `variations` (sent together) replace the product's options. While a product has options, a plain `stock` value is ignored - stock is the total of its active combinations. Every save that changes something is logged for admins (see GET /api/admin/products/{id}/history); a new category or a mostly different title also sets `reviewsResetAt`, marking earlier reviews as for an earlier version. Update cooldown: when a listed product (PUBLISHED, OUT_OF_STOCK or UPDATING) changes what buyers judge it by - photos, title, description, price, compare-at price, condition, brand, category, highlights, specifications, options or option prices (not stock) - and the edit keeps it listed, its status becomes UPDATING with `relistAt` 5 minutes later: hidden from listings, carts and checkout until then, then back to PUBLISHED (or OUT_OF_STOCK with no stock). Sellers can't set UPDATING, and publishing an updating product doesn't skip the wait.
  *     tags:
  *       - Product
  *     security:

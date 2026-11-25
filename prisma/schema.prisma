@@ -42,6 +42,9 @@ enum ProductStatus {
   // The item behind a payment link - bought only through the link, never
   // listed, searched or shown on the store.
   PRIVATE
+  // Listed product just edited (photos, name, price...): off the
+  // marketplace until relistAt, then back on sale (utils/productCooldown).
+  UPDATING
 }
 
 // How the buyer gets a payment link's item: the seller delivers for the
@@ -1338,6 +1341,9 @@ model Product {
   deliveryVehicle DeliveryVehicle @default(BIKE)
 
   status ProductStatus @default(DRAFT)
+
+  // While UPDATING: when it goes back on the marketplace.
+  relistAt DateTime?
 
   isFeatured Boolean @default(false)
 

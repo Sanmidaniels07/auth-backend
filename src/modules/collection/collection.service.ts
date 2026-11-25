@@ -13,6 +13,11 @@ const SHOWN: ProductStatus[] = [ProductStatus.PUBLISHED, ProductStatus.OUT_OF_ST
 const PRODUCT_SELECT = {
   id: true,
   title: true,
+  description: true,
+  brand: true,
+  condition: true,
+  highlights: true,
+  specifications: { select: { name: true, value: true } },
   price: true,
   originalPrice: true,
   stock: true,

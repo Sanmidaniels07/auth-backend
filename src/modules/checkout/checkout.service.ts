@@ -162,6 +162,12 @@ const buildPendingOrder = async (
   }
 
   for (const item of cart.items) {
+    if (item.product.status === ProductStatus.UPDATING) {
+      throw new AppError(
+        `The seller is updating "${item.product.title}". Try again in a few minutes.`,
+        400,
+      );
+    }
     if (item.product.status !== ProductStatus.PUBLISHED) {
       throw new AppError(
         `"${item.product.title}" is no longer available.`,
@@ -915,7 +921,9 @@ export const guestCartQuoteService = async (lines: CheckoutLineInput[]) => {
     const variation = line.variationId ? product.variations.find((v) => v.id === line.variationId) ?? null : null;
     const stock = variation ? variation.stock : product.stock;
     const problem =
-      product.status !== ProductStatus.PUBLISHED && product.status !== ProductStatus.OUT_OF_STOCK
+      product.status === ProductStatus.UPDATING
+        ? "The seller is updating this - try again in a few minutes"
+        : product.status !== ProductStatus.PUBLISHED && product.status !== ProductStatus.OUT_OF_STOCK
         ? "No longer available"
         : product.store.isSuspended
           ? "This shop isn't selling right now"
