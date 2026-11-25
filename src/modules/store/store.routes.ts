@@ -36,6 +36,7 @@ import {
   setStoreVerified,
   setupPayoutAccount,
   getStoreTrust,
+  resolveStoreLink,
 } from "./store.controller";
 
 const router = Router();
@@ -128,6 +129,9 @@ router.post(
   validate(setupPayoutAccountSchema),
   setupPayoutAccount
 );
+
+// Short link (nestlyapp.site/{slug}): current slug + referral code.
+router.get("/:slug/link", validate(storeSlugSchema), resolveStoreLink);
 
 // Public trust record (store page, payment links, the /s/{slug} badge page).
 router.get("/:slug/trust", validate(storeSlugSchema), getStoreTrust);

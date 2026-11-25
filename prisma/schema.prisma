@@ -1053,6 +1053,11 @@ model Store {
 
   slug String @unique
 
+  // Earlier slugs (the store was renamed). Short links (nestlyapp.site/{slug})
+  // and store links already shared or printed keep working, and no other
+  // store can take them.
+  previousSlugs String[] @default([])
+
   description String?
 
   logo String?
