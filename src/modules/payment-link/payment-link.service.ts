@@ -354,7 +354,7 @@ export const deletePaymentLinkService = async (userId: string, id: string) => {
   });
 };
 
-type Availability = "AVAILABLE" | "SOLD_OUT" | "PAUSED";
+type Availability = "AVAILABLE" | "SOLD_OUT" | "PAUSED" | "UPDATING";
 
 // How many can still be bought: the link's own quantity, and - for a price
 // agreed in chat on a listed product - what's left of that listing too.
@@ -363,9 +363,16 @@ const stockOf = (link: { product: { stock: number }; offer?: { product: { stock:
 
 const availabilityOf = (link: {
   isActive: boolean;
-  product: { stock: number };
+  product: { stock: number; status?: ProductStatus };
   offer?: { product: { stock: number } | null } | null;
-}): Availability => (!link.isActive ? "PAUSED" : stockOf(link) <= 0 ? "SOLD_OUT" : "AVAILABLE");
+}): Availability =>
+  !link.isActive
+    ? "PAUSED"
+    : link.product.status === ProductStatus.UPDATING
+      ? "UPDATING"
+      : stockOf(link) <= 0
+        ? "SOLD_OUT"
+        : "AVAILABLE";
 
 const PUBLIC_LINK_INCLUDE = {
   product: { include: LINK_PRODUCT_INCLUDE },
@@ -539,6 +546,7 @@ const assertCanBuy = (link: PublicLink, userId: string | null, quantity: number,
   const availability = availabilityOf(link);
   if (availability === "PAUSED") throw new AppError("The seller has paused this link. Message them to turn it back on.", 400);
   if (availability === "SOLD_OUT") throw new AppError("This item has sold out.", 400);
+  if (availability === "UPDATING") throw new AppError("The seller is updating this item. Try again in a few minutes.", 400);
   if (quantity > stockOf(link)) {
     throw new AppError(`Only ${stockOf(link)} left - lower the quantity.`, 400);
   }
