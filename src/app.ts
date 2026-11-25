@@ -53,6 +53,7 @@ import giftRoutes from "./modules/gift/gift.routes";
 import pushRoutes from "./modules/push/push.routes";
 import payoutRoutes from "./modules/payout/payout.routes";
 import paymentMethodRoutes from "./modules/payment-method/payment-method.routes";
+import collectionRoutes from "./modules/collection/collection.routes";
 import adminRoutes from "./modules/admin/admin.routes";
 
 import { authMiddleware } from "./middleware/auth-middleware";
@@ -237,6 +238,7 @@ app.use("/api/push", pushRoutes);
 app.use("/api/admin/payouts", payoutRoutes);
 
 app.use("/api/payment-methods", paymentMethodRoutes);
+app.use("/api/collections", collectionRoutes);
 
 app.use("/api/admin", adminRoutes);
 
