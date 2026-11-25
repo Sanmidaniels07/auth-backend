@@ -173,7 +173,7 @@
  * /api/payment-links/{code}:
  *   get:
  *     summary: A payment link as the buyer sees it
- *     description: Public (login optional). `availability` is AVAILABLE, SOLD_OUT or PAUSED. `isOwner` is true for the seller who made it. `reserved` is true for a link made from an accepted offer in chat - only that buyer can pay it (`reservedForViewer` true for them; others get 403 on pay and guest-pay). `pickupAddress` is set for pickup links. For STORE_OPTIONS links, `shippingOptions` lists the zones and pickup points the buyer can choose (only ones whose vehicle can carry the item). 404 for deleted links and suspended stores.
+ *     description: Public (login optional). `availability` is AVAILABLE, SOLD_OUT or PAUSED. `isOwner` is true for the seller who made it. `reserved` is true for a link made from an accepted offer in chat - only that buyer can pay it (`reservedForViewer` true for them; others get 403 on pay and guest-pay). `pickupAddress` is set for pickup links. For STORE_OPTIONS links, `shippingOptions` lists the zones and pickup points the buyer can choose (only ones whose vehicle can carry the item). The product's `description`, `brand`, `condition`, `highlights` and `specifications` are included so buyers can read everything the seller listed. 404 for deleted links and suspended stores.
  *     tags:
  *       - PaymentLink
  *     parameters:

@@ -73,6 +73,7 @@ const LINK_PRODUCT_INCLUDE = {
   // combinations - the buyer picks one on the pay page.
   options: { orderBy: { position: "asc" as const } },
   variations: { where: { isArchived: false }, orderBy: { createdAt: "asc" as const } },
+  specifications: { select: { name: true, value: true } },
 };
 
 type LinkWithProduct = Prisma.PaymentLinkGetPayload<{
@@ -419,6 +420,11 @@ export const getPublicPaymentLinkService = async (code: string, viewerId?: strin
     code: link.code,
     title: product.title,
     description: product.description,
+    // What the seller added when listing it - buyers on the link see it all.
+    brand: product.brand,
+    condition: product.condition,
+    highlights: product.highlights,
+    specifications: product.specifications,
     price: product.price,
     images: product.images.map(({ url, isPrimary }) => ({ url, isPrimary })),
     category: product.category,
