@@ -26,6 +26,17 @@ const whatsappNumber = z.preprocess(
   z.string().regex(/^\d{10,15}$/, "Enter your WhatsApp number, e.g. 0815 967 1809.").nullable().optional()
 );
 
+// "#7C3AED", "7c3aed" or "#73e" -> "#7c3aed". Blank clears it (Nestly's colours).
+export const brandColorField = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") return value;
+    const hex = value.trim().replace(/^#/, "").toLowerCase();
+    if (!hex) return null;
+    return `#${hex.length === 3 ? hex.replace(/./g, (c) => c + c) : hex}`;
+  },
+  z.string().regex(/^#[0-9a-f]{6}$/, "Pick a colour, e.g. #7C3AED.").nullable().optional()
+);
+
 export const socialFields = {
   instagram: socialHandle("Instagram", /^[A-Za-z0-9._]{1,30}$/),
   facebook: socialHandle("Facebook", /^[A-Za-z0-9.\-]{2,80}$/),
@@ -46,6 +57,7 @@ const storeFields = {
   country: z.string().trim().optional(),
   shippingPolicy: z.string().trim().optional(),
   warrantyPolicy: z.string().trim().optional(),
+  brandColor: brandColorField,
   ...socialFields,
 };
 

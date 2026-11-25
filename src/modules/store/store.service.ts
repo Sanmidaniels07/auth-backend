@@ -488,6 +488,7 @@ const PUBLIC_STORE_LIST_SELECT = {
   description: true,
   logo: true,
   banner: true,
+  brandColor: true,
   city: true,
   state: true,
   country: true,

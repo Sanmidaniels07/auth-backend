@@ -49,6 +49,11 @@
  *                 type: string
  *               warrantyPolicy:
  *                 type: string
+ *               brandColor:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Brand colour as hex (#rrggbb, rrggbb or #rgb), stored lowercase as #rrggbb. Shown on the store page, products and pay links; the website shades it so it stays readable in light and dark mode. "" or null goes back to Nestly colours.
+ *                 example: "#0f766e"
  *               instagram:
  *                 type: string
  *                 nullable: true
@@ -548,6 +553,11 @@
  *                 type: string
  *               warrantyPolicy:
  *                 type: string
+ *               brandColor:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Brand colour as hex (#rrggbb, rrggbb or #rgb), stored lowercase as #rrggbb. Shown on the store page, products and pay links; the website shades it so it stays readable in light and dark mode. "" or null goes back to Nestly colours.
+ *                 example: "#0f766e"
  *               instagram:
  *                 type: string
  *                 nullable: true
