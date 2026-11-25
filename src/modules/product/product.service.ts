@@ -431,6 +431,7 @@ export const getPublicProductByIdService = async (
           slug: true,
           city: true,
           state: true,
+          brandColor: true,
           isSuspended: true,
           // So buyers can message the seller about this product.
           seller: { select: { userId: true } },

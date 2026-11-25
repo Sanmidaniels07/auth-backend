@@ -6,7 +6,7 @@ import { findState } from "../../data/nigeria-locations";
 import { isAdminUser } from "../../utils/isAdmin";
 import { generateReferralCode } from "../../utils/referral";
 import { AppError } from "../../utils/appError";
-import { generateUniqueSlug } from "../../utils/slugify";
+import { generateUniqueSlug, RESERVED_STORE_SLUGS } from "../../utils/slugify";
 import { getApprovedSellerProfile } from "../seller/seller.utils";
 import { recheckCacNameMatch } from "../seller/cac-check.service";
 import {
@@ -109,6 +109,16 @@ const getOwnedStoreBySlug = async (
   return store;
 };
 
+const storeSlugTaken = async (candidate: string, exceptStoreId?: string) =>
+  RESERVED_STORE_SLUGS.has(candidate) ||
+  !!(await prisma.store.findFirst({
+    where: {
+      OR: [{ slug: candidate }, { previousSlugs: { has: candidate } }],
+      ...(exceptStoreId ? { NOT: { id: exceptStoreId } } : {}),
+    },
+    select: { id: true },
+  }));
+
 export const createStoreService = async (
   userId: string,
   data: CreateStoreInput,
@@ -128,15 +138,7 @@ export const createStoreService = async (
     );
   }
 
-  const slug = await generateUniqueSlug(
-    data.name,
-    async (candidate) => {
-      const found = await prisma.store.findUnique({
-        where: { slug: candidate },
-      });
-      return !!found;
-    }
-  );
+  const slug = await generateUniqueSlug(data.name, (candidate) => storeSlugTaken(candidate));
 
   const store = await prisma.store.create({
     data: {
@@ -184,19 +186,11 @@ export const updateStoreService = async (
   let slug = store.slug;
 
   if (data.name && data.name !== store.name) {
-    slug = await generateUniqueSlug(
-      data.name,
-      async (candidate) => {
-        const found = await prisma.store.findFirst({
-          where: {
-            slug: candidate,
-            NOT: { id: storeId },
-          },
-        });
-        return !!found;
-      }
-    );
+    slug = await generateUniqueSlug(data.name, (candidate) => storeSlugTaken(candidate, storeId));
   }
+  // Renamed: the old slug keeps working (it redirects to the new one).
+  const previousSlugs =
+    slug === store.slug ? store.previousSlugs : [...new Set([...store.previousSlugs, store.slug])].filter((old) => old !== slug);
 
   const updated = await prisma.store.update({
     where: { id: storeId },
@@ -204,6 +198,7 @@ export const updateStoreService = async (
       ...data,
       state: data.state ? findState(data.state)?.name ?? data.state.trim() : data.state,
       slug,
+      previousSlugs,
     },
   });
 
@@ -286,12 +281,29 @@ const PRIVATE_STORE_FIELDS = [
 // checkout); the owner and admins (checking a store is genuine) see them.
 const CONTACT_STORE_FIELDS = ["email", "phone", "whatsapp", "instagram", "facebook", "tiktok"] as const;
 
+const findStoreByOldSlug = (slug: string) =>
+  prisma.store.findFirst({ where: { previousSlugs: { has: slug } }, select: { id: true } });
+
+// The short link nestlyapp.site/{slug}: where it goes. Works with the
+// store's current slug or an old one, and tags the visit with the store's
+// referral code (buyers who join through the seller's link count as theirs).
+export const resolveStoreLinkService = async (slug: string) => {
+  const select = { slug: true, referralCode: true, isSuspended: true } as const;
+  const store =
+    (await prisma.store.findUnique({ where: { slug }, select })) ??
+    (await prisma.store.findFirst({ where: { previousSlugs: { has: slug } }, select }));
+  if (!store || store.isSuspended) throw new AppError("Store not found.", 404);
+  return { slug: store.slug, referralCode: store.referralCode };
+};
+
 export const getPublicStoreService = async (
   slug: string,
   viewerId?: string
 ) => {
+  const current = await prisma.store.findUnique({ where: { slug }, select: { id: true } });
+  const renamed = current ? null : await findStoreByOldSlug(slug);
   const store = await prisma.store.findUnique({
-    where: { slug },
+    where: { id: current?.id ?? renamed?.id ?? "" },
     include: {
       seller: {
         select: {
@@ -345,7 +357,9 @@ export const getPublicStoreService = async (
 
   // Payout details are the seller's alone (they get them from /stores/me) -
   // never send bank details or the Paystack subaccount to the public.
-  const { _count, ...rest } = store;
+  // previousSlugs: internal (old links), not for the public.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { _count, previousSlugs, ...rest } = store;
   for (const field of PRIVATE_STORE_FIELDS) delete rest[field];
   // Stores no longer write their own return policy - Nestly's policy applies
   // to every order. Old text stays in the database but isn't shown.
@@ -488,6 +502,7 @@ const PUBLIC_STORE_LIST_SELECT = {
   description: true,
   logo: true,
   banner: true,
+  brandColor: true,
   city: true,
   state: true,
   country: true,

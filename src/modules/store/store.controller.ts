@@ -10,6 +10,7 @@ import {
   createStoreService,
   updateStoreService,
   getPublicStoreService,
+  resolveStoreLinkService,
   getSellerStoreService,
   listStoresService,
   getStoreProductsService,
@@ -72,6 +73,11 @@ export const setupPayoutAccount = asyncHandler(
     );
   }
 );
+
+// Short link nestlyapp.site/{slug} -> the store's current slug + referral code.
+export const resolveStoreLink = asyncHandler(async (req: Request<SlugParams>, res: Response) => {
+  res.status(200).json(apiResponse(await resolveStoreLinkService(req.params.slug), "Store link resolved"));
+});
 
 export const getPublicStore = asyncHandler(
   async (req: Request<SlugParams>, res: Response) => {

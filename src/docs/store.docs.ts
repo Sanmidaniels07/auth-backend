@@ -49,6 +49,11 @@
  *                 type: string
  *               warrantyPolicy:
  *                 type: string
+ *               brandColor:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Brand colour as hex (#rrggbb, rrggbb or #rgb), stored lowercase as #rrggbb. Shown on the store page, products and pay links; the website shades it so it stays readable in light and dark mode. "" or null goes back to Nestly colours.
+ *                 example: "#0f766e"
  *               instagram:
  *                 type: string
  *                 nullable: true
@@ -156,6 +161,34 @@
  *     responses:
  *       200:
  *         description: Store products fetched successfully
+ *       404:
+ *         description: Store not found
+ */
+
+/**
+ * @swagger
+ * /api/stores/{slug}/link:
+ *   get:
+ *     summary: Resolve a store short link
+ *     description: For the short link nestlyapp.site/{slug}. Accepts the store's current slug or one it had before a rename, and returns the current slug and the store's referral code (so visits through the seller's link count as their referrals). Public. Suspended or unknown stores return 404. Store slugs can't be one of the website's own page names (login, feed, marketplace...); a store with such a name gets "name-1".
+ *     tags:
+ *       - Store
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Store link resolved
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               data:
+ *                 slug: tolas-fabrics
+ *                 referralCode: AB12CD
  *       404:
  *         description: Store not found
  */
@@ -548,6 +581,11 @@
  *                 type: string
  *               warrantyPolicy:
  *                 type: string
+ *               brandColor:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Brand colour as hex (#rrggbb, rrggbb or #rgb), stored lowercase as #rrggbb. Shown on the store page, products and pay links; the website shades it so it stays readable in light and dark mode. "" or null goes back to Nestly colours.
+ *                 example: "#0f766e"
  *               instagram:
  *                 type: string
  *                 nullable: true

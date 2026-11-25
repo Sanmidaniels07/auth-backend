@@ -1053,11 +1053,21 @@ model Store {
 
   slug String @unique
 
+  // Earlier slugs (the store was renamed). Short links (nestlyapp.site/{slug})
+  // and store links already shared or printed keep working, and no other
+  // store can take them.
+  previousSlugs String[] @default([])
+
   description String?
 
   logo String?
 
   banner String?
+
+  // The seller's brand colour ("#rrggbb"), used on their store page,
+  // products and pay links. Stored as picked; the website shades it so text
+  // and buttons stay readable in light and dark mode.
+  brandColor String?
 
   email String?
 
