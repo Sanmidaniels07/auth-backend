@@ -136,8 +136,10 @@ const CUSTOMER_ORDER_INCLUDE = {
             where: { isPrimary: true },
             take: 1,
           },
+          // slug/logo: the shop on the order pages; seller's user id (sent
+          // as sellerUserId, see asOrderedForBuyer) for "Message seller".
           store: {
-            select: { id: true, name: true },
+            select: { id: true, name: true, slug: true, logo: true, seller: { select: { userId: true } } },
           },
         },
       },
@@ -171,8 +173,10 @@ const forGiftSender = <T extends { gift: unknown; address: unknown; shipping: { 
 const asOrderedForBuyer = <T extends Prisma.OrderItemGetPayload<{ include: typeof CUSTOMER_ORDER_INCLUDE.items.include }>>(
   item: T
 ) => {
-  const { description, brand, condition, highlights, specifications, ...product } = item.product;
+  const { description, brand, condition, highlights, specifications, store: rawStore, ...rest } = item.product;
   const listingChanged = listingChangedSince(item, { ...item.product, images: item.product.images });
+  const { seller, ...store } = rawStore;
+  const product = { ...rest, store: { ...store, sellerUserId: seller.userId } };
   return { ...asOrdered({ ...item, product }), listingChanged };
 };
 
